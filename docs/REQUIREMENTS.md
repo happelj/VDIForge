@@ -56,6 +56,21 @@ Requirement -> Implementation -> Test -> Evidence -> PASS / FAIL
 | NFR-013 | The local three-node topology shall be documented as non-HA. | Documentation review. |
 | NFR-014 | Future production deployment differences shall be documented separately from MVP requirements. | Documentation review. |
 
+## Infrastructure Requirements
+
+| ID | Requirement | Verification approach |
+| --- | --- | --- |
+| INFRA-001 | The local lab shall define exactly three initial nodes named `vdi-control-01`, `vdi-worker-01`, and `vdi-worker-02`. | Terraform spec review, VirtualBox metadata review, and documentation review. |
+| INFRA-002 | `vdi-control-01` shall be sized as the future control-plane node with at least 2 vCPU, 4096 MiB RAM, and 40 GiB disk. | Terraform output and VirtualBox metadata review. |
+| INFRA-003 | `vdi-worker-01` shall be sized as the future platform worker with at least 2 vCPU, 6144 MiB RAM, and 50 GiB disk. | Terraform output and VirtualBox metadata review. |
+| INFRA-004 | `vdi-worker-02` shall be sized as the future VDI worker with at least 4 vCPU, 8192 MiB RAM, and 60 GiB disk. | Terraform output and VirtualBox metadata review. |
+| INFRA-005 | The local lab shall provide host-to-node SSH access for all three nodes over a predictable management network. | Host SSH test to each node. |
+| INFRA-006 | The local lab shall provide node-to-node network reachability among all three nodes. | Ping matrix from each node to the other nodes. |
+| INFRA-007 | The local lab shall provide node outbound Internet access for package installation. | Guest package metadata or outbound connectivity test. |
+| INFRA-008 | The future VDI worker `vdi-worker-02` shall expose hardware virtualization to the guest OS before Phase 3 installs KubeVirt. | `/proc/cpuinfo` virtualization flag check and `/dev/kvm` existence check. |
+| INFRA-009 | Phase 2 shall not install Kubernetes, KubeVirt, Keycloak, Guacamole, Prometheus, Grafana, or application workloads. | Repository review and node package/service review. |
+| INFRA-010 | Phase 2 infrastructure validation shall produce a useful PASS/FAIL summary and distinguish static checks from live infrastructure checks. | `scripts/validate-phase2.ps1` review and execution. |
+
 ## Security Requirements
 
 | ID | Requirement | Verification approach |
@@ -115,3 +130,27 @@ Requirement -> Implementation -> Test -> Evidence -> PASS / FAIL
 - Requirements should describe observable behavior or verifiable design constraints.
 - Later phases should create a traceability matrix mapping these IDs to implementation, tests, evidence, and status.
 - If a requirement changes, the same ID should be updated intentionally rather than duplicated under a new meaning.
+
+## Phase 2 Traceability
+
+| Requirement | Implementation reference | Test or evidence | Status | Notes |
+| --- | --- | --- | --- | --- |
+| `NFR-001` | [docs/LOCAL-INFRASTRUCTURE.md](LOCAL-INFRASTRUCTURE.md) | Bill-of-materials review: VirtualBox, Ubuntu Server, Terraform, Ansible plans are free for the lab. | PASS | Assumes existing host hardware. |
+| `NFR-002` | [docs/LOCAL-INFRASTRUCTURE.md](LOCAL-INFRASTRUCTURE.md) | Architecture review. | PASS | No paid AWS, VMware, PCoIP, Windows desktop, Okta, or Ping dependency. |
+| `NFR-003` | [terraform/environments/local/main.tf](../terraform/environments/local/main.tf), [docs/LOCAL-INFRASTRUCTURE.md](LOCAL-INFRASTRUCTURE.md) | Version and resource review. | PASS | Phase 2 pins the local OS and VirtualBox result; Phase 3 must re-check Kubernetes/KubeVirt pins before installing cluster components. |
+| `NFR-004` | [.gitignore](../.gitignore), [scripts/validate-phase2.ps1](../scripts/validate-phase2.ps1) | `.gitignore` and secret-scan validation. | PASS | Terraform state, VM disks, ISOs, credentials, and generated artifacts are excluded. |
+| `NFR-005` | [ansible/playbooks/baseline.yml](../ansible/playbooks/baseline.yml) | Ansible syntax check, `ansible-lint`, and second playbook run with `changed=0` on all nodes. | PASS | Validation used `vdi-control-01` as the temporary Ansible controller. |
+| `NFR-013` | [docs/LOCAL-INFRASTRUCTURE.md](LOCAL-INFRASTRUCTURE.md), [docs/ARCHITECTURE.md](ARCHITECTURE.md) | Documentation review. | PASS | Single physical host is explicitly not HA. |
+| `NFR-014` | [docs/DESIGN.md](DESIGN.md), [docs/ROADMAP.md](ROADMAP.md) | Documentation review. | PASS | Future bare-metal/cloud evolution is separated from the local lab. |
+| `SEC-008` | [.gitignore](../.gitignore), [scripts/validate-phase2.ps1](../scripts/validate-phase2.ps1) | Secret scan and Git review. | PASS | Private SSH keys and passwords are not committed. |
+| `OPS-012` | [scripts/validate-phase2.ps1](../scripts/validate-phase2.ps1) | Phase validation and Git workflow evidence. | PASS | Static validation is automated; live checks are manual or key-based SSH. |
+| `INFRA-001` | [terraform/environments/local/main.tf](../terraform/environments/local/main.tf), VirtualBox VMs | VirtualBox metadata and Terraform spec review. | PASS | Three expected node definitions exist. |
+| `INFRA-002` | [terraform/environments/local/main.tf](../terraform/environments/local/main.tf), VirtualBox metadata | CPU/RAM/disk review. | PASS | `vdi-control-01` is 2 vCPU, 4096 MiB RAM, 40 GiB disk. |
+| `INFRA-003` | [terraform/environments/local/main.tf](../terraform/environments/local/main.tf), VirtualBox metadata | CPU/RAM/disk review. | PASS | `vdi-worker-01` is 2 vCPU, 6144 MiB RAM, 50 GiB disk. |
+| `INFRA-004` | [terraform/environments/local/main.tf](../terraform/environments/local/main.tf), VirtualBox metadata | CPU/RAM/disk review. | PASS | `vdi-worker-02` is 4 vCPU, 8192 MiB RAM, 60 GiB disk. |
+| `INFRA-005` | [docs/LOCAL-INFRASTRUCTURE.md](LOCAL-INFRASTRUCTURE.md) | User-confirmed SSH from host to all three nodes. | PASS | Password bootstrap worked; key-based SSH remains recommended. |
+| `INFRA-006` | [docs/LOCAL-INFRASTRUCTURE.md](LOCAL-INFRASTRUCTURE.md) | User-confirmed node-to-node ping matrix. | PASS | Host-only network is `192.168.56.0/24`. |
+| `INFRA-007` | [docs/LOCAL-INFRASTRUCTURE.md](LOCAL-INFRASTRUCTURE.md) | User-confirmed outbound checks passed on all three nodes. | PASS | NAT is configured on Adapter 1 for each VM. |
+| `INFRA-008` | [docs/LOCAL-INFRASTRUCTURE.md](LOCAL-INFRASTRUCTURE.md) | User-confirmed `svm` flags and `/dev/kvm` on `vdi-worker-02`. | PASS | KubeVirt hardware acceleration readiness is VERIFIED for Phase 2. |
+| `INFRA-009` | Repository review | No Kubernetes/KubeVirt manifests or install automation added in Phase 2. | PASS | Phase 3 remains unimplemented. |
+| `INFRA-010` | [scripts/validate-phase2.ps1](../scripts/validate-phase2.ps1) | Static validator execution. | PASS | Live SSH mode requires key-based SSH for non-interactive checks. |

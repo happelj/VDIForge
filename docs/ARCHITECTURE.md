@@ -1,6 +1,6 @@
 # VDIForge Architecture
 
-This document contains the Phase 1 architecture views for VDIForge. The diagrams show planned architecture, not an implemented system.
+This document contains architecture views for VDIForge. Diagrams that include Kubernetes, KubeVirt, identity, application, and observability flows remain planned until their later implementation phases. The local VirtualBox infrastructure view reflects the Phase 2 host build.
 
 ## System Context
 
@@ -78,23 +78,40 @@ This is a non-HA local topology. When all three nodes are VMs on one host, the p
 
 ```mermaid
 flowchart TB
-  HW[Physical developer hardware<br/>CPU with VT-x or AMD-V]
-  Hypervisor[Free local hypervisor<br/>preferred: KVM/libvirt]
-  Nodes[Three Ubuntu Server node VMs]
-  K8s[kubeadm Kubernetes with containerd]
-  Calico[Calico CNI and NetworkPolicies]
-  KubeVirt[KubeVirt on Kubernetes]
-  Workloads[VDIForge platform and desktop VMs]
+  HW[Windows 10 Pro workstation<br/>Ryzen 7 1700 / 32 GB RAM]
+  VBox[Oracle VirtualBox 7.2.16]
+  NAT[NAT network<br/>outbound Internet]
+  HostOnly[Host-only network<br/>192.168.56.0/24]
+  CP[vdi-control-01<br/>192.168.56.10<br/>2 vCPU / 4 GiB / 40 GiB]
+  W1[vdi-worker-01<br/>192.168.56.11<br/>2 vCPU / 6 GiB / 50 GiB]
+  W2[vdi-worker-02<br/>192.168.56.12<br/>4 vCPU / 8 GiB / 60 GiB<br/>/dev/kvm verified]
+  Future[Future Phase 3<br/>kubeadm, containerd, Calico, KubeVirt]
 
-  HW --> Hypervisor
-  Hypervisor --> Nodes
-  Nodes --> K8s
-  K8s --> Calico
-  K8s --> KubeVirt
-  KubeVirt --> Workloads
+  HW --> VBox
+  VBox --> NAT
+  VBox --> HostOnly
+  NAT --> CP
+  NAT --> W1
+  NAT --> W2
+  HostOnly --> CP
+  HostOnly --> W1
+  HostOnly --> W2
+  CP -. planned .-> Future
+  W1 -. planned .-> Future
+  W2 -. planned .-> Future
 ```
 
-Nested virtualization must be validated before using a VM-based worker node for KubeVirt workloads.
+`vdi-worker-02` is the only Phase 2 node that requires nested virtualization. It is verified because `svm` CPU flags are visible inside the guest and `/dev/kvm` exists.
+
+Actual Phase 2 network:
+
+| Node | NAT | Host-only IP | Purpose |
+| --- | --- | --- | --- |
+| `vdi-control-01` | DHCP | `192.168.56.10` | future Kubernetes control plane |
+| `vdi-worker-01` | DHCP | `192.168.56.11` | future platform worker |
+| `vdi-worker-02` | DHCP | `192.168.56.12` | future KubeVirt/VDI worker |
+
+The host-only adapter address is `192.168.56.1`. DHCP is disabled on the host-only network; static addresses are assigned inside each Ubuntu guest. NAT supplies outbound Internet access.
 
 ## Authentication Flow
 

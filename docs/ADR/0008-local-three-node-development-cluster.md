@@ -29,6 +29,8 @@ vdiforge.io/node-role=vdi
 
 Use taints, tolerations, node selectors, and affinity only where they are technically justified.
 
+Phase 2 update: the three nodes were created as VirtualBox Ubuntu Server VMs on one Windows host. The host-only management subnet is `192.168.56.0/24`, and `/dev/kvm` is verified on `vdi-worker-02`.
+
 ## Alternatives Considered
 
 - Single-node Kubernetes: easier, but weaker demonstration of scheduling, node roles, and placement.

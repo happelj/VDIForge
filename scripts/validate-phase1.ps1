@@ -91,7 +91,7 @@ foreach ($claim in $bannedClaims) {
 }
 
 $requirementText = Get-Content -LiteralPath "docs/REQUIREMENTS.md" -Raw
-$ids = [regex]::Matches($requirementText, "(?m)^\|\s*((?:FR|NFR|SEC|OBS|OPS)-\d{3})\s*\|") | ForEach-Object { $_.Groups[1].Value }
+$ids = [regex]::Matches($requirementText, "(?m)^\|\s*((?:FR|NFR|SEC|OBS|OPS|INFRA)-\d{3})\s*\|") | ForEach-Object { $_.Groups[1].Value }
 
 if ($ids.Count -lt 40) {
   throw "Expected at least 40 formal requirements, found $($ids.Count)."
@@ -102,7 +102,7 @@ if ($duplicates.Count -gt 0) {
   throw "Duplicate requirement IDs: $($duplicates.Name -join ', ')"
 }
 
-$requiredPrefixes = @("FR", "NFR", "SEC", "OBS", "OPS")
+$requiredPrefixes = @("FR", "NFR", "SEC", "OBS", "OPS", "INFRA")
 foreach ($prefix in $requiredPrefixes) {
   if (-not ($ids | Where-Object { $_ -like "$prefix-*" })) {
     throw "No requirements found for prefix $prefix."

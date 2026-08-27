@@ -23,6 +23,8 @@ Do not invoke Terraform for each end-user desktop launch. The application launch
 
 Use the maintained `dmacvicar/libvirt` provider as the preferred local Terraform provider candidate. If it proves impractical on the user's host, document a fallback and preserve Terraform for future cloud or libvirt-capable environments.
 
+Phase 2 update: the actual developer host uses VirtualBox on Windows 10 Pro. VDIForge intentionally does not depend on an alpha or weakly maintained VirtualBox provider. Terraform records and validates the local lab specification with built-in resources; VirtualBox GUI or `VBoxManage` owns VM lifecycle on this host. See [ADR 0009](0009-virtualbox-local-lab-on-windows.md).
+
 ## Alternatives Considered
 
 - Terraform for every desktop launch: rejected because it couples user actions to infrastructure state operations and is poorly suited for high-frequency VM lifecycle.
@@ -35,4 +37,4 @@ Use the maintained `dmacvicar/libvirt` provider as the preferred local Terraform
 - Terraform usage remains meaningful and properly scoped.
 - Terraform state must not be committed.
 - Desktop lifecycle belongs to VDIForge plus Kubernetes/KubeVirt.
-- Phase 2 must validate whether local KVM/libvirt Terraform is practical on the actual hardware.
+- Phase 2 validated that local KVM/libvirt Terraform is not practical on the actual host without changing the user's hardware or operating-system layout.

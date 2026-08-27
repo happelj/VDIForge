@@ -1,0 +1,8 @@
+---
+- name: Apply Phase 2 baseline configuration
+  hosts: vdiforge
+  become: true
+  gather_facts: true
+  roles:
+    - role: common
+    - role: security-baseline

@@ -1,6 +1,76 @@
 # Operations Runbook
 
-This runbook defines initial troubleshooting procedures for the planned VDIForge platform. Commands assume a later Kubernetes implementation and may require namespace adjustment.
+This runbook defines troubleshooting procedures for the VDIForge local lab and planned platform. Kubernetes commands apply to later phases and may require namespace adjustment.
+
+## VirtualBox VM Does Not Start
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | VM fails to power on, exits immediately, or reports virtualization-related startup errors. |
+| Likely causes | Windows hypervisor still active, virtualization disabled in firmware, insufficient host RAM, stale VirtualBox process, corrupt VM metadata. |
+| Diagnostics | Check VirtualBox error dialog; verify Windows features for Hyper-V/Virtual Machine Platform; inspect VM Settings -> System -> Acceleration; run `systeminfo` on Windows; check available RAM. |
+| Remediation | Shut down other VMs, reboot host, confirm virtualization is enabled in BIOS/UEFI, keep Hyper-V disabled for the VirtualBox nested-virtualization lab, recreate only the affected VM if metadata is corrupt. |
+| Logs/metrics | VirtualBox VM log under `F:\VirtualBox VMs\<vm-name>\Logs`, Windows Event Viewer, host RAM usage. |
+
+## Host-Only IP Missing
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | `ip -br addr` in a guest does not show `192.168.56.x/24` on `enp0s8`; host cannot SSH to the node. |
+| Likely causes | Adapter 2 not enabled, Adapter 2 attached to the wrong network, netplan static address missing, netplan not applied. |
+| Diagnostics | In VirtualBox verify Adapter 2 is `Host-only Adapter` using `VirtualBox Host-Only Ethernet Adapter`; in the guest run `ip -br addr`, `ip route`, and `sudo netplan get`. |
+| Remediation | Power off the VM, correct Adapter 2, boot the VM, add the documented static `enp0s8` address, then run `sudo netplan apply`. Do not set a default gateway on the host-only adapter. |
+| Logs/metrics | `journalctl -u systemd-networkd` or NetworkManager logs, netplan apply output. |
+
+## Host SSH Failure
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | `ssh vdiadmin@192.168.56.10`, `.11`, or `.12` fails from Windows. |
+| Likely causes | Guest SSH server not installed or not running, wrong host-only IP, Windows host-only adapter down, firewall policy, wrong credentials. |
+| Diagnostics | From Windows run `ping 192.168.56.x`; from guest run `systemctl status ssh`, `ip -br addr`, and `sudo ss -tlnp | grep :22`. |
+| Remediation | Start SSH with `sudo systemctl enable --now ssh`, correct netplan, confirm the host-only adapter is enabled, use the documented `vdiadmin` account, move to key-based SSH before disabling password auth. |
+| Logs/metrics | Guest `journalctl -u ssh`, Windows OpenSSH client error, VirtualBox network settings. |
+
+## Node-to-Node Ping Failure
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | One VM cannot ping another VM on `192.168.56.0/24`. |
+| Likely causes | One node has the wrong host-only IP, Adapter 2 disconnected, duplicate IP, local firewall. |
+| Diagnostics | On each node run `ip -br addr`; run pings between all pairs; verify all VMs use the same host-only adapter. |
+| Remediation | Correct static IP assignment, reconnect Adapter 2, remove duplicate IPs, restart networking with `sudo netplan apply`. |
+| Logs/metrics | Netplan state, systemd-networkd logs, VirtualBox adapter configuration. |
+
+## `/dev/kvm` Missing on `vdi-worker-02`
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | `ls -l /dev/kvm` reports no such file; `grep -E '(vmx|svm)' /proc/cpuinfo` returns nothing. |
+| Likely causes | Nested VT-x/AMD-V not enabled for `vdi-worker-02`, Windows hypervisor active, host firmware virtualization disabled, VM booted before setting change. |
+| Diagnostics | Power off the VM and check VirtualBox Settings -> System -> Processor -> Nested VT-x/AMD-V; inside the guest run `grep -E -m 5 '(vmx|svm)' /proc/cpuinfo` and `ls -l /dev/kvm`. |
+| Remediation | Shut down the VM, disable the Windows hypervisor path used during Phase 2, reboot Windows, enable Nested VT-x/AMD-V for `vdi-worker-02`, boot the guest, recheck `/dev/kvm`. |
+| Logs/metrics | VirtualBox VM log, guest `dmesg | grep -i kvm`, `/proc/cpuinfo`. |
+
+## Local Disk Capacity
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | VM creation fails, VM pauses, package installation fails, or disk images cannot grow. |
+| Likely causes | Insufficient free space on `F:`, dynamic VDI growth, orphaned VM folders, ISO or logs consuming space. |
+| Diagnostics | Check Windows drive free space; inspect `F:\VirtualBox VMs`; use VirtualBox Media Manager for orphaned disks. |
+| Remediation | Delete only intentionally removed VM folders, prune old ISOs and logs, keep Terraform state and credentials out of Git, recreate affected VMs only from the documented procedure. |
+| Logs/metrics | Windows drive properties, VirtualBox Media Manager, VM logs. |
+
+## Phase 2 Rebuild Procedure
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | A node is misconfigured beyond quick repair or needs a clean rebuild. |
+| Likely causes | Wrong OS selection, wrong disk size, wrong hostname, incorrect network adapter order, failed manual configuration. |
+| Diagnostics | Compare the VM to [Local Infrastructure](LOCAL-INFRASTRUCTURE.md); inspect VM Settings -> System, Storage, Network; verify `ip -br addr`, hostname, and disk size. |
+| Remediation | Shut down the affected VM, remove only that VM in VirtualBox, delete only that VM folder under `F:\VirtualBox VMs`, recreate it with documented values, reapply static networking, then validate ping, SSH, and `/dev/kvm` where applicable. |
+| Logs/metrics | VirtualBox metadata, validation script output, manual ping/SSH evidence. |
 
 ## Kubernetes Node NotReady
 

@@ -1,6 +1,6 @@
 # Security Model
 
-This document defines the initial VDIForge threat model and security controls. It is a design document for later implementation phases.
+This document defines the VDIForge threat model and security controls. Most controls apply to later application and Kubernetes phases; the Phase 2 local infrastructure security notes apply to the current VirtualBox lab.
 
 ## Security Objectives
 
@@ -124,6 +124,19 @@ Conceptual denied paths:
 - arbitrary cross-user desktop traffic
 
 Calico and Kubernetes NetworkPolicies will enforce namespace and workload-level restrictions. KubeVirt VMI labels should be designed so NetworkPolicies can select desktops by app, owner, and desktop ID where feasible.
+
+## Phase 2 Local Infrastructure Security
+
+Current Phase 2 controls:
+
+- The VirtualBox host-only network is private to the workstation and uses `192.168.56.0/24`.
+- NAT provides outbound Internet access without intentionally exposing guest services to the public Internet.
+- SSH is limited to the local management network.
+- Private SSH keys, VM disks, ISOs, Terraform state, and credentials are excluded from Git.
+- Password SSH is acceptable only for local bootstrap; key-based SSH should be configured before disabling password login.
+- `vdi-worker-02` exposes `/dev/kvm` for future KubeVirt use, but it does not receive Kubernetes credentials or platform control privileges in Phase 2.
+
+Phase 2 does not install Kubernetes, KubeVirt, Keycloak, Guacamole, databases, monitoring, or application workloads.
 
 ## Secret Handling
 
