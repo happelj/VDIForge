@@ -46,6 +46,7 @@ ansible/vault-password*
 # Packer and image artifacts
 packer_cache/
 *.box
+*.vdi
 *.qcow2
 *.qcow2c
 *.raw
@@ -53,8 +54,12 @@ packer_cache/
 *.ova
 *.iso
 *.img
+*.vbox
+*.vbox-prev
+*.nvram
 *.checksum
 manifest.json
+VirtualBox VMs/
 
 # Python
 __pycache__/

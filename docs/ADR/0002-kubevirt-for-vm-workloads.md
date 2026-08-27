@@ -24,6 +24,8 @@ Target resources:
 
 The preferred local deployment target is a Linux KVM/libvirt host that exposes nested virtualization to Kubernetes worker-node VMs. KubeVirt software emulation may be used only as a development fallback.
 
+Phase 2 update: the actual developer host cannot use bare-metal Linux KVM/libvirt. [ADR 0009](0009-virtualbox-local-lab-on-windows.md) accepts VirtualBox on Windows 10 Pro for this local lab because `vdi-worker-02` exposes `svm` CPU flags and `/dev/kvm` inside the Ubuntu guest.
+
 ## Alternatives Considered
 
 - Containers with desktop packages: rejected because they are not traditional VDI VMs and would misrepresent the platform.

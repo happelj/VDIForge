@@ -1,10 +1,10 @@
 # VDIForge Technical Design
 
-This document is the authoritative Phase 1 technical design for VDIForge. Later implementation phases must update this document or create an ADR before deviating from these decisions.
+This document is the authoritative technical design for VDIForge. Later implementation phases must update this document or create an ADR before deviating from these decisions.
 
 ## Status
 
-Phase 1 documentation foundation. The platform described here is planned, not implemented.
+Phase 2 local infrastructure foundation is documented and host-validated. The full VDI platform remains planned: Kubernetes, KubeVirt, Keycloak, Guacamole, FastAPI, React, Helm application deployment, Packer image automation, and Prometheus/Grafana are not implemented yet.
 
 ## Goals
 
@@ -54,6 +54,7 @@ Sources reviewed during Phase 1:
 - Apache Guacamole architecture and protocol support: [Guacamole architecture](https://guacamole.apache.org/doc/gug/guacamole-architecture.html) and [Guacamole configuration](https://guacamole.apache.org/doc/gug/configuring-guacamole.html)
 - Keycloak OIDC flows and role claims: [Keycloak server administration guide](https://www.keycloak.org/docs/latest/server_admin/)
 - Terraform libvirt provider status: [dmacvicar/libvirt Terraform provider](https://registry.terraform.io/providers/dmacvicar/libvirt/latest/docs)
+- Phase 2 local host implementation: [Local Infrastructure](LOCAL-INFRASTRUCTURE.md)
 
 ## Candidate Version Pins
 
@@ -61,11 +62,11 @@ These pins are design inputs as of 2026-08-26. Implementation phases must re-che
 
 | Component | Candidate pin | Rationale |
 | --- | --- | --- |
-| Ubuntu Server | 24.04 LTS | Stable local host and node baseline with long support horizon. |
+| Ubuntu Server | 26.04 LTS | Actual Phase 2 node baseline installed from `ubuntu-26.04-live-server-amd64.iso`; Phase 3 must validate Kubernetes/KubeVirt on this OS and kernel. |
 | Kubernetes | 1.36.2 | Active Kubernetes release line per Kubernetes release documentation. |
 | KubeVirt | 1.9.0 | Release notes state it targets Kubernetes 1.36 and supports the previous two minor releases. |
 | Calico | 3.32.1 | Calico 3.32 documentation lists Kubernetes 1.34, 1.35, and 1.36 as tested versions. |
-| Terraform libvirt provider | 0.9.8 | Maintained provider release for local KVM/libvirt infrastructure lifecycle experiments. |
+| Terraform local lab | Terraform 1.15.8 with built-in `terraform_data` | Actual Phase 2 host uses VirtualBox; Terraform validates the lab specification without depending on an alpha VirtualBox provider. |
 | Apache Guacamole | 1.6.0 | Current documented Guacamole release with RDP, VNC, SSH, WebSocket, and container deployment support. |
 
 No implementation phase should use floating `latest` tags for platform components, images, or charts.
@@ -80,7 +81,17 @@ The initial lab uses three Ubuntu Server Kubernetes nodes:
 | `vdi-worker-01` | worker node | Platform services such as API, Keycloak, Guacamole, PostgreSQL, monitoring |
 | `vdi-worker-02` | worker node | VDI-oriented workloads, KubeVirt VirtualMachineInstances |
 
-The nodes may initially be VMs running on a free local hypervisor. The preferred no-cost path is a Linux host with KVM/libvirt because it aligns with KubeVirt's KVM dependency and has a maintained Terraform provider. Running the Kubernetes nodes as VMs requires nested virtualization for useful KubeVirt performance.
+The nodes may initially be VMs running on a free local hypervisor. The preferred no-cost path remains a Linux host with KVM/libvirt because it aligns directly with KubeVirt's KVM dependency and has a stronger Terraform provider story. The actual Phase 2 host cannot use that path, so [ADR 0009](ADR/0009-virtualbox-local-lab-on-windows.md) accepts Oracle VirtualBox 7.2.16 on Windows 10 Pro for this local lab.
+
+Phase 2 actual node resources:
+
+| Node | CPU | RAM | Disk | Host-only IP | Status |
+| --- | ---: | ---: | ---: | --- | --- |
+| `vdi-control-01` | 2 vCPU | 4096 MiB | 40 GiB | `192.168.56.10` | SSH verified |
+| `vdi-worker-01` | 2 vCPU | 6144 MiB | 50 GiB | `192.168.56.11` | SSH verified |
+| `vdi-worker-02` | 4 vCPU | 8192 MiB | 60 GiB | `192.168.56.12` | SSH and `/dev/kvm` verified |
+
+Each VM uses NAT for outbound package access and a VirtualBox host-only adapter on `192.168.56.0/24` for host administration and node-to-node traffic.
 
 If all three nodes run on one physical computer, they are only logical failure domains. The lab still demonstrates real Kubernetes concepts:
 
@@ -180,15 +191,20 @@ Feasibility conclusion:
 - Required validation: each Kubernetes worker that may host KubeVirt VMs must expose `/dev/kvm`, load KVM kernel modules, and pass KubeVirt node checks.
 - Important limitation: if `/dev/kvm` is unavailable, KubeVirt VM startup may fail unless software emulation is enabled.
 - Fallback: KubeVirt `useEmulation: true` can support development-only validation but will be slower and should not be used for a performance-oriented demo.
-- If nested virtualization is unreliable on the chosen hypervisor, Phase 2 should evaluate either running Kubernetes directly on Linux bare metal, moving only `vdi-worker-02` to a bare-metal worker, or switching the local hypervisor to KVM/libvirt.
+- Actual Phase 2 result: VirtualBox nested virtualization is verified on `vdi-worker-02` because `svm` flags are visible in `/proc/cpuinfo` and `/dev/kvm` exists inside the guest.
 
-Validation commands planned for Phase 2:
+Phase 2 validation commands:
 
 ```bash
 lscpu | grep -E 'Virtualization|vmx|svm'
 lsmod | grep kvm
 test -e /dev/kvm
 sudo kvm-ok
+```
+
+Phase 3 Kubernetes/KubeVirt validation will add:
+
+```bash
 kubectl get nodes -o wide
 kubectl -n kubevirt get pods
 ```
@@ -199,32 +215,40 @@ This risk is tracked in [ADR 0002](ADR/0002-kubevirt-for-vm-workloads.md) and [A
 
 Terraform manages infrastructure lifecycle, not per-user desktop launches.
 
-Potential Terraform responsibilities:
+Terraform responsibilities:
 
-- local KVM/libvirt VM definitions where practical
-- local virtual networks and storage pools
+- validated local VirtualBox lab specification for this Windows host
+- node CPU, memory, disk, role, IP, and SSH-target metadata
+- local virtual networks and storage pools where a maintained provider is practical
 - reusable infrastructure modules
 - future cloud infrastructure
 - environment-level variables and outputs
 
 Terraform must not be invoked by the VDIForge application for every Launch click. User desktop lifecycle is handled by the backend calling Kubernetes/KubeVirt APIs.
 
-The maintained `dmacvicar/libvirt` provider is the preferred candidate for local KVM/libvirt infrastructure. If Phase 2 proves local Terraform support is impractical for a developer's host, the fallback is documented manual VM creation or hypervisor-native scripting for the lab while preserving Terraform for future cloud or libvirt-capable environments.
+The maintained `dmacvicar/libvirt` provider remains the preferred candidate for a future Linux KVM/libvirt environment. For the actual Windows/VirtualBox host, Phase 2 intentionally avoids making an alpha or weakly maintained VirtualBox provider authoritative. Terraform uses the built-in `terraform_data` resource to validate and output the lab specification while VM lifecycle remains VirtualBox GUI or `VBoxManage`.
 
 Terraform state, tfvars, credentials, and generated plans must not be committed.
 
 ## Ansible Boundary
 
-Ansible configures operating systems and hosts. Planned reusable roles:
+Ansible configures operating systems and hosts. Phase 2 introduces:
 
 ```text
 common
 security-baseline
+```
+
+Later phases add:
+
+```text
 containerd
 kubernetes-common
 kubernetes-control-plane
 kubernetes-worker
 ```
+
+The current Windows host does not provide a native Ansible control environment. Phase 2 ran syntax, lint, connectivity, and idempotency checks from `vdi-control-01` as a temporary Ubuntu VM controller. Ansible does not install Kubernetes in Phase 2.
 
 Ansible also participates in golden image configuration by installing packages, hardening defaults, configuring the remote desktop service, and running validation tasks inside images.
 
@@ -620,16 +644,18 @@ Authenticate -> List authorized images -> Request desktop -> Observe provisionin
 
 ## Local Deployment Plan
 
-Phase 2 should produce local infrastructure that can host the three-node cluster. The preferred path is:
+Phase 2 produced local infrastructure that can host the planned three-node cluster:
 
-1. Use a Linux KVM/libvirt host or equivalent free hypervisor that exposes nested virtualization.
-2. Create `vdi-control-01`, `vdi-worker-01`, and `vdi-worker-02`.
-3. Configure OS baselines with Ansible.
-4. Bootstrap Kubernetes with kubeadm and containerd.
-5. Install Calico and Metrics Server.
-6. Validate `/dev/kvm` and KubeVirt compatibility on the VDI worker.
+1. Oracle VirtualBox 7.2.16 on Windows 10 Pro.
+2. Ubuntu Server 26.04 LTS node VMs named `vdi-control-01`, `vdi-worker-01`, and `vdi-worker-02`.
+3. NAT plus host-only networking on `192.168.56.0/24`.
+4. SSH access from the host to all nodes.
+5. Node-to-node ping validation.
+6. `/dev/kvm` validation on `vdi-worker-02`.
+7. Terraform specification and outputs under `terraform/environments/local`.
+8. Ansible baseline inventory and roles under `ansible`.
 
-If nested virtualization cannot be made reliable, Phase 2 should record the result and choose a fallback before Phase 3.
+Phase 3 begins with Kubernetes prerequisites, kubeadm/containerd installation, CNI installation, Metrics Server, and KubeVirt validation. Phase 2 intentionally does not install these components.
 
 ## Future Cloud or Bare-Metal Deployment
 
@@ -654,6 +680,9 @@ These are not required for the MVP.
 
 - The local cluster is not production HA.
 - One physical host running all node VMs is a single physical failure domain.
+- The current Phase 2 hypervisor is VirtualBox on Windows because bare-metal Linux KVM/libvirt is unavailable to the user.
+- VirtualBox VM lifecycle is not fully Terraform-managed in this lab.
+- Ansible execution requires a Linux/WSL/Ubuntu controller; Phase 2 validation used `vdi-control-01`.
 - KubeVirt software emulation is slow and only acceptable for development fallback.
 - Local storage can limit migration and recovery behavior.
 - Remote desktop performance will not match commercial proprietary protocols.
@@ -662,8 +691,8 @@ These are not required for the MVP.
 
 ## Open Questions
 
-- Which exact local host OS and hypervisor will be used in Phase 2?
-- Does the available hardware expose reliable nested virtualization to worker-node VMs?
+- Which controller should be used for routine Ansible operations after Phase 2: WSL, `vdi-control-01`, or another Linux VM?
+- Does Kubernetes 1.36 and the selected KubeVirt release pass validation on Ubuntu Server 26.04 LTS with the current kernel?
 - Which storage class will be used for KubeVirt desktop disks in the lab?
 - Should Guacamole connection handling use its REST/API integration, a custom extension, or short-lived generated connection records for the MVP?
 - What exact resource profiles should be exposed first?

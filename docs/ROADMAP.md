@@ -4,37 +4,44 @@ This roadmap defines planned implementation phases. Do not begin a future phase 
 
 ## Phases
 
-| Phase | Name | Primary outcome |
-| ---: | --- | --- |
-| 1 | Architecture and requirements | Documentation, repository foundation, ADRs, validation. |
-| 2 | Local infrastructure | Local host/hypervisor plan, three Ubuntu Server nodes, Terraform/Ansible local foundation where practical. |
-| 3 | Kubernetes/KubeVirt foundation | kubeadm cluster, containerd, Calico, Metrics Server, KubeVirt validated. |
-| 4 | Helm/platform foundation | Namespaces, base Helm chart, platform deployment skeleton, PostgreSQL dependency path. |
-| 5 | Keycloak/OIDC/RBAC | Realm, clients, demo users, token validation, RBAC policy tests. |
-| 6 | Ubuntu/Packer image pipeline | Three versioned Ubuntu desktop images built with Packer and Ansible. |
-| 7 | FastAPI VDI control plane | API, database models, desktop lifecycle, asynchronous provisioner. |
-| 8 | Guacamole remote desktop | Guacamole deployment, secure dynamic connection handling, RDP/VNC validation. |
-| 9 | React self-service portal | Authenticated portal, image catalog, desktop launch, lifecycle, connect/delete UI. |
-| 10 | HPA/autoscaling | API/provisioner HPA, controlled load demo, capacity failure handling. |
-| 11 | Prometheus/Grafana | Metrics, dashboards, alerts, logging correlation. |
-| 12 | Security/audit hardening | Threat-model controls, audit persistence, secret handling, RBAC hardening, network tests. |
-| 13 | CI/CD | GitHub Actions workflows for code, IaC, images, charts, security scans. |
-| 14 | End-to-end validation/demo | Final E2E test, demo script, cleanup, portfolio readiness. |
+| Phase | Name | Status | Primary outcome |
+| ---: | --- | --- | --- |
+| 1 | Architecture and requirements | Complete | Documentation, repository foundation, ADRs, validation. |
+| 2 | Local infrastructure | Complete | VirtualBox local lab, three Ubuntu Server nodes, Terraform/Ansible local foundation, `/dev/kvm` verified on VDI worker. |
+| 3 | Kubernetes/KubeVirt foundation | Next | kubeadm cluster, containerd, Calico, Metrics Server, KubeVirt validated. |
+| 4 | Helm/platform foundation | Planned | Namespaces, base Helm chart, platform deployment skeleton, PostgreSQL dependency path. |
+| 5 | Keycloak/OIDC/RBAC | Planned | Realm, clients, demo users, token validation, RBAC policy tests. |
+| 6 | Ubuntu/Packer image pipeline | Planned | Three versioned Ubuntu desktop images built with Packer and Ansible. |
+| 7 | FastAPI VDI control plane | Planned | API, database models, desktop lifecycle, asynchronous provisioner. |
+| 8 | Guacamole remote desktop | Planned | Guacamole deployment, secure dynamic connection handling, RDP/VNC validation. |
+| 9 | React self-service portal | Planned | Authenticated portal, image catalog, desktop launch, lifecycle, connect/delete UI. |
+| 10 | HPA/autoscaling | Planned | API/provisioner HPA, controlled load demo, capacity failure handling. |
+| 11 | Prometheus/Grafana | Planned | Metrics, dashboards, alerts, logging correlation. |
+| 12 | Security/audit hardening | Planned | Threat-model controls, audit persistence, secret handling, RBAC hardening, network tests. |
+| 13 | CI/CD | Planned | GitHub Actions workflows for code, IaC, images, charts, security scans. |
+| 14 | End-to-end validation/demo | Planned | Final E2E test, demo script, cleanup, portfolio readiness. |
 
 ## Phase 2 - Local Infrastructure
 
-Planned outcomes:
+Completed outcomes:
 
-- choose and document the local hypervisor path
-- validate hardware virtualization support
-- validate nested virtualization if nodes are VMs
-- create or document creation of:
+- selected and documented Oracle VirtualBox 7.2.16 on Windows 10 Pro for the current host
+- created and documented:
   - `vdi-control-01`
   - `vdi-worker-01`
   - `vdi-worker-02`
-- establish Terraform boundary for local VM/network lifecycle where practical
-- establish Ansible inventory and host bootstrap roles
-- document fallback if nested virtualization is not reliable
+- validated host-to-node SSH
+- validated node-to-node ping
+- verified `/dev/kvm` on `vdi-worker-02`
+- established Terraform specification boundary for the VirtualBox lab
+- established Ansible inventory and baseline roles
+- documented limits and troubleshooting in [Local Infrastructure](LOCAL-INFRASTRUCTURE.md)
+
+Phase 2 validation notes:
+
+- Ansible syntax, lint, and idempotency passed from `vdi-control-01`.
+- Outbound connectivity passed on all three nodes.
+- Temporary validation-only passwordless sudo was removed after the idempotency check.
 
 ## Future Enhancements
 
@@ -61,8 +68,8 @@ Potential future work after the MVP:
 
 The following are intentionally deferred:
 
-- exact local hypervisor for the user's hardware
 - storage class for KubeVirt desktop disks
+- exact Ansible controller path for routine operations after Phase 2
 - exact Keycloak configuration-as-code mechanism
 - Guacamole dynamic connection implementation strategy
 - exact Ubuntu desktop flavor

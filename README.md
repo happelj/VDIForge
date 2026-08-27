@@ -4,9 +4,9 @@ VDIForge is a portfolio platform project for a small, open-source, self-service 
 
 ## Project Status
 
-Phase 1 is an architecture and requirements phase. The repository currently contains the authoritative design, requirements, roadmap, standards, and documentation structure for later implementation phases.
+Phase 1 established the architecture, requirements, roadmap, standards, and documentation structure. Phase 2 adds the local infrastructure foundation for the developer workstation.
 
-No VDI platform is implemented yet. The FastAPI backend, React portal, Helm chart, Terraform modules, Ansible roles, Packer templates, KubeVirt manifests, and monitoring dashboards are planned deliverables for later phases.
+The current local lab is three manually created Ubuntu Server VirtualBox VMs with documented Terraform infrastructure specifications, Ansible baseline roles, validation scripts, and verified `/dev/kvm` exposure on the future VDI worker. Kubernetes, KubeVirt, Keycloak, Guacamole, FastAPI, React, Helm application deployment, Packer images, and monitoring dashboards are not implemented yet.
 
 ## Goals
 
@@ -72,8 +72,8 @@ The client does not download or boot Ubuntu locally. Applications run on the rem
 | Cluster bootstrap | kubeadm, containerd |
 | Networking | Calico CNI with Kubernetes NetworkPolicies |
 | VM orchestration | KubeVirt on Kubernetes |
-| Infrastructure lifecycle | Terraform, with local KVM/libvirt as the preferred no-cost lab target where practical |
-| Host configuration | Ansible |
+| Infrastructure lifecycle | Terraform specifications for the current VirtualBox lab; future KVM/libvirt or cloud lifecycle where practical |
+| Host configuration | Ansible baseline roles and inventory |
 | Image build | Packer plus Ansible |
 | Application backend | Python, FastAPI, Pydantic, PostgreSQL |
 | Frontend | React |
@@ -87,11 +87,11 @@ The client does not download or boot Ubuntu locally. Applications run on the rem
 
 The initial lab is designed around three Ubuntu Server Kubernetes nodes:
 
-| Node | Role | Intended placement |
-| --- | --- | --- |
-| `vdi-control-01` | control-plane node | Kubernetes API and control-plane components |
-| `vdi-worker-01` | platform worker | API, identity, monitoring, Guacamole |
-| `vdi-worker-02` | VDI worker | KubeVirt VM workloads and VDI-oriented resources |
+| Node | Role | Host-only IP | CPU | RAM | Disk |
+| --- | --- | --- | ---: | ---: | ---: |
+| `vdi-control-01` | future control-plane node | `192.168.56.10` | 2 vCPU | 4096 MiB | 40 GiB |
+| `vdi-worker-01` | future platform worker | `192.168.56.11` | 2 vCPU | 6144 MiB | 50 GiB |
+| `vdi-worker-02` | future VDI worker | `192.168.56.12` | 4 vCPU | 8192 MiB | 60 GiB |
 
 Suggested labels:
 
@@ -102,6 +102,8 @@ vdiforge.io/node-role=vdi
 
 This local topology demonstrates scheduling, placement, node roles, labels, resource management, node failure behavior, and logical node pools. It is not a production highly available control plane, and three VMs on one physical host are not separate physical failure domains.
 
+Phase 2 uses Oracle VirtualBox 7.2.16 on Windows 10 Pro because the developer cannot install Linux directly on bare metal or add storage. `vdi-worker-02` has nested virtualization enabled and `/dev/kvm` verified inside the Ubuntu guest. See [Local Infrastructure](docs/LOCAL-INFRASTRUCTURE.md).
+
 ## Repository Organization
 
 | Path | Purpose |
@@ -109,6 +111,7 @@ This local topology demonstrates scheduling, placement, node roles, labels, reso
 | [docs/DESIGN.md](docs/DESIGN.md) | Authoritative technical design |
 | [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) | Formal testable requirements |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Architecture diagrams and flows |
+| [docs/LOCAL-INFRASTRUCTURE.md](docs/LOCAL-INFRASTRUCTURE.md) | Phase 2 host, VirtualBox, network, SSH, and validation details |
 | [docs/SECURITY.md](docs/SECURITY.md) | Threat model and security controls |
 | [docs/IMAGE-PIPELINE.md](docs/IMAGE-PIPELINE.md) | Packer and Ansible image lifecycle |
 | [docs/SSO-RBAC.md](docs/SSO-RBAC.md) | Keycloak, OIDC, roles, and authorization |
@@ -135,6 +138,7 @@ This local topology demonstrates scheduling, placement, node roles, labels, reso
 - [Design](docs/DESIGN.md)
 - [Requirements](docs/REQUIREMENTS.md)
 - [Architecture](docs/ARCHITECTURE.md)
+- [Local Infrastructure](docs/LOCAL-INFRASTRUCTURE.md)
 - [Security](docs/SECURITY.md)
 - [Image Pipeline](docs/IMAGE-PIPELINE.md)
 - [SSO and RBAC](docs/SSO-RBAC.md)
@@ -147,15 +151,15 @@ This local topology demonstrates scheduling, placement, node roles, labels, reso
 
 ## Limitations
 
-- The current phase is documentation-only.
+- The current lab is infrastructure-only. It does not yet run Kubernetes or the VDIForge application.
 - The local three-node lab is not production HA.
-- KubeVirt performance depends on KVM availability. Nested virtualization must be validated on the chosen host and hypervisor before relying on the local VM-based node layout.
+- KubeVirt performance depends on KVM availability. Nested virtualization is verified on `vdi-worker-02` for the current VirtualBox lab, but Phase 3 must still validate Kubernetes and KubeVirt on the installed Ubuntu/kernel combination.
 - KubeVirt software emulation is a development fallback, not a realistic performance target.
 - True Kubernetes node autoscaling is future cloud or bare-metal functionality, not part of the fixed local lab.
 - Windows desktops are out of scope for the free MVP because they require licensing.
 
 ## Roadmap
 
-The next planned task is Phase 2 - Local Infrastructure. Later phases add Kubernetes, KubeVirt, Helm, Keycloak, image automation, backend, frontend, Guacamole, observability, security hardening, CI/CD, and the final end-to-end demo.
+The next planned task is Phase 3 - Kubernetes/KubeVirt Foundation. Later phases add Helm, Keycloak, image automation, backend, frontend, Guacamole, observability, security hardening, CI/CD, and the final end-to-end demo.
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for the full roadmap.

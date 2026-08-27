@@ -86,6 +86,28 @@ Planned tests:
 
 ## Infrastructure Validation
 
+Phase 2 local infrastructure validation:
+
+```powershell
+.\scripts\validate-phase2.ps1
+```
+
+Static checks include required files, Terraform formatting and validation, VirtualBox metadata, host-only adapter configuration, `.gitignore` coverage, and secret-pattern scanning.
+
+Live checks are optional because they require key-based non-interactive SSH:
+
+```powershell
+.\scripts\validate-phase2.ps1 -Live
+```
+
+Manual Phase 2 evidence recorded in [LOCAL-INFRASTRUCTURE.md](LOCAL-INFRASTRUCTURE.md):
+
+- host SSH to `vdi-control-01`, `vdi-worker-01`, and `vdi-worker-02`
+- node-to-node ping matrix
+- outbound connectivity on all three nodes
+- `svm` CPU flags and `/dev/kvm` on `vdi-worker-02`
+- Ansible syntax check, `ansible-lint`, Ansible ping, and idempotency run from `vdi-control-01`
+
 Terraform:
 
 ```bash
@@ -99,6 +121,8 @@ Ansible:
 ansible-lint
 ansible-playbook --syntax-check
 ```
+
+The current Windows host does not have a native Ansible control environment. Phase 2 ran these checks from `vdi-control-01` as a temporary Ubuntu VM controller.
 
 Packer:
 
