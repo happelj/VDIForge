@@ -2,6 +2,8 @@
 
 VDIForge observability covers metrics, structured logs, audit events, dashboards, and correlation IDs.
 
+Phase 3 implements only the Kubernetes resource-metrics foundation through Metrics Server. Prometheus, Grafana, structured application logs, and persistent audit events remain later-phase work.
+
 ## Observability Goals
 
 - Show current platform and desktop health.
@@ -36,6 +38,15 @@ Kubernetes metrics:
 - pod Pending counts
 - HPA desired/current replicas
 - KubeVirt VirtualMachine and VMI phase/condition metrics where available
+
+Phase 3 Metrics Server validation:
+
+```bash
+kubectl top nodes
+kubectl top pods -A
+```
+
+Metrics Server is not a replacement for Prometheus. It provides the Kubernetes resource metrics API needed by future HPA work.
 
 ## Grafana Dashboard Design
 

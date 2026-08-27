@@ -1,6 +1,6 @@
 # VDIForge Architecture
 
-This document contains architecture views for VDIForge. Diagrams that include Kubernetes, KubeVirt, identity, application, and observability flows remain planned until their later implementation phases. The local VirtualBox infrastructure view reflects the Phase 2 host build.
+This document contains architecture views for VDIForge. The local VirtualBox infrastructure and Kubernetes/KubeVirt foundation views reflect Phase 2 and Phase 3. Diagrams that include identity, application, remote desktop, and full observability flows remain planned until their later implementation phases.
 
 ## System Context
 
@@ -82,10 +82,10 @@ flowchart TB
   VBox[Oracle VirtualBox 7.2.16]
   NAT[NAT network<br/>outbound Internet]
   HostOnly[Host-only network<br/>192.168.56.0/24]
-  CP[vdi-control-01<br/>192.168.56.10<br/>2 vCPU / 4 GiB / 40 GiB]
+  CP[vdi-control-01<br/>192.168.56.10<br/>4 vCPU / 6 GiB / 40 GiB]
   W1[vdi-worker-01<br/>192.168.56.11<br/>2 vCPU / 6 GiB / 50 GiB]
   W2[vdi-worker-02<br/>192.168.56.12<br/>4 vCPU / 8 GiB / 60 GiB<br/>/dev/kvm verified]
-  Future[Future Phase 3<br/>kubeadm, containerd, Calico, KubeVirt]
+  Cluster[Phase 3 foundation<br/>kubeadm, containerd, Calico, Metrics Server, KubeVirt, CDI]
 
   HW --> VBox
   VBox --> NAT
@@ -96,12 +96,12 @@ flowchart TB
   HostOnly --> CP
   HostOnly --> W1
   HostOnly --> W2
-  CP -. planned .-> Future
-  W1 -. planned .-> Future
-  W2 -. planned .-> Future
+  CP --> Cluster
+  W1 --> Cluster
+  W2 --> Cluster
 ```
 
-`vdi-worker-02` is the only Phase 2 node that requires nested virtualization. It is verified because `svm` CPU flags are visible inside the guest and `/dev/kvm` exists.
+`vdi-worker-02` is the only node that requires nested virtualization for Phase 3. Phase 2 verified `svm` CPU flags and `/dev/kvm` inside the guest; Phase 3 verified KubeVirt exposes and consumes `devices.kubevirt.io/kvm`.
 
 Actual Phase 2 network:
 
@@ -112,6 +112,42 @@ Actual Phase 2 network:
 | `vdi-worker-02` | DHCP | `192.168.56.12` | future KubeVirt/VDI worker |
 
 The host-only adapter address is `192.168.56.1`. DHCP is disabled on the host-only network; static addresses are assigned inside each Ubuntu guest. NAT supplies outbound Internet access.
+
+## Kubernetes/KubeVirt Foundation
+
+```mermaid
+flowchart TB
+  subgraph Host[Windows 10 Pro host]
+    VBox[VirtualBox 7.2.16]
+  end
+
+  subgraph Cluster[Kubernetes 1.36.4]
+    CP[vdi-control-01<br/>control plane<br/>192.168.56.10]
+    W1[vdi-worker-01<br/>platform worker<br/>192.168.56.11<br/>vdiforge.io/node-role=platform]
+    W2[vdi-worker-02<br/>VDI worker<br/>192.168.56.12<br/>vdiforge.io/node-role=vdi]
+    Calico[Calico v3.32.1<br/>VXLAN pod network<br/>NetworkPolicy]
+    Metrics[Metrics Server v0.8.1]
+    Storage[vdiforge-local-path<br/>local-path provisioner v0.0.32]
+    KV[KubeVirt v1.9.0]
+    CDI[CDI v1.66.0]
+    TestVM[Disposable CirrOS VM<br/>phase3-cirros]
+  end
+
+  VBox --> CP
+  VBox --> W1
+  VBox --> W2
+  CP --> Calico
+  CP --> Metrics
+  CP --> KV
+  KV --> CDI
+  CDI --> Storage
+  Storage --> TestVM
+  KV --> TestVM
+  TestVM --> W2
+  W2 --> KVM[/dev/kvm<br/>devices.kubevirt.io/kvm]
+```
+
+The disposable test VM validates the KubeVirt foundation only. It is not one of the final Ubuntu desktop images and must be deleted after validation.
 
 ## Authentication Flow
 

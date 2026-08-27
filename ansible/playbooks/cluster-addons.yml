@@ -1,0 +1,228 @@
+---
+- name: Install Phase 3 Kubernetes foundation add-ons
+  hosts: control_plane
+  become: false
+  gather_facts: false
+  vars:
+    vdiforge_manifest_stage_dir: "/home/{{ vdiforge_admin_user }}/.cache/vdiforge-phase3-manifests"
+  tasks:
+    - name: Ensure manifest staging directory exists
+      ansible.builtin.file:
+        path: "{{ vdiforge_manifest_stage_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Copy Phase 3 local manifests to control plane
+      ansible.builtin.copy:
+        src: "{{ item }}"
+        dest: "{{ vdiforge_manifest_stage_dir }}/{{ item | basename }}"
+        mode: "0644"
+      loop:
+        - ../../kubernetes/calico/custom-resources.yaml
+        - ../../kubernetes/namespaces/vdiforge-namespaces.yaml
+        - ../../kubernetes/rbac/vdiforge-provisioner-foundation.yaml
+        - ../../kubernetes/storage/local-path-provisioner.yaml
+        - ../../kubernetes/metrics-server/metrics-server-local-patch.yaml
+
+    - name: Install Calico v3 CRDs
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --request-timeout={{ vdiforge_kubectl_request_timeout }}
+          - apply
+          - --server-side
+          - --force-conflicts
+          - -f
+          - "https://raw.githubusercontent.com/projectcalico/calico/{{ vdiforge_calico_version }}/manifests/v1_crd_projectcalico_org.yaml"
+      changed_when: false
+
+    - name: Install Tigera operator
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --request-timeout={{ vdiforge_kubectl_request_timeout }}
+          - apply
+          - --server-side
+          - --force-conflicts
+          - -f
+          - "https://raw.githubusercontent.com/projectcalico/calico/{{ vdiforge_calico_version }}/manifests/tigera-operator.yaml"
+      changed_when: false
+
+    - name: Apply Calico custom resources
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --request-timeout={{ vdiforge_kubectl_request_timeout }}
+          - apply
+          - -f
+          - "{{ vdiforge_manifest_stage_dir }}/custom-resources.yaml"
+      changed_when: false
+
+    - name: Wait for Calico operator status
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --request-timeout={{ vdiforge_kubectl_request_timeout }}
+          - wait
+          - tigerastatus/calico
+          - --for=condition=Available
+          - --timeout=10m
+      register: vdiforge_calico_wait
+      changed_when: false
+      retries: 2
+      delay: 15
+      until: vdiforge_calico_wait.rc == 0
+
+    - name: Apply VDIForge namespace foundation
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --request-timeout={{ vdiforge_kubectl_request_timeout }}
+          - apply
+          - -f
+          - "{{ vdiforge_manifest_stage_dir }}/vdiforge-namespaces.yaml"
+      changed_when: false
+
+    - name: Apply VDIForge provisioning RBAC foundation
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --request-timeout={{ vdiforge_kubectl_request_timeout }}
+          - apply
+          - -f
+          - "{{ vdiforge_manifest_stage_dir }}/vdiforge-provisioner-foundation.yaml"
+      changed_when: false
+
+    - name: Apply local-path storage foundation
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --request-timeout={{ vdiforge_kubectl_request_timeout }}
+          - apply
+          - -f
+          - "{{ vdiforge_manifest_stage_dir }}/local-path-provisioner.yaml"
+      changed_when: false
+
+    - name: Wait for local-path provisioner rollout
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --request-timeout={{ vdiforge_kubectl_request_timeout }}
+          - -n
+          - local-path-storage
+          - rollout
+          - status
+          - deployment/local-path-provisioner
+          - --timeout=5m
+      changed_when: false
+
+    - name: Install pinned Metrics Server
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --request-timeout={{ vdiforge_kubectl_request_timeout }}
+          - apply
+          - -f
+          - "https://github.com/kubernetes-sigs/metrics-server/releases/download/{{ vdiforge_metrics_server_version }}/components.yaml"
+      changed_when: false
+
+    - name: Apply local Metrics Server kubelet TLS patch
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --request-timeout={{ vdiforge_kubectl_request_timeout }}
+          - -n
+          - kube-system
+          - patch
+          - deployment
+          - metrics-server
+          - --type=strategic
+          - --patch-file
+          - "{{ vdiforge_manifest_stage_dir }}/metrics-server-local-patch.yaml"
+      changed_when: false
+
+    - name: Wait for Metrics Server rollout
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --request-timeout={{ vdiforge_kubectl_request_timeout }}
+          - -n
+          - kube-system
+          - rollout
+          - status
+          - deployment/metrics-server
+          - --timeout=5m
+      changed_when: false
+
+    - name: Install pinned KubeVirt operator
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --request-timeout={{ vdiforge_kubectl_request_timeout }}
+          - apply
+          - -f
+          - "https://github.com/kubevirt/kubevirt/releases/download/{{ vdiforge_kubevirt_version }}/kubevirt-operator.yaml"
+      changed_when: false
+
+    - name: Install pinned KubeVirt custom resource
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --request-timeout={{ vdiforge_kubectl_request_timeout }}
+          - apply
+          - -f
+          - "https://github.com/kubevirt/kubevirt/releases/download/{{ vdiforge_kubevirt_version }}/kubevirt-cr.yaml"
+      changed_when: false
+
+    - name: Wait for KubeVirt availability
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --request-timeout={{ vdiforge_kubectl_request_timeout }}
+          - -n
+          - kubevirt
+          - wait
+          - kubevirt/kubevirt
+          - --for=condition=Available
+          - --timeout=15m
+      changed_when: false
+
+    - name: Install pinned CDI operator
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --request-timeout={{ vdiforge_kubectl_request_timeout }}
+          - apply
+          - -f
+          - "https://github.com/kubevirt/containerized-data-importer/releases/download/{{ vdiforge_cdi_version }}/cdi-operator.yaml"
+      changed_when: false
+
+    - name: Install pinned CDI custom resource
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --request-timeout={{ vdiforge_kubectl_request_timeout }}
+          - apply
+          - -f
+          - "https://github.com/kubevirt/containerized-data-importer/releases/download/{{ vdiforge_cdi_version }}/cdi-cr.yaml"
+      changed_when: false
+
+    - name: Wait for CDI availability
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --request-timeout={{ vdiforge_kubectl_request_timeout }}
+          - -n
+          - cdi
+          - wait
+          - cdi/cdi
+          - --for=condition=Available
+          - --timeout=15m
+      changed_when: false
+
+    - name: Install pinned virtctl
+      become: true
+      ansible.builtin.get_url:
+        url: "https://github.com/kubevirt/kubevirt/releases/download/{{ vdiforge_kubevirt_version }}/virtctl-{{ vdiforge_kubevirt_version }}-linux-amd64"
+        dest: /usr/local/bin/virtctl
+        mode: "0755"

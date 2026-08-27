@@ -1,0 +1,51 @@
+---
+- name: Install pinned containerd package
+  ansible.builtin.apt:
+    name: "containerd={{ vdiforge_containerd_package_version }}"
+    state: present
+    allow_downgrade: true
+    update_cache: true
+  notify: Restart containerd
+
+- name: Ensure containerd config directory exists
+  ansible.builtin.file:
+    path: /etc/containerd
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Configure containerd for Kubernetes CRI
+  ansible.builtin.template:
+    src: config.toml.j2
+    dest: /etc/containerd/config.toml
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart containerd
+
+- name: Flush containerd handler before validation
+  ansible.builtin.meta: flush_handlers
+
+- name: Ensure containerd is enabled and running
+  ansible.builtin.service:
+    name: containerd
+    enabled: true
+    state: started
+
+- name: Validate containerd reports a version
+  ansible.builtin.command:
+    argv:
+      - containerd
+      - --version
+  register: containerd_version_check
+  changed_when: false
+
+- name: Validate containerd service is active
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - is-active
+      - containerd
+  register: containerd_service_check
+  changed_when: false

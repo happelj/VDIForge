@@ -1,0 +1,145 @@
+---
+- name: Install packages required for Kubernetes repositories and validation
+  ansible.builtin.apt:
+    name:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - gpg
+      - iproute2
+      - iptables
+      - conntrack
+      - socat
+      - ebtables
+      - ethtool
+      - jq
+    state: present
+    update_cache: true
+
+- name: Install KVM validation tools on the VDI worker
+  ansible.builtin.apt:
+    name:
+      - cpu-checker
+      - libvirt-clients
+    state: present
+  when: vdiforge_nested_virtualization_required | default(false) | bool
+
+- name: Configure kernel modules for Kubernetes networking
+  ansible.builtin.copy:
+    src: kubernetes-modules.conf
+    dest: /etc/modules-load.d/vdiforge-kubernetes.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Load overlay module
+  ansible.builtin.command:
+    argv:
+      - modprobe
+      - overlay
+  changed_when: false
+
+- name: Load br_netfilter module
+  ansible.builtin.command:
+    argv:
+      - modprobe
+      - br_netfilter
+  changed_when: false
+
+- name: Configure Kubernetes networking sysctls
+  ansible.builtin.copy:
+    src: kubernetes-sysctl.conf
+    dest: /etc/sysctl.d/99-vdiforge-kubernetes.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload sysctl
+
+- name: Flush sysctl handler before kubeadm runs
+  ansible.builtin.meta: flush_handlers
+
+- name: Ensure Kubernetes keyring directory exists
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Check Kubernetes apt keyring
+  ansible.builtin.stat:
+    path: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+  register: vdiforge_kubernetes_keyring
+
+- name: Download Kubernetes apt repository signing key
+  ansible.builtin.get_url:
+    url: "https://pkgs.k8s.io/core:/stable:/{{ vdiforge_kubernetes_minor }}/deb/Release.key"
+    dest: /etc/apt/keyrings/kubernetes-release.key
+    owner: root
+    group: root
+    mode: "0644"
+  register: vdiforge_kubernetes_release_key
+
+- name: Install Kubernetes apt repository signing key
+  ansible.builtin.command:
+    argv:
+      - gpg
+      - --dearmor
+      - --yes
+      - -o
+      - /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      - /etc/apt/keyrings/kubernetes-release.key
+  when: vdiforge_kubernetes_release_key.changed or not vdiforge_kubernetes_keyring.stat.exists
+  changed_when: true
+
+- name: Configure pinned Kubernetes apt repository
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/kubernetes.list
+    content: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/{{ vdiforge_kubernetes_minor }}/deb/ /\n"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Install pinned Kubernetes node packages
+  ansible.builtin.apt:
+    name:
+      - "kubelet={{ vdiforge_kubernetes_package_version }}"
+      - "kubeadm={{ vdiforge_kubernetes_package_version }}"
+      - "kubectl={{ vdiforge_kubernetes_package_version }}"
+    state: present
+    allow_downgrade: true
+    update_cache: true
+
+- name: Hold Kubernetes packages at the selected version
+  ansible.builtin.command:
+    argv:
+      - apt-mark
+      - hold
+      - kubelet
+      - kubeadm
+      - kubectl
+  register: vdiforge_kubernetes_hold
+  changed_when: "'set on hold' in vdiforge_kubernetes_hold.stdout and 'already' not in vdiforge_kubernetes_hold.stdout"
+
+- name: Configure kubelet to use the host-only management address
+  ansible.builtin.template:
+    src: kubelet.default.j2
+    dest: /etc/default/kubelet
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart kubelet
+
+- name: Ensure local-path provisioner root exists
+  ansible.builtin.file:
+    path: "{{ vdiforge_local_path_root }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Enable kubelet service
+  ansible.builtin.service:
+    name: kubelet
+    enabled: true
+  failed_when: false

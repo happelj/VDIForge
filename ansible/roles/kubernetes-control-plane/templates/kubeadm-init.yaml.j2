@@ -1,0 +1,28 @@
+---
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: InitConfiguration
+localAPIEndpoint:
+  advertiseAddress: "{{ vdiforge_kubernetes_control_plane_endpoint }}"
+  bindPort: {{ vdiforge_kubernetes_api_port }}
+nodeRegistration:
+  name: "{{ inventory_hostname }}"
+  criSocket: "{{ vdiforge_kubernetes_cri_socket }}"
+---
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: ClusterConfiguration
+kubernetesVersion: "v{{ vdiforge_kubernetes_version }}"
+controlPlaneEndpoint: "{{ vdiforge_kubernetes_control_plane_endpoint }}:{{ vdiforge_kubernetes_api_port }}"
+networking:
+  podSubnet: "{{ vdiforge_pod_cidr }}"
+  serviceSubnet: "{{ vdiforge_service_cidr }}"
+apiServer:
+  certSANs:
+    - "{{ vdiforge_kubernetes_control_plane_endpoint }}"
+    - "{{ inventory_hostname }}"
+    - "{{ inventory_hostname }}.{{ vdiforge_lab_domain }}"
+controllerManager: {}
+scheduler: {}
+---
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+cgroupDriver: systemd

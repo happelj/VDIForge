@@ -2,8 +2,8 @@ locals {
   nodes = {
     vdi-control-01 = {
       role                  = "control-plane"
-      cpu_count             = 2
-      memory_mb             = 4096
+      cpu_count             = 4
+      memory_mb             = 6144
       disk_gb               = 40
       host_only_ipv4        = "192.168.56.10"
       nested_virtualization = false

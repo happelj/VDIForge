@@ -1,0 +1,9 @@
+---
+- name: Apply Phase 2 baseline before Kubernetes bootstrap
+  import_playbook: baseline.yml
+
+- name: Install and bootstrap Kubernetes
+  import_playbook: kubernetes.yml
+
+- name: Install Phase 3 cluster add-ons
+  import_playbook: cluster-addons.yml

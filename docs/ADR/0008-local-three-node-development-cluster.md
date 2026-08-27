@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted for MVP architecture with feasibility validation required.
+Accepted for MVP architecture. Phase 3 implements the kubeadm cluster on this topology.
 
 ## Context
 
@@ -30,6 +30,8 @@ vdiforge.io/node-role=vdi
 Use taints, tolerations, node selectors, and affinity only where they are technically justified.
 
 Phase 2 update: the three nodes were created as VirtualBox Ubuntu Server VMs on one Windows host. The host-only management subnet is `192.168.56.0/24`, and `/dev/kvm` is verified on `vdi-worker-02`.
+
+Phase 3 update: the cluster foundation uses Kubernetes 1.36.4, containerd, Calico, Metrics Server, KubeVirt, CDI, and local-path storage. `vdi-worker-01` is labeled `vdiforge.io/node-role=platform`, and `vdi-worker-02` is labeled `vdiforge.io/node-role=vdi`. During validation, `vdi-control-01` was resized to 4 vCPU and 6144 MiB RAM after the original 2 vCPU / 4096 MiB allocation caused sustained API-server pressure.
 
 ## Alternatives Considered
 

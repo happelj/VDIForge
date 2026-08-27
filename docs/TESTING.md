@@ -73,7 +73,21 @@ Required cases:
 
 ## Kubernetes and KubeVirt Tests
 
-Planned tests:
+Phase 3 foundation tests:
+
+- kubeadm cluster reaches three Ready nodes
+- containerd is active and configured for Kubernetes CRI
+- Calico reports Available and pod networking works
+- NetworkPolicy deny and allow behavior is proven with disposable resources
+- CoreDNS rollout is healthy
+- Metrics Server returns node and pod metrics
+- local-path StorageClass exists
+- CDI is available
+- KubeVirt is available
+- `vdi-worker-02` exposes `devices.kubevirt.io/kvm` to KubeVirt
+- disposable CirrOS VM creates, boots, schedules on `vdi-worker-02`, requests KVM, stops, restarts, deletes, and cleans up
+
+Later VDIForge application tests:
 
 - provisioner can create required KubeVirt resources
 - provisioner cannot perform disallowed Kubernetes API operations
@@ -123,6 +137,32 @@ ansible-playbook --syntax-check
 ```
 
 The current Windows host does not have a native Ansible control environment. Phase 2 ran these checks from `vdi-control-01` as a temporary Ubuntu VM controller.
+
+Phase 3 static validation:
+
+```powershell
+.\scripts\validate-phase3.ps1
+```
+
+Phase 3 live validation from `vdi-control-01`:
+
+```bash
+cd ~/vdiforge-phase3-validation
+bash scripts/validate-phase3-live.sh
+```
+
+The live validator runs Ansible syntax/lint checks, cluster health checks, node label checks, Calico/CoreDNS/Metrics Server/KubeVirt/CDI checks, storage checks, NetworkPolicy validation, KVM resource validation, and the disposable KubeVirt VM lifecycle test.
+
+Latest Phase 3 evidence:
+
+```text
+Ansible syntax: PASS
+ansible-lint: PASS
+Final idempotency rerun: changed=0, failed=0, unreachable=0 on all nodes
+Phase 3 live validation: PASS
+KubeVirt KVM result: KUBEVIRT_KVM_VERIFIED
+Disposable VM lifecycle: create, boot, stop, restart, delete, cleanup PASS
+```
 
 Packer:
 

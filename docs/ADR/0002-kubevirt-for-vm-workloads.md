@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted for MVP architecture with nested virtualization risk tracked.
+Accepted for MVP architecture. Phase 3 requires live KubeVirt KVM verification on `vdi-worker-02`.
 
 ## Context
 
@@ -26,6 +26,8 @@ The preferred local deployment target is a Linux KVM/libvirt host that exposes n
 
 Phase 2 update: the actual developer host cannot use bare-metal Linux KVM/libvirt. [ADR 0009](0009-virtualbox-local-lab-on-windows.md) accepts VirtualBox on Windows 10 Pro for this local lab because `vdi-worker-02` exposes `svm` CPU flags and `/dev/kvm` inside the Ubuntu guest.
 
+Phase 3 update: KubeVirt v1.9.0 and CDI v1.66.0 are selected with Kubernetes 1.36.4. Phase 3 acceptance requires `KUBEVIRT_KVM_VERIFIED`, meaning KubeVirt exposes `devices.kubevirt.io/kvm` on `vdi-worker-02` and a disposable VM requests that KVM device while running on the VDI worker.
+
 ## Alternatives Considered
 
 - Containers with desktop packages: rejected because they are not traditional VDI VMs and would misrepresent the platform.
@@ -36,7 +38,7 @@ Phase 2 update: the actual developer host cannot use bare-metal Linux KVM/libvir
 ## Consequences
 
 - The project demonstrates VM lifecycle through Kubernetes APIs.
-- Hardware virtualization is a critical Phase 2 validation item.
-- If nested virtualization is unavailable, Phase 2 must choose a fallback before implementation continues.
+- Hardware virtualization is a critical Phase 2 and Phase 3 validation item.
+- If KubeVirt cannot consume KVM on `vdi-worker-02`, Phase 3 must fail unless a new ADR explicitly changes the acceptance condition.
 - The design must keep KubeVirt as the target architecture unless hands-on validation shows a compelling blocker.
 - Documentation must remain clear that KubeVirt provides VM integration on Kubernetes; ordinary containers are not the VDI desktop model.

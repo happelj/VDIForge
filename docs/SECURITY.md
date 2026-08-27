@@ -1,6 +1,6 @@
 # Security Model
 
-This document defines the VDIForge threat model and security controls. Most controls apply to later application and Kubernetes phases; the Phase 2 local infrastructure security notes apply to the current VirtualBox lab.
+This document defines the VDIForge threat model and security controls. Phase 2 local infrastructure controls and Phase 3 Kubernetes foundation controls apply to the current lab. Identity, application authorization, Guacamole, audit persistence, and image-pipeline controls remain later-phase work.
 
 ## Security Objectives
 
@@ -84,6 +84,14 @@ The React UI may hide actions for usability, but all access must be denied by th
 
 The provisioner is sensitive because it manages KubeVirt resources. It must use a dedicated ServiceAccount.
 
+Phase 3 creates an initial Kubernetes RBAC foundation:
+
+- ServiceAccount `vdiforge-provisioner` in `vdiforge-system`
+- Role `vdiforge-provisioner-vdi-manager` in `vdiforge-desktops`
+- RoleBinding from the Role to the ServiceAccount
+
+This is a placeholder privilege boundary for later application phases; no provisioner application is deployed in Phase 3.
+
 Conceptual Role scope:
 
 | API group | Resources | Verbs |
@@ -125,6 +133,8 @@ Conceptual denied paths:
 
 Calico and Kubernetes NetworkPolicies will enforce namespace and workload-level restrictions. KubeVirt VMI labels should be designed so NetworkPolicies can select desktops by app, owner, and desktop ID where feasible.
 
+Phase 3 proves standard Kubernetes NetworkPolicy enforcement with `scripts/phase3-networkpolicy-test.sh`. The test uses disposable pods to confirm initial traffic, deny ingress, restore an explicit allow rule, and clean up the validation namespace.
+
 ## Phase 2 Local Infrastructure Security
 
 Current Phase 2 controls:
@@ -137,6 +147,21 @@ Current Phase 2 controls:
 - `vdi-worker-02` exposes `/dev/kvm` for future KubeVirt use, but it does not receive Kubernetes credentials or platform control privileges in Phase 2.
 
 Phase 2 does not install Kubernetes, KubeVirt, Keycloak, Guacamole, databases, monitoring, or application workloads.
+
+## Phase 3 Kubernetes Foundation Security
+
+Phase 3 adds these security-relevant controls:
+
+- pinned Kubernetes, Calico, Metrics Server, KubeVirt, CDI, and local-path versions
+- Calico CNI with NetworkPolicy support
+- NetworkPolicy enforcement validation
+- namespace labels for VDIForge foundations
+- privileged pod security enforcement only in `vdiforge-desktops`, where KubeVirt launcher pods require it
+- baseline pod security enforcement for non-VDIForge desktop namespaces
+- initial namespace-scoped provisioner RBAC
+- static validation for committed secrets, kubeconfigs, join tokens, and private keys
+
+Phase 3 does not deploy frontend, API, Keycloak, Guacamole, database, Prometheus, Grafana, or desktop image workloads.
 
 ## Secret Handling
 

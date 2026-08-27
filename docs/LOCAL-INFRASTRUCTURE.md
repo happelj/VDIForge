@@ -4,7 +4,7 @@ This document records the Phase 2 local infrastructure implementation for VDIFor
 
 ## Status
 
-Phase 2 local infrastructure is host-validated on the current Windows workstation with VirtualBox. Kubernetes, KubeVirt, Keycloak, Guacamole, Helm application deployment, and monitoring are not installed in Phase 2.
+Phase 2 local infrastructure is host-validated on the current Windows workstation with VirtualBox. Phase 3 builds Kubernetes and KubeVirt on top of this foundation; see [Kubernetes and KubeVirt Foundation](KUBERNETES-KUBEVIRT.md). Keycloak, Guacamole, Helm application deployment, the VDIForge application, Prometheus, and Grafana remain later-phase work.
 
 ## Host Findings
 
@@ -47,7 +47,7 @@ The current lab nodes were installed from:
 ubuntu-26.04-live-server-amd64.iso
 ```
 
-Ubuntu 26.04 LTS is a supported LTS release published on April 23, 2026 and supported with standard maintenance until 2031. Phase 3 must still validate Kubernetes 1.36 and KubeVirt compatibility on this exact OS/kernel combination before installing cluster components.
+Ubuntu 26.04 LTS is a supported LTS release published on April 23, 2026 and supported with standard maintenance until 2031. Phase 3 evaluates Kubernetes 1.36 and KubeVirt compatibility on this exact OS/kernel combination before installing cluster components.
 
 Phase 1 originally listed Ubuntu Server 24.04 LTS as a candidate baseline. Phase 2 updates the actual local lab baseline to Ubuntu Server 26.04 LTS because it is the current supported LTS installed and validated on this host. This is not a license to use floating or unpinned Ubuntu versions.
 
@@ -55,7 +55,7 @@ Phase 1 originally listed Ubuntu Server 24.04 LTS as a candidate baseline. Phase
 
 | Node | Future role | CPU | RAM | Disk | Host-only IP | Nested virtualization |
 | --- | --- | ---: | ---: | ---: | --- | --- |
-| `vdi-control-01` | Future Kubernetes control plane | 2 vCPU | 4096 MiB | 40 GiB | `192.168.56.10` | Not required |
+| `vdi-control-01` | Kubernetes control plane | 4 vCPU | 6144 MiB | 40 GiB | `192.168.56.10` | Not required |
 | `vdi-worker-01` | Future platform workloads | 2 vCPU | 6144 MiB | 50 GiB | `192.168.56.11` | Not required |
 | `vdi-worker-02` | Future KubeVirt/VDI workloads | 4 vCPU | 8192 MiB | 60 GiB | `192.168.56.12` | Verified |
 
@@ -68,6 +68,8 @@ F:\VirtualBox VMs\vdi-worker-02\vdi-worker-02.vdi
 ```
 
 All disks are dynamically allocated VDI disks.
+
+Phase 3 stability update: after Kubernetes 1.36.4, Calico, Metrics Server, KubeVirt, and CDI were installed, the original 2 vCPU / 4096 MiB control-plane VM showed sustained API-server pressure during idempotency validation. `vdi-control-01` was gracefully shut down, resized to 4 vCPU / 6144 MiB RAM, restarted, and revalidated. Terraform and validation expectations now record the resized control-plane allocation.
 
 ## Network Design
 
@@ -226,7 +228,7 @@ ansible-playbook playbooks/baseline.yml --ask-become-pass
 
 The second run is the idempotency check. It should report no unnecessary changes except for service restarts caused by intentional configuration changes.
 
-Phase 2 validation used `vdi-control-01` as the temporary Ansible controller. Validation passed:
+Phase 2 validation used `vdi-control-01` as the temporary Ansible controller. Phase 3 continues to use `vdi-control-01` as the practical Ansible controller because the Windows host does not have native Ansible. Validation passed:
 
 ```text
 ansible-playbook --syntax-check: PASS
@@ -300,8 +302,8 @@ Do not delete VM folders unless intentionally rebuilding the lab. Rebuild proced
 - All three VMs run on one Windows host and share one physical failure domain.
 - VirtualBox is selected for this host because bare-metal Linux KVM/libvirt is unavailable to the user.
 - Terraform does not directly create the VirtualBox VMs because no selected provider met the maintainability bar.
-- Ansible is validated from `vdi-control-01`; decide in a later phase whether routine operations should use WSL, `vdi-control-01`, or another Linux controller.
-- Phase 3 must validate Kubernetes and KubeVirt compatibility on Ubuntu 26.04 LTS before cluster installation.
+- Ansible is validated from `vdi-control-01`; decide in a later phase whether routine operations should remain there, use WSL, or use another Linux controller.
+- Phase 3 Kubernetes/KubeVirt details, including storage and KVM verification, are documented separately in [Kubernetes and KubeVirt Foundation](KUBERNETES-KUBEVIRT.md).
 
 ## Sources
 

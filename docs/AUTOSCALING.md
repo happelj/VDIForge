@@ -2,6 +2,8 @@
 
 VDIForge distinguishes platform autoscaling from cluster or node autoscaling.
 
+Phase 3 installs Metrics Server so the Kubernetes resource metrics API is available for later HPA work. Phase 3 does not create VDIForge HPA resources or run the final autoscaling demo.
+
 ## Platform Autoscaling
 
 Platform autoscaling uses Kubernetes HorizontalPodAutoscaler for suitable stateless components.
@@ -15,6 +17,15 @@ Initial metrics:
 
 - CPU utilization
 - memory utilization where appropriate
+
+Foundation dependency:
+
+```bash
+kubectl top nodes
+kubectl top pods -A
+```
+
+These commands must work before Phase 10 can build the controlled HPA demonstration.
 
 Future metrics:
 
