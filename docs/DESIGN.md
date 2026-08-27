@@ -4,7 +4,7 @@ This document is the authoritative technical design for VDIForge. Later implemen
 
 ## Status
 
-Phase 2 local infrastructure foundation is documented and host-validated. Phase 3 establishes the Kubernetes and KubeVirt foundation on that lab with kubeadm, containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, namespace/RBAC foundations, NetworkPolicy validation, and a disposable KubeVirt test VM. Phase 4 establishes the Helm platform foundation with a `vdiforge` release that manages VDIForge ConfigMap conventions, ServiceAccounts, provisioner RBAC, ResourceQuotas, a LimitRange, and baseline NetworkPolicies. The full VDI platform remains planned: Keycloak, Guacamole, FastAPI, React application code, Packer image automation, and Prometheus/Grafana are not implemented yet.
+Phase 2 local infrastructure foundation is documented and host-validated. Phase 3 establishes the Kubernetes and KubeVirt foundation on that lab with kubeadm, containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, namespace/RBAC foundations, NetworkPolicy validation, and a disposable KubeVirt test VM. Phase 4 establishes the Helm platform foundation with a `vdiforge` release that manages VDIForge ConfigMap conventions, ServiceAccounts, provisioner RBAC, ResourceQuotas, a LimitRange, and baseline NetworkPolicies. Phase 5 adds Keycloak, PostgreSQL persistence, Traefik ingress, local TLS, realm import, demo identities, Authorization Code Flow with PKCE validation, JWT validation, RBAC claim validation, and identity NetworkPolicies. The full VDI platform remains planned: Guacamole, FastAPI, React application code, Packer image automation, and Prometheus/Grafana are not implemented yet.
 
 ## Goals
 
@@ -58,6 +58,8 @@ Sources reviewed during Phase 1:
 - Phase 3 Kubernetes/KubeVirt implementation: [Kubernetes and KubeVirt Foundation](KUBERNETES-KUBEVIRT.md)
 - Phase 4 Helm implementation: [Helm Platform Foundation](HELM-PLATFORM.md)
 - Helm version support and installation: [Helm v4 version support policy](https://blog.helm.sh/docs/topics/version_skew/) and [Helm install documentation](https://helm.sh/docs/intro/install/)
+- Phase 5 identity implementation: [Keycloak, OIDC, and RBAC Foundation](KEYCLOAK-OIDC.md)
+- Keycloak Phase 5 references: [Keycloak database configuration](https://www.keycloak.org/server/db), [Keycloak reverse proxy configuration](https://www.keycloak.org/server/reverseproxy), [Keycloak import/export](https://www.keycloak.org/server/importExport), [Keycloak OIDC endpoints](https://www.keycloak.org/securing-apps/oidc-layers), and [Keycloak health endpoints](https://www.keycloak.org/observability/health)
 
 ## Selected Platform Version Pins
 
@@ -73,6 +75,9 @@ These pins are Phase 3 implementation inputs as of 2026-08-27. Later phases must
 | CDI | 1.66.0 | CDI release paired with the KubeVirt 1.9 release train and needed for DataVolume validation. |
 | Local-path provisioner | 0.0.32 | Simple local dynamic storage for the lab; documented in ADR 0010. |
 | Helm | 4.2.4 | Current stable Helm v4 release line; v4.2.x supports Kubernetes 1.36.x through 1.33.x. |
+| Keycloak | 26.7.2 | Phase 5 identity provider from the official Keycloak image. |
+| PostgreSQL | 18.0-alpine | Phase 5 single-instance local persistence for Keycloak. |
+| Traefik Helm chart | 41.2.0 | Phase 5 local ingress controller for `auth.vdiforge.local`. |
 | Terraform local lab | Terraform 1.15.8 with built-in `terraform_data` | Actual Phase 2 host uses VirtualBox; Terraform validates the lab specification without depending on an alpha VirtualBox provider. |
 | Apache Guacamole | 1.6.0 | Current documented Guacamole release with RDP, VNC, SSH, WebSocket, and container deployment support. |
 
@@ -283,7 +288,7 @@ Phase 4 chart resources:
 - LimitRange for future small platform containers
 - NetworkPolicies for `vdiforge-system` default deny, DNS egress, and future provisioner Kubernetes API egress
 
-Phase 4 does not create application Deployments, Services, Ingress, HPA, Keycloak, Guacamole, Prometheus, Grafana, or VDI desktops. Disabled values for those components are extension points only.
+With `values-local.yaml` alone, the Helm chart does not create application Deployments, Services, Ingress, HPA, Keycloak, Guacamole, Prometheus, Grafana, or VDI desktops. Phase 5 enables only the identity stack through `values-phase5-local.yaml`.
 
 Planned later chart resources:
 
@@ -292,7 +297,7 @@ Planned later chart resources:
 - provisioning worker Deployment
 - HPA definitions
 
-Third-party systems such as Keycloak, PostgreSQL, Prometheus, Grafana, and Guacamole should use established upstream charts or images when that is simpler and safer than maintaining custom manifests.
+Third-party systems should use established upstream charts or images when that is simpler and safer than maintaining custom manifests. Phase 5 uses the official Keycloak and PostgreSQL images directly in the VDIForge chart, and installs Traefik with its upstream Helm chart as shared ingress infrastructure.
 
 ## Ubuntu Image Architecture
 
@@ -395,7 +400,20 @@ Keycloak realm:
 vdiforge
 ```
 
-Planned roles:
+Phase 5 deployed identity endpoint:
+
+```text
+https://auth.vdiforge.local
+```
+
+Phase 5 OIDC clients:
+
+| Client | Type | Purpose |
+| --- | --- | --- |
+| `vdiforge-frontend` | public | Future browser portal using Authorization Code Flow with PKCE S256. |
+| `vdiforge-api` | audience marker | Future FastAPI JWT audience validation. |
+
+Roles:
 
 ```text
 vdi-user
@@ -404,7 +422,13 @@ vdi-devops
 vdi-admin
 ```
 
-The frontend should use Authorization Code Flow with PKCE. The backend must validate tokens server-side:
+Roles are realm roles with composite inheritance:
+
+```text
+vdi-admin -> vdi-devops -> vdi-developer -> vdi-user
+```
+
+The frontend client uses Authorization Code Flow with PKCE. The backend must validate tokens server-side:
 
 - JWT signature through Keycloak JWKS
 - issuer
@@ -440,6 +464,8 @@ demo-admin
 
 No real passwords may be committed.
 
+Phase 5 validates OIDC discovery, JWKS, PKCE token exchange, JWT signature, issuer, audience, expiration, positive role claims, unauthorized role absence, and negative cases. FastAPI still owns application authorization in Phase 7.
+
 ## Networking Design
 
 Conceptual allowed paths:
@@ -466,6 +492,15 @@ Conceptual denied paths:
 NetworkPolicies should default to least privilege. Remote desktop services should be reachable only by Guacamole or the controlled gateway path.
 
 Phase 4 adds the first Helm-managed NetworkPolicy baseline in `vdiforge-system`. It establishes default deny, DNS egress, and a future provisioner egress path to the Kubernetes API without imposing VDI namespace policies that would break KubeVirt/CDI before application labels and ports exist.
+
+Phase 5 adds identity namespace NetworkPolicies:
+
+- default deny for `keycloak`
+- DNS egress to CoreDNS
+- Traefik ingress to Keycloak
+- Keycloak egress to PostgreSQL
+- PostgreSQL ingress only from Keycloak
+- future API ingress path to Keycloak discovery/JWKS
 
 ## Storage Design
 
@@ -680,7 +715,7 @@ Phase 2 produced local infrastructure that can host the planned three-node clust
 7. Terraform specification and outputs under `terraform/environments/local`.
 8. Ansible baseline inventory and roles under `ansible`.
 
-Phase 3 installs Kubernetes prerequisites, kubeadm/containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, namespace/RBAC foundations, and validation scripts. Phase 4 installs the Helm deployment client on `vdi-control-01` and deploys the VDIForge foundation release. Phases 3 and 4 intentionally do not install VDIForge applications, Keycloak, Guacamole, Prometheus/Grafana, or final Ubuntu desktop images.
+Phase 3 installs Kubernetes prerequisites, kubeadm/containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, namespace/RBAC foundations, and validation scripts. Phase 4 installs the Helm deployment client on `vdi-control-01` and deploys the VDIForge foundation release. Phase 5 installs Traefik ingress, Keycloak, PostgreSQL persistence, local TLS, the `vdiforge` realm, OIDC clients, demo identities, and identity validation scripts. Phases 3-5 intentionally do not install the VDIForge FastAPI application, React portal, Guacamole, Prometheus/Grafana, Packer image pipeline, or final Ubuntu desktop images.
 
 ## Future Cloud or Bare-Metal Deployment
 
@@ -710,6 +745,9 @@ These are not required for the MVP.
 - Ansible execution requires a Linux/WSL/Ubuntu controller; Phase 2 validation used `vdi-control-01`.
 - KubeVirt software emulation is slow and only acceptable for development fallback.
 - Local storage can limit migration and recovery behavior.
+- Keycloak persistence uses one PostgreSQL StatefulSet on local-path storage; it is not HA and should be replaced for production.
+- Local browser trust requires importing the generated VDIForge local CA on each client.
+- `auth.vdiforge.local` requires a local hosts-file entry, equivalent local DNS, or explicit resolver mapping for automated tests.
 - The control plane needed 4 vCPU and 6 GiB RAM for reliable Phase 3 validation on this host; lower sizing caused API-server pressure during add-on reconciliation.
 - Remote desktop performance will not match commercial proprietary protocols.
 - Windows desktops are excluded from the free MVP.
@@ -721,6 +759,5 @@ These are not required for the MVP.
 - Should routine Ansible operations remain on `vdi-control-01`, move to WSL, or use another Linux controller?
 - Should Guacamole connection handling use its REST/API integration, a custom extension, or short-lived generated connection records for the MVP?
 - What exact resource profiles should be exposed first?
-- Which Keycloak configuration-as-code method will be most reproducible for the lab: realm import, Keycloak Operator, Terraform provider, or admin API script?
-- Which Keycloak Helm chart and persistence approach should Phase 5 use within the small platform worker capacity?
-- Which local ingress, DNS, and TLS approach should be adopted once browser-facing services exist?
+- How should the future React portal handle refresh tokens while minimizing browser token exposure?
+- Does the future API need a separate confidential service/admin client beyond the current `vdiforge-api` audience marker?

@@ -1,0 +1,141 @@
+{{- if and .Values.keycloak.enabled .Values.keycloak.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Values.keycloak.networkPolicy.defaultDeny.name }}
+  namespace: {{ include "vdiforge.namespace.identity" . }}
+  labels:
+    {{- include "vdiforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Values.keycloak.networkPolicy.allowDns.name }}
+  namespace: {{ include "vdiforge.namespace.identity" . }}
+  labels:
+    {{- include "vdiforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Values.keycloak.networkPolicy.allowIngressToKeycloak.name }}
+  namespace: {{ include "vdiforge.namespace.identity" . }}
+  labels:
+    {{- include "vdiforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "vdiforge.keycloak.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.keycloak.networkPolicy.allowIngressToKeycloak.namespace }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.keycloak.networkPolicy.allowIngressToKeycloak.podSelector | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.keycloak.service.port }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Values.keycloak.networkPolicy.allowKeycloakToPostgres.name }}
+  namespace: {{ include "vdiforge.namespace.identity" . }}
+  labels:
+    {{- include "vdiforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "vdiforge.keycloak.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "vdiforge.keycloak.postgresqlSelectorLabels" . | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.keycloak.database.port }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Values.keycloak.networkPolicy.allowPostgresFromKeycloak.name }}
+  namespace: {{ include "vdiforge.namespace.identity" . }}
+  labels:
+    {{- include "vdiforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "vdiforge.keycloak.postgresqlSelectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "vdiforge.keycloak.selectorLabels" . | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.keycloak.database.port }}
+---
+{{- if .Values.keycloak.networkPolicy.allowFutureApiToKeycloak.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Values.keycloak.networkPolicy.allowFutureApiToKeycloak.name }}
+  namespace: {{ include "vdiforge.namespace.identity" . }}
+  labels:
+    {{- include "vdiforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "vdiforge.keycloak.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.keycloak.networkPolicy.allowFutureApiToKeycloak.namespace }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.keycloak.networkPolicy.allowFutureApiToKeycloak.podSelector | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.keycloak.service.port }}
+{{- end }}
+{{- end }}

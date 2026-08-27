@@ -1,6 +1,6 @@
 # Security Model
 
-This document defines the VDIForge threat model and security controls. Phase 2 local infrastructure controls, Phase 3 Kubernetes foundation controls, and Phase 4 Helm platform controls apply to the current lab. Identity, application authorization, Guacamole, audit persistence, and image-pipeline controls remain later-phase work.
+This document defines the VDIForge threat model and security controls. Phase 2 local infrastructure controls, Phase 3 Kubernetes foundation controls, Phase 4 Helm platform controls, and Phase 5 identity controls apply to the current lab. FastAPI application authorization, Guacamole, audit persistence, and image-pipeline controls remain later-phase work.
 
 ## Security Objectives
 
@@ -44,7 +44,8 @@ This document defines the VDIForge threat model and security controls. Phase 2 l
 ## Authentication Controls
 
 - Keycloak realm: `vdiforge`.
-- Frontend: Authorization Code Flow with PKCE.
+- Frontend client: Authorization Code Flow with PKCE S256.
+- Public browser client: no client secret, no implicit flow, no direct access grants, no wildcard redirect URIs, and no wildcard web origins.
 - Backend: validate access token signature with Keycloak JWKS.
 - Backend validation checks:
   - issuer
@@ -137,6 +138,8 @@ Phase 3 proves standard Kubernetes NetworkPolicy enforcement with `scripts/phase
 
 Phase 4 adds Helm-managed baseline policies in `vdiforge-system`: default deny for future platform pods, DNS egress, and provisioner-labeled pod egress to the Kubernetes API. It intentionally does not apply a broad default deny to `vdiforge-desktops` yet because Guacamole and VM labels/ports are not implemented.
 
+Phase 5 adds Helm-managed identity policies in `keycloak`: default deny, DNS egress, Traefik-to-Keycloak ingress, Keycloak-to-PostgreSQL egress, PostgreSQL ingress from Keycloak only, and a reserved future API-to-Keycloak discovery/JWKS path. The live validation includes an allow/deny test proving arbitrary pods cannot reach Keycloak or PostgreSQL.
+
 ## Phase 2 Local Infrastructure Security
 
 Current Phase 2 controls:
@@ -180,6 +183,25 @@ Phase 4 adds these security-relevant controls:
 - static and live validation for RBAC scope, secret patterns, rendering, and Helm lifecycle behavior
 
 Phase 4 does not deploy Keycloak, Guacamole, FastAPI, React, PostgreSQL, Prometheus, Grafana, or desktop workloads.
+
+## Phase 5 Identity Security
+
+Phase 5 adds these security-relevant controls:
+
+- Keycloak `26.7.2` deployed from the official image.
+- PostgreSQL `18.0-alpine` deployed as a single persistent, cluster-internal StatefulSet.
+- Traefik chart `41.2.0` deployed as the local HTTPS ingress controller.
+- `auth.vdiforge.local` exposed over HTTPS with a generated local development CA.
+- Runtime-only Keycloak admin, database, TLS, and demo-user credentials generated under ignored `.local/phase5/` paths.
+- `vdiforge` realm imported from sanitized JSON.
+- `vdiforge-frontend` public client configured for Authorization Code Flow with PKCE S256.
+- `vdiforge-api` audience marker created for future FastAPI token validation.
+- JWT tests validate signature, issuer, audience, expiration, required claims, and role claims.
+- Negative tests reject invalid credentials, invalid redirect URI, invalid PKCE verifier, tampered JWT, expired JWT, wrong issuer, and wrong audience.
+- Demo-user RBAC validation confirms unauthorized role absence.
+- Keycloak and PostgreSQL ServiceAccounts disable automatic service account token mounting.
+
+Phase 5 still does not implement FastAPI, React, Guacamole, Prometheus, Grafana, image builds, desktop authorization, or audit persistence.
 
 ## Secret Handling
 

@@ -24,6 +24,11 @@ Thumbs.db
 *secret*
 secrets/
 credentials/
+.local/
+*.csr
+*.srl
+!keycloak/local-secrets.env.example
+!scripts/phase5-create-local-secrets.sh
 
 # Terraform and OpenTofu
 .terraform/

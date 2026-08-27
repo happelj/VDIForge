@@ -373,3 +373,5 @@ Phase 3 does not deploy:
 The cluster ends Phase 3 as a Kubernetes/KubeVirt foundation only.
 
 Phase 4 builds on this cluster with Helm-managed VDIForge platform foundation resources. See [Helm Platform Foundation](HELM-PLATFORM.md) for chart ownership, lifecycle validation, quotas, RBAC, and NetworkPolicy conventions.
+
+Phase 5 adds Keycloak/OIDC/RBAC on top of this foundation without modifying KubeVirt. See [Keycloak, OIDC, and RBAC Foundation](KEYCLOAK-OIDC.md).

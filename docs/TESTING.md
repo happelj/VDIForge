@@ -60,16 +60,27 @@ Planned integration tests:
 
 Required cases:
 
+- Authorization Code Flow with PKCE succeeds
+- OIDC discovery endpoint is reachable
+- JWKS endpoint is reachable
+- signed access token is obtained
+- signature validates against JWKS
 - missing token denied
 - expired token denied
 - wrong issuer denied
 - wrong audience denied
 - invalid signature denied
 - valid token accepted
+- invalid redirect URI denied
+- invalid PKCE verifier denied
+- demo identity role claims are correct
+- unauthorized role claims are absent
 - user cannot request unauthorized image
 - user cannot retrieve another user's desktop
 - admin can view all desktops
 - frontend-supplied user ID or role is ignored
+
+Phase 5 implements the identity-provider side of these tests with `scripts/phase5-oidc-pkce-test.py`. Backend API authorization tests remain Phase 7 work.
 
 ## Kubernetes and KubeVirt Tests
 
@@ -195,6 +206,30 @@ bash scripts/validate-phase4-live.sh
 ```
 
 The Phase 4 live validator checks Helm v4.2.4, chart linting, chart rendering, Helm server dry-run validation, node/add-on health, release install, safe upgrade, repeated upgrade, rollback, expected resources, least-privilege RBAC patterns, ResourceQuotas, LimitRange, NetworkPolicies, and continued KubeVirt/KVM availability.
+
+Phase 5 static validation:
+
+```powershell
+.\scripts\validate-phase5.ps1
+```
+
+Phase 5 live validation from `vdi-control-01`:
+
+```bash
+cd ~/vdiforge-phase5-validation
+bash scripts/validate-phase5-live.sh
+```
+
+The Phase 5 live validator checks Helm rendering, Traefik ingress, runtime-only secret generation, Keycloak/PostgreSQL readiness, platform-worker placement, trusted HTTPS discovery, JWKS, Authorization Code Flow with PKCE, JWT signature/issuer/audience/expiration validation, RBAC role claims, negative security cases, persistence after Keycloak pod recreation, identity NetworkPolicy enforcement, and Phase 1-4 regression health.
+
+Run the focused OIDC helper directly when troubleshooting:
+
+```bash
+python3 scripts/phase5-oidc-pkce-test.py \
+  --env .local/phase5/phase5.env \
+  --ca .local/phase5/tls/vdiforge-local-ca.crt \
+  --resolve-ip 192.168.56.11
+```
 
 Kubernetes manifests:
 

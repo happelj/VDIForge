@@ -1,6 +1,6 @@
 # VDIForge Architecture
 
-This document contains architecture views for VDIForge. The local VirtualBox infrastructure, Kubernetes/KubeVirt foundation, and Helm platform foundation views reflect Phases 2, 3, and 4. Diagrams that include identity, application, remote desktop, and full observability flows remain planned until their later implementation phases.
+This document contains architecture views for VDIForge. The local VirtualBox infrastructure, Kubernetes/KubeVirt foundation, Helm platform foundation, and Keycloak identity foundation views reflect Phases 2 through 5. Diagrams that include the FastAPI application, React portal, remote desktop, and full observability flows remain planned until their later implementation phases.
 
 ## System Context
 
@@ -162,7 +162,8 @@ flowchart TB
   Quota[ResourceQuotas<br/>system and desktops]
   Limit[LimitRange<br/>system namespace]
   NP[NetworkPolicies<br/>default deny, DNS, Kubernetes API egress]
-  Future[Future application charts<br/>Keycloak, API, portal, Guacamole, monitoring]
+  Identity[Phase 5 identity resources<br/>Keycloak, PostgreSQL, identity policies]
+  Future[Future application charts<br/>API, portal, Guacamole, monitoring]
 
   Git --> Helm
   Helm --> Release
@@ -172,10 +173,44 @@ flowchart TB
   Release --> Quota
   Release --> Limit
   Release --> NP
+  Release --> Identity
   Release -. later phases .-> Future
 ```
 
-Phase 4 does not deploy application workloads. It establishes Helm ownership, values conventions, RBAC boundaries, resource governance, NetworkPolicy foundations, and lifecycle validation for install, upgrade, repeated upgrade, and rollback.
+Phase 4 establishes Helm ownership, values conventions, RBAC boundaries, resource governance, NetworkPolicy foundations, and lifecycle validation for install, upgrade, repeated upgrade, and rollback. Phase 5 enables only the identity stack through the Phase 5 values file.
+
+## Identity Foundation
+
+```mermaid
+flowchart TB
+  Client[Browser or OIDC test client]
+  Hosts[Local hosts entry or explicit resolver<br/>auth.vdiforge.local -> 192.168.56.11]
+  CA[Generated local development CA<br/>not committed]
+  subgraph Cluster[Kubernetes cluster]
+    W1[vdi-worker-01<br/>platform worker]
+    subgraph Ingress[Namespace: ingress-traefik]
+      Traefik[Traefik chart 41.2.0<br/>hostPort 443]
+    end
+    subgraph Identity[Namespace: keycloak]
+      Keycloak[Keycloak 26.7.2<br/>realm: vdiforge]
+      PG[(PostgreSQL 18.0<br/>PVC: vdiforge-local-path)]
+      Policies[NetworkPolicies<br/>default deny + explicit allows]
+    end
+  end
+
+  Client -->|HTTPS with trusted local CA| Hosts
+  CA -. trusts .-> Client
+  Hosts --> Traefik
+  Traefik -->|HTTP 8080 inside cluster| Keycloak
+  Keycloak -->|JDBC 5432| PG
+  Policies -. restrict .-> Keycloak
+  Policies -. restrict .-> PG
+  W1 --> Traefik
+  W1 --> Keycloak
+  W1 --> PG
+```
+
+The identity foundation proves OIDC discovery, JWKS, Authorization Code Flow with PKCE, signed JWT validation, expected role claims, unauthorized role absence, negative security cases, and persistence after Keycloak pod recreation. It does not implement FastAPI or React.
 
 ## Authentication Flow
 

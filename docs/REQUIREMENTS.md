@@ -122,6 +122,30 @@ Requirement -> Implementation -> Test -> Evidence -> PASS / FAIL
 | HELM-011 | The VDIForge Helm release shall pass install, upgrade, repeated upgrade, rollback, and final deployed-state validation. | Phase 4 live validation script. |
 | HELM-012 | Phase 4 validation shall produce explicit static and live PASS/FAIL results. | `scripts/validate-phase4.ps1` and `scripts/validate-phase4-live.sh`. |
 
+## Identity Platform Requirements
+
+| ID | Requirement | Verification approach |
+| --- | --- | --- |
+| IDP-001 | Phase 5 shall deploy a pinned Keycloak release as the VDIForge identity provider. | Helm values review and live deployment image check. |
+| IDP-002 | Keycloak shall run on the platform worker placement label and not on the VDI worker or control-plane node. | Pod node assignment check. |
+| IDP-003 | Keycloak configuration shall survive ordinary Keycloak pod restart/recreation. | Controlled pod recreation and realm/client/role/user validation. |
+| IDP-004 | Keycloak shall use persistent PostgreSQL storage for the local lab rather than an ephemeral development database. | StatefulSet, PVC, and restart validation. |
+| IDP-005 | PostgreSQL shall not be exposed outside the cluster. | Service type and NetworkPolicy review. |
+| IDP-006 | `auth.vdiforge.local` shall expose Keycloak through HTTPS ingress. | HTTPS discovery request through ingress. |
+| IDP-007 | Local TLS material shall be generated outside Git and validated without globally disabling certificate verification. | Secret scan and trusted HTTPS test using the generated local CA. |
+| IDP-008 | The `vdiforge` realm shall be reproducibly defined as source-controlled configuration without committed passwords. | Realm JSON review and secret scan. |
+| IDP-009 | The `vdiforge-frontend` client shall be a public OIDC client using Authorization Code Flow with PKCE S256. | Realm JSON review and PKCE flow test. |
+| IDP-010 | The browser client shall not use implicit flow, direct access grants, wildcard redirects, wildcard web origins, or a client secret. | Static realm validation. |
+| IDP-011 | OIDC discovery and JWKS endpoints shall be reachable through trusted HTTPS. | Discovery and JWKS live checks. |
+| IDP-012 | A reproducible test shall obtain a signed access token through Authorization Code Flow with PKCE. | `scripts/phase5-oidc-pkce-test.py`. |
+| IDP-013 | Access-token validation shall verify signature, issuer, audience, and expiration. | PKCE/JWT validation test. |
+| IDP-014 | Realm roles `vdi-user`, `vdi-developer`, `vdi-devops`, and `vdi-admin` shall exist. | Realm import and admin CLI validation. |
+| IDP-015 | Demo identities shall receive expected role claims and shall not receive unauthorized roles. | RBAC claim validation for all demo identities. |
+| IDP-016 | Negative authentication/security tests shall reject invalid credentials, invalid redirect URI, invalid PKCE verifier, tampered JWT, expired JWT, wrong issuer, and wrong audience. | PKCE/JWT negative validation. |
+| IDP-017 | Identity NetworkPolicies shall permit only required Keycloak ingress, Keycloak-to-PostgreSQL, DNS, and future API discovery/JWKS paths. | NetworkPolicy manifest review and live deny/allow test. |
+| IDP-018 | Runtime identity credentials, TLS private keys, database passwords, and tokens shall not be committed. | Static secret scan and Git diff review. |
+| IDP-019 | Phase 5 validation shall produce explicit static and live PASS/FAIL results. | `scripts/validate-phase5.ps1` and `scripts/validate-phase5-live.sh`. |
+
 ## Security Requirements
 
 | ID | Requirement | Verification approach |
@@ -265,3 +289,37 @@ Requirement -> Implementation -> Test -> Evidence -> PASS / FAIL
 | `HELM-010` | [helm/vdiforge/values.yaml](../helm/vdiforge/values.yaml), [docs/HELM-PLATFORM.md](HELM-PLATFORM.md) | Hardcoded-node-name scan. | PASS | Placement uses `vdiforge.io/node-role` labels. |
 | `HELM-011` | [scripts/validate-phase4-live.sh](../scripts/validate-phase4-live.sh) | Live Helm lifecycle test. | PASS | Install, upgrade, repeated upgrade, rollback, and final deployed-state checks pass. |
 | `HELM-012` | [scripts/validate-phase4.ps1](../scripts/validate-phase4.ps1), [scripts/validate-phase4-live.sh](../scripts/validate-phase4-live.sh) | Validator execution. | PASS | Static and live validators emit explicit PASS/FAIL results. |
+
+## Phase 5 Traceability
+
+| Requirement | Implementation reference | Test or evidence | Status | Notes |
+| --- | --- | --- | --- | --- |
+| `NFR-003` | [helm/vdiforge/values.yaml](../helm/vdiforge/values.yaml), [helm/traefik/values-local.yaml](../helm/traefik/values-local.yaml), [docs/KEYCLOAK-OIDC.md](KEYCLOAK-OIDC.md) | Version pin review and live image checks. | PASS | Keycloak, PostgreSQL, Traefik chart, Helm, and Kubernetes versions are pinned/documented. |
+| `NFR-006` | [helm/vdiforge](../helm/vdiforge), [scripts/validate-phase5-live.sh](../scripts/validate-phase5-live.sh) | Helm install/upgrade of identity resources. | PASS | Keycloak identity foundation is repeatably deployed by Helm. |
+| `NFR-008` | [docs/KEYCLOAK-OIDC.md](KEYCLOAK-OIDC.md), [docs/ADR/0012-keycloak-oidc-platform.md](ADR/0012-keycloak-oidc-platform.md) | Architecture review. | PASS | No Kafka, RabbitMQ, service mesh, OpenStack, Ceph, Vault cluster, Argo CD, Crossplane, or Elasticsearch introduced. |
+| `NFR-012` | [helm/vdiforge/values.yaml](../helm/vdiforge/values.yaml), [helm/vdiforge/templates/keycloak.yaml](../helm/vdiforge/templates/keycloak.yaml), [helm/vdiforge/templates/keycloak-postgres.yaml](../helm/vdiforge/templates/keycloak-postgres.yaml) | Rendered manifest and live pod review. | PASS | Keycloak and PostgreSQL define CPU/memory requests and limits. |
+| `SEC-005` | [helm/vdiforge/templates/keycloak-networkpolicies.yaml](../helm/vdiforge/templates/keycloak-networkpolicies.yaml), [scripts/phase5-networkpolicy-test.sh](../scripts/phase5-networkpolicy-test.sh) | Identity NetworkPolicy validation. | PASS | Unauthorized pod access to Keycloak and PostgreSQL is denied. |
+| `SEC-008` | [.gitignore](../.gitignore), [scripts/phase5-create-local-secrets.sh](../scripts/phase5-create-local-secrets.sh), [scripts/validate-phase5.ps1](../scripts/validate-phase5.ps1) | Secret scan and generated-local-secret review. | PASS | Passwords, TLS private keys, and tokens are excluded from Git. |
+| `SEC-015` | [helm/vdiforge/templates/keycloak.yaml](../helm/vdiforge/templates/keycloak.yaml), [docs/ADR/0013-local-ingress-and-tls.md](ADR/0013-local-ingress-and-tls.md) | Trusted HTTPS OIDC discovery validation. | PASS | Keycloak is exposed through HTTPS with a local development CA. |
+| `OPS-004` | [docs/RUNBOOK.md](RUNBOOK.md), [docs/KEYCLOAK-OIDC.md](KEYCLOAK-OIDC.md) | Runbook review. | PASS | Keycloak, authentication, and authorization troubleshooting are documented. |
+| `OPS-008` | [docs/RUNBOOK.md](RUNBOOK.md), [scripts/phase5-windows-hosts-and-trust.ps1](../scripts/phase5-windows-hosts-and-trust.ps1) | DNS/TLS procedure review and HTTPS validation. | PASS | Local hosts-file and CA trust procedures are documented. |
+| `OPS-012` | [scripts/validate-phase5.ps1](../scripts/validate-phase5.ps1), [scripts/validate-phase5-live.sh](../scripts/validate-phase5-live.sh) | Phase validation and Git workflow evidence. | PASS | Static and live validation emit explicit PASS/FAIL results. |
+| `IDP-001` | [helm/vdiforge/values.yaml](../helm/vdiforge/values.yaml), [helm/vdiforge/templates/keycloak.yaml](../helm/vdiforge/templates/keycloak.yaml) | Helm render and live image check. | PASS | Keycloak `26.7.2` is deployed from the official image. |
+| `IDP-002` | [helm/vdiforge/values.yaml](../helm/vdiforge/values.yaml) | Pod node assignment check. | PASS | Identity workloads target `vdiforge.io/node-role=platform`. |
+| `IDP-003` | [scripts/validate-phase5-live.sh](../scripts/validate-phase5-live.sh) | Controlled Keycloak pod recreation. | PASS | Realm, clients, roles, and demo users remain after pod recreation. |
+| `IDP-004` | [helm/vdiforge/templates/keycloak-postgres.yaml](../helm/vdiforge/templates/keycloak-postgres.yaml) | StatefulSet/PVC review and restart validation. | PASS | Keycloak uses persistent PostgreSQL storage. |
+| `IDP-005` | [helm/vdiforge/templates/keycloak-postgres.yaml](../helm/vdiforge/templates/keycloak-postgres.yaml), [helm/vdiforge/templates/keycloak-networkpolicies.yaml](../helm/vdiforge/templates/keycloak-networkpolicies.yaml) | Service and NetworkPolicy review. | PASS | PostgreSQL is ClusterIP-only and restricted to Keycloak. |
+| `IDP-006` | [helm/vdiforge/templates/keycloak.yaml](../helm/vdiforge/templates/keycloak.yaml), [helm/traefik/values-local.yaml](../helm/traefik/values-local.yaml) | HTTPS discovery through ingress. | PASS | Keycloak is reachable as `https://auth.vdiforge.local`. |
+| `IDP-007` | [scripts/phase5-create-local-secrets.sh](../scripts/phase5-create-local-secrets.sh) | Trusted CA HTTPS validation and secret scan. | PASS | Local CA/TLS material is generated under ignored `.local/phase5/`. |
+| `IDP-008` | [keycloak/realm/vdiforge-realm.json](../keycloak/realm/vdiforge-realm.json) | Static realm validation. | PASS | Realm JSON contains no committed passwords. |
+| `IDP-009` | [keycloak/realm/vdiforge-realm.json](../keycloak/realm/vdiforge-realm.json) | Static realm validation and PKCE flow test. | PASS | `vdiforge-frontend` is public and uses PKCE S256. |
+| `IDP-010` | [keycloak/realm/vdiforge-realm.json](../keycloak/realm/vdiforge-realm.json) | Static realm validation. | PASS | Implicit flow, direct grants, wildcard origins, wildcard redirects, and browser client secrets are absent. |
+| `IDP-011` | [scripts/validate-phase5-live.sh](../scripts/validate-phase5-live.sh) | Discovery and JWKS HTTPS checks. | PASS | OIDC metadata and signing keys are reachable. |
+| `IDP-012` | [scripts/phase5-oidc-pkce-test.py](../scripts/phase5-oidc-pkce-test.py) | Authorization Code + PKCE test. | PASS | The helper obtains access tokens without using Resource Owner Password Credentials as the primary proof. |
+| `IDP-013` | [scripts/phase5-oidc-pkce-test.py](../scripts/phase5-oidc-pkce-test.py) | JWT validation tests. | PASS | Signature, issuer, audience, and expiration are validated. |
+| `IDP-014` | [keycloak/realm/vdiforge-realm.json](../keycloak/realm/vdiforge-realm.json), [scripts/phase5-configure-keycloak.sh](../scripts/phase5-configure-keycloak.sh) | Realm/admin CLI validation. | PASS | All four realm roles exist. |
+| `IDP-015` | [scripts/phase5-oidc-pkce-test.py](../scripts/phase5-oidc-pkce-test.py) | RBAC claim validation. | PASS | Demo identities receive expected roles and lack unauthorized roles. |
+| `IDP-016` | [scripts/phase5-oidc-pkce-test.py](../scripts/phase5-oidc-pkce-test.py) | Negative security tests. | PASS | Invalid credentials, redirect URI, PKCE verifier, tampered JWT, expired JWT, wrong issuer, and wrong audience are rejected. |
+| `IDP-017` | [helm/vdiforge/templates/keycloak-networkpolicies.yaml](../helm/vdiforge/templates/keycloak-networkpolicies.yaml), [scripts/phase5-networkpolicy-test.sh](../scripts/phase5-networkpolicy-test.sh) | Deny/allow NetworkPolicy test. | PASS | Identity namespace access is restricted to documented paths. |
+| `IDP-018` | [.gitignore](../.gitignore), [scripts/validate-phase5.ps1](../scripts/validate-phase5.ps1) | Secret scan and Git diff review. | PASS | No runtime identity credentials are committed. |
+| `IDP-019` | [scripts/validate-phase5.ps1](../scripts/validate-phase5.ps1), [scripts/validate-phase5-live.sh](../scripts/validate-phase5-live.sh) | Validator execution. | PASS | Static and live validators produce explicit PASS/FAIL output. |

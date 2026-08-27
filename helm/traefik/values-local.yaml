@@ -1,0 +1,49 @@
+deployment:
+  replicas: 1
+
+nodeSelector:
+  vdiforge.io/node-role: platform
+
+providers:
+  kubernetesCRD:
+    enabled: false
+  kubernetesIngress:
+    enabled: true
+    ingressClass: traefik
+
+ingressClass:
+  enabled: true
+  isDefaultClass: false
+  name: traefik
+
+service:
+  enabled: true
+  type: ClusterIP
+
+ports:
+  web:
+    port: 8000
+    hostPort: 80
+    expose:
+      default: true
+    exposedPort: 80
+  websecure:
+    port: 8443
+    hostPort: 443
+    expose:
+      default: true
+    exposedPort: 443
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 300m
+    memory: 256Mi
+
+log:
+  level: INFO
+
+accessLog:
+  enabled: true

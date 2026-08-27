@@ -39,6 +39,8 @@ vdi-admin
 ## Consequences
 
 - The MVP can run locally with an open-source identity provider.
-- Keycloak configuration must be automated in a later phase.
+- Phase 5 automates the initial Keycloak realm, clients, roles, and demo identities through source-controlled realm import plus runtime-only secret injection.
 - The API must correctly validate JWTs instead of trusting decoded payloads.
 - Keycloak roles are identity claims; VDIForge still owns application authorization and desktop ownership policy.
+
+Phase 5 implementation details are recorded in [ADR 0012](0012-keycloak-oidc-platform.md) and [Keycloak, OIDC, and RBAC Foundation](../KEYCLOAK-OIDC.md).

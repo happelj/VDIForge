@@ -1,0 +1,9 @@
+keycloak:
+  enabled: true
+  ingress:
+    enabled: true
+
+resourceGovernance:
+  quotas:
+    identity:
+      enabled: true
