@@ -1,0 +1,183 @@
+{{- if .Values.keycloak.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.keycloak.realmImportConfigMap }}
+  namespace: {{ include "vdiforge.namespace.identity" . }}
+  labels:
+    {{- include "vdiforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: identity-config
+data:
+  {{ .Values.keycloak.realmImportFile }}: |-
+{{ .Files.Get "files/keycloak/vdiforge-realm.json" | indent 4 }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "vdiforge.keycloak.name" . }}
+  namespace: {{ include "vdiforge.namespace.identity" . }}
+  labels:
+    {{- include "vdiforge.keycloak.labels" . | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "vdiforge.keycloak.name" . }}
+  namespace: {{ include "vdiforge.namespace.identity" . }}
+  labels:
+    {{- include "vdiforge.keycloak.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "vdiforge.keycloak.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.keycloak.service.port }}
+      targetPort: http
+      protocol: TCP
+    - name: management
+      port: {{ .Values.keycloak.service.managementPort }}
+      targetPort: management
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "vdiforge.keycloak.name" . }}
+  namespace: {{ include "vdiforge.namespace.identity" . }}
+  labels:
+    {{- include "vdiforge.keycloak.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.keycloak.replicas }}
+  selector:
+    matchLabels:
+      {{- include "vdiforge.keycloak.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "vdiforge.keycloak.labels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "vdiforge.keycloak.name" . }}
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector:
+        {{- toYaml .Values.placement.platform.nodeSelector | nindent 8 }}
+      containers:
+        - name: keycloak
+          image: "{{ .Values.keycloak.image.repository }}:{{ .Values.keycloak.image.tag }}"
+          imagePullPolicy: {{ .Values.keycloak.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+            runAsUser: 1000
+          args:
+            - start
+            - --import-realm
+          ports:
+            - name: http
+              containerPort: {{ .Values.keycloak.service.port }}
+              protocol: TCP
+            - name: management
+              containerPort: {{ .Values.keycloak.service.managementPort }}
+              protocol: TCP
+          env:
+            - name: KC_BOOTSTRAP_ADMIN_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.keycloak.existingSecret }}
+                  key: {{ .Values.keycloak.admin.usernameKey }}
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.keycloak.existingSecret }}
+                  key: {{ .Values.keycloak.admin.passwordKey }}
+            - name: KC_DB
+              value: postgres
+            - name: KC_DB_URL
+              value: "jdbc:postgresql://{{ .Values.keycloak.database.host }}.{{ include "vdiforge.namespace.identity" . }}.svc.cluster.local:{{ .Values.keycloak.database.port }}/{{ .Values.keycloak.database.name }}"
+            - name: KC_DB_USERNAME
+              value: {{ .Values.keycloak.database.username | quote }}
+            - name: KC_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.keycloak.existingSecret }}
+                  key: {{ .Values.keycloak.database.passwordKey }}
+            - name: KC_HOSTNAME
+              value: {{ .Values.keycloak.hostname | quote }}
+            - name: KC_HTTP_ENABLED
+              value: {{ .Values.keycloak.httpEnabled | quote }}
+            - name: KC_PROXY_HEADERS
+              value: {{ .Values.keycloak.proxyHeaders | quote }}
+            - name: KC_PROXY_TRUSTED_ADDRESSES
+              value: {{ .Values.keycloak.proxyTrustedAddresses | quote }}
+            - name: KC_HOSTNAME_STRICT
+              value: "true"
+            - name: KC_HEALTH_ENABLED
+              value: {{ .Values.keycloak.healthEnabled | quote }}
+            - name: KC_METRICS_ENABLED
+              value: {{ .Values.keycloak.metricsEnabled | quote }}
+            - name: KC_CACHE
+              value: {{ .Values.keycloak.cache | quote }}
+          startupProbe:
+            httpGet:
+              path: /health/started
+              port: management
+            failureThreshold: 60
+            periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: management
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: management
+            initialDelaySeconds: 60
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.keycloak.resources | nindent 12 }}
+          volumeMounts:
+            - name: realm-import
+              mountPath: "/opt/keycloak/data/import/{{ .Values.keycloak.realmImportFile }}"
+              subPath: {{ .Values.keycloak.realmImportFile }}
+              readOnly: true
+      volumes:
+        - name: realm-import
+          configMap:
+            name: {{ .Values.keycloak.realmImportConfigMap }}
+---
+{{- if .Values.keycloak.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "vdiforge.keycloak.name" . }}
+  namespace: {{ include "vdiforge.namespace.identity" . }}
+  labels:
+    {{- include "vdiforge.keycloak.labels" . | nindent 4 }}
+spec:
+  ingressClassName: {{ .Values.keycloak.ingress.className }}
+  tls:
+    - hosts:
+        - {{ .Values.keycloak.ingress.host }}
+      secretName: {{ .Values.keycloak.ingress.tlsSecretName }}
+  rules:
+    - host: {{ .Values.keycloak.ingress.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "vdiforge.keycloak.name" . }}
+                port:
+                  name: http
+{{- end }}
+{{- end }}

@@ -28,4 +28,20 @@ spec:
   hard:
     {{- toYaml .Values.resourceGovernance.quotas.desktops.hard | nindent 4 }}
 {{- end }}
+{{- if and .Values.resourceGovernance.quotas.identity.enabled (or .Values.resourceGovernance.quotas.system.enabled .Values.resourceGovernance.quotas.desktops.enabled) }}
+---
+{{- end }}
+{{- if .Values.resourceGovernance.quotas.identity.enabled }}
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: {{ .Values.resourceGovernance.quotas.identity.name }}
+  namespace: {{ include "vdiforge.namespace.identity" . }}
+  labels:
+    {{- include "vdiforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: resource-governance
+spec:
+  hard:
+    {{- toYaml .Values.resourceGovernance.quotas.identity.hard | nindent 4 }}
+{{- end }}
 {{- end }}

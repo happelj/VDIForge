@@ -276,21 +276,31 @@ This runbook defines troubleshooting procedures for the VDIForge local lab and p
 
 | Area | Detail |
 | --- | --- |
-| Symptoms | Login fails; API readiness fails; token validation metadata unavailable. |
-| Likely causes | Keycloak pod down, database unavailable, ingress/TLS issue, DNS problem. |
-| Diagnostics | `kubectl get pods -n keycloak`; `kubectl logs deploy/keycloak -n keycloak`; `kubectl get ingress -n keycloak`; `curl -k https://<keycloak-host>/realms/vdiforge/.well-known/openid-configuration`. |
-| Remediation | Restore Keycloak pod, fix database, correct ingress/DNS/TLS, roll back failed Keycloak configuration. |
-| Logs/metrics | Keycloak logs, API auth errors, ingress logs, readiness metrics. |
+| Symptoms | Login fails; OIDC discovery is unavailable; PKCE validation fails; future API readiness fails when it depends on issuer metadata. |
+| Likely causes | Keycloak pod down, PostgreSQL unavailable, bad realm import, ingress/TLS issue, DNS problem, ResourceQuota pressure on `vdi-worker-01`. |
+| Diagnostics | `kubectl -n keycloak get pods,svc,ingress,pvc`; `kubectl -n keycloak describe deployment/vdiforge-keycloak`; `kubectl -n keycloak logs deployment/vdiforge-keycloak`; `kubectl -n keycloak get events --sort-by=.lastTimestamp`; `curl --cacert .local/phase5/tls/vdiforge-local-ca.crt --resolve auth.vdiforge.local:443:192.168.56.11 https://auth.vdiforge.local/realms/vdiforge/.well-known/openid-configuration`. |
+| Remediation | Wait for rollout, fix PostgreSQL, correct ingress/DNS/TLS, verify runtime secrets exist, rerun `scripts/phase5-configure-keycloak.sh`, or roll back the `vdiforge` Helm release. Do not delete the PostgreSQL PVC unless intentionally resetting identity state. |
+| Logs/metrics | Keycloak logs, PostgreSQL logs, Traefik logs, Kubernetes events, `kubectl top pods -A`. |
+
+## Keycloak PostgreSQL Unavailable
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | Keycloak startup fails or logs database connection errors; `vdiforge-keycloak-postgres-0` is not Ready. |
+| Likely causes | PVC not bound, local-path storage issue, wrong secret key, ResourceQuota exhausted, PostgreSQL image pull failure. |
+| Diagnostics | `kubectl -n keycloak get statefulset,pod,pvc`; `kubectl -n keycloak describe pod vdiforge-keycloak-postgres-0`; `kubectl -n keycloak logs statefulset/vdiforge-keycloak-postgres`; `kubectl describe resourcequota -n keycloak`; `kubectl get storageclass vdiforge-local-path`. |
+| Remediation | Restore storage, fix the `vdiforge-keycloak-secrets` secret, free quota, rerun Helm upgrade, or rebuild only if the lab reset is intentional. |
+| Logs/metrics | PostgreSQL logs, PVC events, local-path provisioner logs, quota events. |
 
 ## Authentication Failure
 
 | Area | Detail |
 | --- | --- |
 | Symptoms | User cannot log in or API rejects token. |
-| Likely causes | expired token, wrong issuer, wrong audience, clock skew, Keycloak client misconfiguration. |
-| Diagnostics | Inspect API auth error code; verify OIDC discovery URL; compare system clocks; test with demo identity. |
-| Remediation | Fix client settings, correct issuer/audience config, sync clocks, refresh session. |
-| Logs/metrics | API auth logs without raw tokens, Keycloak login events, authorization failure counts. |
+| Likely causes | invalid credentials, expired token, wrong issuer, wrong audience, clock skew, Keycloak client misconfiguration, missing PKCE verifier. |
+| Diagnostics | Run `python3 scripts/phase5-oidc-pkce-test.py --env .local/phase5/phase5.env --ca .local/phase5/tls/vdiforge-local-ca.crt --resolve-ip 192.168.56.11`; inspect OIDC discovery; compare system clocks; verify `vdiforge-frontend` client settings with `scripts/phase5-configure-keycloak.sh`. |
+| Remediation | Reset demo credentials with `scripts/phase5-configure-keycloak.sh`, correct redirect URI/client settings in realm JSON, sync clocks, or refresh the browser session. Do not weaken PKCE or TLS validation to make login pass. |
+| Logs/metrics | Keycloak login events, future API auth logs without raw tokens, Traefik access logs. |
 
 ## Authorization Failure
 
@@ -298,8 +308,8 @@ This runbook defines troubleshooting procedures for the VDIForge local lab and p
 | --- | --- |
 | Symptoms | User is authenticated but cannot list image, launch desktop, connect, or delete. |
 | Likely causes | missing role, wrong role mapper, ownership mismatch, quota denial, desktop in wrong state. |
-| Diagnostics | Check user roles in Keycloak, API audit event, desktop owner in database, API error code. |
-| Remediation | Correct role assignment, fix role mapper, use admin account for admin action, correct backend policy. |
+| Diagnostics | Check user roles in Keycloak, run the Phase 5 RBAC claim test, inspect future API audit event, desktop owner in database, API error code. |
+| Remediation | Correct role assignment in realm configuration, fix the role mapper, use an admin account for admin-only action, correct backend policy in Phase 7. |
 | Logs/metrics | `AUTHORIZATION_DENIED` audit events, API logs, RBAC test evidence. |
 
 ## Guacamole Unavailable
@@ -377,17 +387,17 @@ This runbook defines troubleshooting procedures for the VDIForge local lab and p
 | Area | Detail |
 | --- | --- |
 | Symptoms | Services cannot resolve Keycloak, API, database, or Guacamole. |
-| Likely causes | CoreDNS down, wrong service name, namespace error, host DNS misconfiguration. |
-| Diagnostics | `kubectl get pods -n kube-system -l k8s-app=kube-dns`; `kubectl logs -n kube-system deploy/coredns`; run `nslookup` from a debug pod. |
-| Remediation | Restart CoreDNS, fix Service names, correct namespace references, fix host DNS. |
-| Logs/metrics | CoreDNS logs, API dependency errors, readiness failures. |
+| Likely causes | CoreDNS down for cluster services; wrong Service name or namespace; Windows hosts file missing `auth.vdiforge.local`; future thin client lacks local DNS entry. |
+| Diagnostics | `kubectl get pods -n kube-system -l k8s-app=kube-dns`; `kubectl logs -n kube-system deployment/coredns`; run `nslookup vdiforge-keycloak.keycloak.svc.cluster.local` from a debug pod; on Windows run `Resolve-DnsName auth.vdiforge.local`. |
+| Remediation | Restore CoreDNS for cluster DNS. For browser access, map `192.168.56.11 auth.vdiforge.local vdiforge.local grafana.vdiforge.local` in the client hosts file or local DNS. Use `scripts/phase5-windows-hosts-and-trust.ps1` from an elevated PowerShell prompt on Windows. |
+| Logs/metrics | CoreDNS logs, Traefik logs, browser DNS errors, future API dependency failures. |
 
 ## TLS Problems
 
 | Area | Detail |
 | --- | --- |
 | Symptoms | Browser certificate warnings, OIDC redirect failure, API calls rejected. |
-| Likely causes | expired certificate, wrong hostname, missing CA trust, ingress misconfiguration. |
-| Diagnostics | Inspect certificate dates and SANs; `kubectl describe ingress`; ingress controller logs; browser dev tools. |
-| Remediation | Renew certificate, correct hostname, install local CA trust for lab, fix ingress TLS secret. |
+| Likely causes | expired local certificate, wrong hostname/SAN, missing local CA trust, wrong Kubernetes TLS secret, Traefik ingress issue. |
+| Diagnostics | `kubectl -n keycloak describe ingress vdiforge-keycloak`; `kubectl -n keycloak get secret vdiforge-keycloak-tls`; `openssl x509 -in .local/phase5/tls/auth.vdiforge.local.crt -noout -text`; `curl --cacert .local/phase5/tls/vdiforge-local-ca.crt --resolve auth.vdiforge.local:443:192.168.56.11 https://auth.vdiforge.local/realms/vdiforge/.well-known/openid-configuration`. |
+| Remediation | Regenerate local TLS with `scripts/phase5-create-local-secrets.sh`, refresh the Kubernetes TLS Secret, trust the local CA on the browser client, and rerun Phase 5 validation. Do not use `curl -k` as final validation evidence. |
 | Logs/metrics | Ingress TLS errors, browser error, API request failures. |

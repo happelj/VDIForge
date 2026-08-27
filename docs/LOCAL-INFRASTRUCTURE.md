@@ -4,7 +4,7 @@ This document records the Phase 2 local infrastructure implementation for VDIFor
 
 ## Status
 
-Phase 2 local infrastructure is host-validated on the current Windows workstation with VirtualBox. Phase 3 builds Kubernetes and KubeVirt on top of this foundation; see [Kubernetes and KubeVirt Foundation](KUBERNETES-KUBEVIRT.md). Phase 4 adds the Helm platform foundation; see [Helm Platform Foundation](HELM-PLATFORM.md). Keycloak, Guacamole, the VDIForge application, Prometheus, and Grafana remain later-phase work.
+Phase 2 local infrastructure is host-validated on the current Windows workstation with VirtualBox. Phase 3 builds Kubernetes and KubeVirt on top of this foundation; see [Kubernetes and KubeVirt Foundation](KUBERNETES-KUBEVIRT.md). Phase 4 adds the Helm platform foundation; see [Helm Platform Foundation](HELM-PLATFORM.md). Phase 5 adds Keycloak/OIDC/RBAC; see [Keycloak, OIDC, and RBAC Foundation](KEYCLOAK-OIDC.md). Guacamole, the VDIForge application, Prometheus, and Grafana remain later-phase work.
 
 ## Host Findings
 

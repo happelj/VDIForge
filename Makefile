@@ -1,4 +1,4 @@
-.PHONY: validate-phase1 validate-phase2 validate-phase3 validate-phase3-live validate-phase4 validate-phase4-live install-helm-client infra-init infra-plan infra-apply infra-output infra-destroy-spec configure configure-phase3 remove-temp-sudo terraform-init terraform-plan terraform-output ansible-syntax ansible-syntax-phase3 helm-lint helm-template
+.PHONY: validate-phase1 validate-phase2 validate-phase3 validate-phase3-live validate-phase4 validate-phase4-live validate-phase5 validate-phase5-live install-helm-client phase5-create-secrets phase5-configure-keycloak phase5-oidc-test phase5-networkpolicy-test infra-init infra-plan infra-apply infra-output infra-destroy-spec configure configure-phase3 remove-temp-sudo terraform-init terraform-plan terraform-output ansible-syntax ansible-syntax-phase3 helm-lint helm-template helm-template-phase5
 
 validate-phase1:
 	pwsh -NoProfile -File ./scripts/validate-phase1.ps1
@@ -18,14 +18,35 @@ validate-phase4:
 validate-phase4-live:
 	bash scripts/validate-phase4-live.sh
 
+validate-phase5:
+	pwsh -NoProfile -File ./scripts/validate-phase5.ps1
+
+validate-phase5-live:
+	bash scripts/validate-phase5-live.sh
+
 install-helm-client:
 	bash scripts/install-helm-client.sh
+
+phase5-create-secrets:
+	bash scripts/phase5-create-local-secrets.sh
+
+phase5-configure-keycloak:
+	bash scripts/phase5-configure-keycloak.sh
+
+phase5-oidc-test:
+	python3 scripts/phase5-oidc-pkce-test.py
+
+phase5-networkpolicy-test:
+	bash scripts/phase5-networkpolicy-test.sh
 
 helm-lint:
 	helm lint ./helm/vdiforge
 
 helm-template:
 	helm template vdiforge ./helm/vdiforge --namespace vdiforge-system --values ./helm/vdiforge/values-local.yaml --kube-version 1.36.4
+
+helm-template-phase5:
+	helm template vdiforge ./helm/vdiforge --namespace vdiforge-system --values ./helm/vdiforge/values-local.yaml --values ./helm/vdiforge/values-phase5-local.yaml --kube-version 1.36.4
 
 infra-init: terraform-init
 

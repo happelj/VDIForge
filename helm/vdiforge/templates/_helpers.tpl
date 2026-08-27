@@ -51,10 +51,62 @@ app.kubernetes.io/part-of: vdiforge
 {{- required "namespaces.desktops is required" .Values.namespaces.desktops -}}
 {{- end -}}
 
+{{- define "vdiforge.namespace.identity" -}}
+{{- required "namespaces.identity is required" .Values.namespaces.identity -}}
+{{- end -}}
+
 {{- define "vdiforge.serviceAccount.apiName" -}}
 {{- required "serviceAccounts.api.name is required" .Values.serviceAccounts.api.name -}}
 {{- end -}}
 
 {{- define "vdiforge.serviceAccount.provisionerName" -}}
 {{- required "serviceAccounts.provisioner.name is required" .Values.serviceAccounts.provisioner.name -}}
+{{- end -}}
+
+{{- define "vdiforge.keycloak.name" -}}
+{{- required "keycloak.name is required" .Values.keycloak.name -}}
+{{- end -}}
+
+{{- define "vdiforge.keycloak.postgresqlName" -}}
+{{- required "keycloak.postgresql.name is required" .Values.keycloak.postgresql.name -}}
+{{- end -}}
+
+{{- define "vdiforge.keycloak.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "vdiforge.keycloak.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: identity
+app.kubernetes.io/part-of: vdiforge
+{{- end -}}
+
+{{- define "vdiforge.keycloak.labels" -}}
+helm.sh/chart: {{ include "vdiforge.chart" . }}
+app.kubernetes.io/name: {{ include "vdiforge.keycloak.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+app.kubernetes.io/component: identity
+app.kubernetes.io/part-of: vdiforge
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- with .Values.global.labels }}
+{{ toYaml . }}
+{{- end }}
+{{- end -}}
+
+{{- define "vdiforge.keycloak.postgresqlSelectorLabels" -}}
+app.kubernetes.io/name: {{ include "vdiforge.keycloak.postgresqlName" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: identity-database
+app.kubernetes.io/part-of: vdiforge
+{{- end -}}
+
+{{- define "vdiforge.keycloak.postgresqlLabels" -}}
+helm.sh/chart: {{ include "vdiforge.chart" . }}
+app.kubernetes.io/name: {{ include "vdiforge.keycloak.postgresqlName" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+app.kubernetes.io/component: identity-database
+app.kubernetes.io/part-of: vdiforge
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- with .Values.global.labels }}
+{{ toYaml . }}
+{{- end }}
 {{- end -}}

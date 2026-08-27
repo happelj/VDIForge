@@ -1,10 +1,10 @@
 # Helm Platform Foundation
 
-This document records the Phase 4 Helm foundation for VDIForge. Phase 4 establishes repeatable deployment mechanics, resource ownership, platform guardrails, and extension points for later application phases. It does not deploy Keycloak, Guacamole, FastAPI, React, Prometheus/Grafana, image pipelines, or VDI desktops.
+This document records the Helm foundation for VDIForge. Phase 4 established repeatable deployment mechanics, resource ownership, platform guardrails, and extension points. Phase 5 extends the same chart with the Keycloak identity foundation while Guacamole, FastAPI, React, Prometheus/Grafana, image pipelines, and VDI desktops remain future work.
 
 ## Status
 
-Phase 4 uses Helm as a deployment client from the administrative environment, currently `vdi-control-01`.
+Helm runs from the administrative environment, currently `vdi-control-01`.
 
 | Item | Value |
 | --- | --- |
@@ -12,13 +12,14 @@ Phase 4 uses Helm as a deployment client from the administrative environment, cu
 | Helm Kubernetes client | `v1.36` |
 | Kubernetes cluster | `v1.36.4` |
 | Chart | `helm/vdiforge` |
-| Chart version | `0.4.0` |
+| Chart version | `0.5.0` |
 | Release | `vdiforge` |
 | Release namespace | `vdiforge-system` |
-| Values file | `helm/vdiforge/values-local.yaml` |
-| Final live validation state | Deployed; revision advances when lifecycle validation is rerun |
+| Foundation values | `helm/vdiforge/values-local.yaml` |
+| Identity values | `helm/vdiforge/values-phase5-local.yaml` |
+| Final live validation state | Deployed; revision advances when validation is rerun |
 
-Helm v4 is the current stable Helm major release. Helm v4.2.x supports Kubernetes 1.36.x through 1.33.x, so v4.2.4 is compatible with the Phase 3 Kubernetes 1.36.4 cluster.
+Helm v4.2.x is pinned for the Kubernetes 1.36.4 local lab.
 
 References:
 
@@ -28,14 +29,14 @@ References:
 
 ## Chart Architecture
 
-The VDIForge chart is intentionally a foundation chart in Phase 4.
-
 ```text
 helm/vdiforge
   |
   +-- Chart.yaml
   +-- values.yaml
   +-- values-local.yaml
+  +-- values-phase5-local.yaml
+  +-- files/keycloak/vdiforge-realm.json
   +-- templates/
       |
       +-- _helpers.tpl
@@ -46,6 +47,9 @@ helm/vdiforge
       +-- resourcequota.yaml
       +-- limitrange.yaml
       +-- networkpolicies.yaml
+      +-- keycloak.yaml
+      +-- keycloak-postgres.yaml
+      +-- keycloak-networkpolicies.yaml
       +-- NOTES.txt
 ```
 
@@ -56,25 +60,25 @@ Chart-managed resources:
 | ConfigMap `vdiforge-platform-config` | `vdiforge-system` | Non-sensitive platform conventions and validation marker. |
 | ServiceAccount `vdiforge-api` | `vdiforge-system` | Future API identity with token automount disabled. |
 | ServiceAccount `vdiforge-provisioner` | `vdiforge-system` | Future provisioner identity with token automount enabled. |
-| Role `vdiforge-provisioner-vdi-manager` | `vdiforge-desktops` | Narrow KubeVirt/CDI/PVC/Service/Event permissions. |
-| RoleBinding `vdiforge-provisioner-vdi-manager` | `vdiforge-desktops` | Binds provisioner ServiceAccount to the VDI Role. |
+| Role and RoleBinding `vdiforge-provisioner-vdi-manager` | `vdiforge-desktops` | Narrow KubeVirt/CDI/PVC/Service/Event permissions. |
 | ResourceQuota `vdiforge-system-quota` | `vdiforge-system` | Lab-safe cap for future platform services. |
 | ResourceQuota `vdiforge-desktops-quota` | `vdiforge-desktops` | Lab-safe cap for future VM resources and storage. |
 | LimitRange `vdiforge-system-defaults` | `vdiforge-system` | Default requests/limits for future small platform containers. |
-| NetworkPolicy `vdiforge-system-default-deny` | `vdiforge-system` | Default-deny baseline for future platform pods. |
-| NetworkPolicy `vdiforge-system-allow-dns` | `vdiforge-system` | DNS egress exception for future platform pods. |
-| NetworkPolicy `vdiforge-system-provisioner-kubernetes-api` | `vdiforge-system` | Future provisioner egress path to Kubernetes API. |
+| NetworkPolicies `vdiforge-system-*` | `vdiforge-system` | Platform default deny, DNS egress, and future Kubernetes API egress. |
+| Deployment `vdiforge-keycloak` | `keycloak` | Phase 5 identity provider, enabled only by Phase 5 values. |
+| StatefulSet `vdiforge-keycloak-postgres` | `keycloak` | Persistent local Keycloak database, enabled only by Phase 5 values. |
+| Ingress `vdiforge-keycloak` | `keycloak` | HTTPS ingress for `auth.vdiforge.local`, enabled only by Phase 5 values. |
+| NetworkPolicies `keycloak-*` | `keycloak` | Identity namespace isolation and required allow paths. |
 
-No `Deployment`, `StatefulSet`, `DaemonSet`, `VirtualMachine`, application `Service`, `Ingress`, HPA, Keycloak, Guacamole, Prometheus, Grafana, or desktop workload is created in Phase 4.
+With `values-local.yaml` alone, the chart still renders no application workloads. With `values-phase5-local.yaml`, the chart deploys Keycloak and PostgreSQL only. It does not deploy Guacamole, FastAPI, React, Prometheus, Grafana, HPA objects, image builds, desktop images, or VDI desktops.
 
 ## Helm Toolchain
 
-Helm runs from `vdi-control-01` because that node already has cluster-admin kubeconfig for the local lab and acts as the current administrative controller. Helm is not installed on every Kubernetes node because Helm is a client-side deployment tool, not a node service.
+Helm is a client-side deployment tool. It is installed only in the administrative environment, not on every Kubernetes node.
 
 Install or refresh the pinned user-local client:
 
 ```bash
-cd ~/vdiforge-phase4-validation
 HELM_VERSION=v4.2.4 bash scripts/install-helm-client.sh
 ```
 
@@ -86,13 +90,13 @@ The installer downloads from `https://get.helm.sh`, verifies the published SHA25
 
 ## Namespace Ownership
 
-Phase 3 created the foundational namespaces:
+Phase 3 created foundational namespaces:
 
-| Namespace | Owner | Phase 4 behavior |
+| Namespace | Owner | Current behavior |
 | --- | --- | --- |
-| `vdiforge-system` | Phase 3 raw namespace manifest | Helm release namespace and chart-managed resources live here. |
-| `vdiforge-desktops` | Phase 3 raw namespace manifest | Helm manages VDI quotas and provisioner Role/RoleBinding here. |
-| `keycloak` | Phase 3 raw namespace manifest | Reserved for Phase 5. |
+| `vdiforge-system` | Phase 3 raw namespace manifest | Helm release namespace and platform resources. |
+| `vdiforge-desktops` | Phase 3 raw namespace manifest | Helm manages VDI quotas and provisioner Role/RoleBinding. |
+| `keycloak` | Phase 3 raw namespace manifest | Helm manages Phase 5 identity resources inside the namespace. |
 | `guacamole` | Phase 3 raw namespace manifest | Reserved for Phase 8. |
 | `monitoring` | Phase 3 raw namespace manifest | Reserved for Phase 11. |
 
@@ -103,11 +107,11 @@ namespaces:
   create: false
 ```
 
-This avoids competing namespace ownership between Phase 3 raw manifests and the Phase 4 Helm release. Optional namespace templates exist for future environments, but they are disabled in the local lab.
+This avoids competing ownership of namespace objects. Helm owns resources inside the namespaces, not the namespace objects themselves.
 
 ## RBAC Foundation
 
-The frontend receives no Kubernetes API privileges. The future API ServiceAccount disables automatic service account token mounting:
+The frontend receives no Kubernetes API privileges. The future API ServiceAccount disables token mounting:
 
 ```yaml
 serviceAccounts:
@@ -115,34 +119,9 @@ serviceAccounts:
     automountServiceAccountToken: false
 ```
 
-The future provisioner uses a namespace-scoped Role in `vdiforge-desktops`. It can manage the resource types needed for VM reconciliation:
+The future provisioner uses a namespace-scoped Role in `vdiforge-desktops`. It does not receive `cluster-admin`, a ClusterRoleBinding, or broad Secret access.
 
-- KubeVirt `virtualmachines`
-- KubeVirt `virtualmachineinstances`
-- CDI `datavolumes`
-- PVCs
-- Services
-- Events
-- read-only Pods
-
-It does not receive `cluster-admin`, a ClusterRoleBinding, or broad Secret access.
-
-## Phase 3 RBAC Adoption
-
-Phase 3 created the initial `vdiforge-provisioner` ServiceAccount, Role, and RoleBinding with raw manifests. Phase 4 adopts those existing objects into Helm ownership during the first install:
-
-```bash
-helm upgrade --install vdiforge ./helm/vdiforge \
-  --namespace vdiforge-system \
-  --values ./helm/vdiforge/values-local.yaml \
-  --take-ownership \
-  --force-conflicts \
-  --wait
-```
-
-`--take-ownership` transfers Helm metadata ownership. Helm v4 uses server-side apply, so `--force-conflicts` is also required to take field ownership from the previous `kubectl apply` manager. This is not `--force-replace`; it does not delete and recreate the RBAC objects.
-
-After adoption, changes to these resources should flow through Helm values and chart templates.
+Keycloak and PostgreSQL ServiceAccounts set `automountServiceAccountToken: false` because they do not need to call the Kubernetes API.
 
 ## Resource Governance
 
@@ -154,46 +133,45 @@ The local lab has limited resources:
 | `vdi-worker-01` | 2 vCPU | 6 GiB |
 | `vdi-worker-02` | 4 vCPU | 8 GiB |
 
-Phase 4 adds conservative ResourceQuotas:
+Helm-managed quotas:
 
 | Namespace | Important caps |
 | --- | --- |
 | `vdiforge-system` | 20 pods, 1500m requested CPU, 3 GiB requested memory, 3 CPU limit, 5 GiB memory limit. |
 | `vdiforge-desktops` | 20 pods, 10 PVCs, 80 GiB requested storage, 4 VMs, 4 VMIs, 8 DataVolumes. |
+| `keycloak` | 8 pods, 2 PVCs, 10 GiB requested storage, 1200m requested CPU, 3 GiB requested memory. |
 
-Only `vdiforge-system` receives a LimitRange in Phase 4. The desktop namespace does not receive a default container LimitRange because KubeVirt VM launcher pods need resource behavior driven by VM definitions, not small platform-container defaults.
+Keycloak requests 250m CPU and 768 MiB memory. PostgreSQL requests 100m CPU and 256 MiB memory.
 
 ## NetworkPolicy Foundation
 
-Phase 3 proved NetworkPolicy enforcement with disposable resources. Phase 4 adds a Helm-managed foundation for future platform pods in `vdiforge-system`:
+Platform namespace model:
 
 ```text
-default deny
+vdiforge-system default deny
     |
-    +-- allow DNS egress to CoreDNS
-    |
-    +-- allow future provisioner-labeled pods to reach Kubernetes API
+    +-- DNS egress to CoreDNS
+    +-- future provisioner egress to Kubernetes API
 ```
 
-The chart does not yet impose default-deny policies on the VDI desktop namespace because later Guacamole and VM access policies need more concrete labels and ports. This avoids breaking KubeVirt/CDI validation before the VDI application exists.
+Identity namespace model:
 
-Future expected policies:
+```text
+keycloak default deny
+    |
+    +-- DNS egress to CoreDNS
+    +-- Traefik -> Keycloak
+    +-- Keycloak -> PostgreSQL
+    +-- future API -> Keycloak discovery/JWKS
+```
 
-- frontend to API
-- API to Keycloak
-- API to PostgreSQL
-- provisioner to Kubernetes API
-- Guacamole to VDI VM remote desktop port
-- Prometheus to metrics endpoints
-- deny VDI desktops from platform administration services
+The chart does not yet impose the full VDI desktop namespace policy because Guacamole, VM services, and desktop labels are not implemented.
 
 ## Configuration and Secrets
 
-Non-sensitive platform configuration belongs in Helm values and ConfigMaps. Sensitive values must be supplied later through Kubernetes Secrets or another approved mechanism and must not be committed to Git.
+Non-sensitive configuration belongs in Helm values and ConfigMaps. Sensitive values are provided as Kubernetes Secrets generated outside Git.
 
-Phase 4 commits no real secrets and creates no Secret manifests.
-
-Do not place these values in `values.yaml` or `values-local.yaml`:
+Do not place these values in `values.yaml`, `values-local.yaml`, or `values-phase5-local.yaml`:
 
 - passwords
 - OIDC client secrets
@@ -203,39 +181,60 @@ Do not place these values in `values.yaml` or `values-local.yaml`:
 - kubeconfigs
 - tokens
 
-## Node Placement Conventions
+Runtime Phase 5 secrets are generated by:
 
-The chart records future placement conventions in values:
-
-```yaml
-placement:
-  platform:
-    nodeSelector:
-      vdiforge.io/node-role: platform
-  vdi:
-    nodeSelector:
-      vdiforge.io/node-role: vdi
+```bash
+bash scripts/phase5-create-local-secrets.sh
 ```
 
-Future platform workloads should target the platform worker label. Future VDI/KubeVirt workloads should target the VDI worker label. Templates must avoid hardcoding `vdi-worker-01` or `vdi-worker-02` when role labels express the scheduling intent.
+Generated files live under ignored `.local/phase5/` paths.
 
-## Ingress Decision
+## Node Placement Conventions
 
-Phase 4 does not install an Ingress Controller because there are no HTTP applications yet. Installing one now would add moving parts without a resource that needs ingress.
+Future platform workloads target:
 
-Planned local hostnames remain:
+```yaml
+vdiforge.io/node-role: platform
+```
+
+Future VDI/KubeVirt workloads target:
+
+```yaml
+vdiforge.io/node-role: vdi
+```
+
+Templates must avoid hardcoding `vdi-worker-01` or `vdi-worker-02` when role labels express the scheduling intent.
+
+## Ingress
+
+Phase 5 installs Traefik as a separate Helm release:
 
 ```text
-vdiforge.local
+Release: traefik
+Namespace: ingress-traefik
+Chart: traefik/traefik
+Version: 41.2.0
+```
+
+The identity endpoint is:
+
+```text
+https://auth.vdiforge.local
+```
+
+Local hostnames:
+
+```text
 auth.vdiforge.local
+vdiforge.local
 grafana.vdiforge.local
 ```
 
-Phase 5 or a later HTTP-facing phase should choose the Ingress Controller and local DNS/TLS approach when a real service exists.
+See [Keycloak, OIDC, and RBAC Foundation](KEYCLOAK-OIDC.md) and [ADR 0013](ADR/0013-local-ingress-and-tls.md).
 
 ## Helm Lifecycle
 
-Render and lint:
+Render and lint foundation only:
 
 ```bash
 helm lint ./helm/vdiforge
@@ -245,12 +244,23 @@ helm template vdiforge ./helm/vdiforge \
   --kube-version 1.36.4
 ```
 
-Install or upgrade:
+Render with identity enabled:
+
+```bash
+helm template vdiforge ./helm/vdiforge \
+  --namespace vdiforge-system \
+  --values ./helm/vdiforge/values-local.yaml \
+  --values ./helm/vdiforge/values-phase5-local.yaml \
+  --kube-version 1.36.4
+```
+
+Install or upgrade with identity enabled:
 
 ```bash
 helm upgrade --install vdiforge ./helm/vdiforge \
   --namespace vdiforge-system \
   --values ./helm/vdiforge/values-local.yaml \
+  --values ./helm/vdiforge/values-phase5-local.yaml \
   --take-ownership \
   --force-conflicts \
   --wait
@@ -273,11 +283,7 @@ helm rollback vdiforge <revision> \
   --wait
 ```
 
-Uninstall should be used carefully because it removes the Helm-managed foundation resources:
-
-```bash
-helm uninstall vdiforge --namespace vdiforge-system
-```
+Uninstall should be used carefully because it removes Helm-managed VDIForge foundation and identity resources. It does not remove ignored local secrets or local-path PV data unless those objects are separately deleted.
 
 ## Drift Management
 
@@ -304,7 +310,7 @@ helm status vdiforge --namespace vdiforge-system
 kubectl describe <resource>
 ```
 
-GitOps tooling is intentionally deferred. Helm remains the deployment mechanism for Phase 4.
+GitOps tooling remains deferred.
 
 ## Validation
 
@@ -312,79 +318,69 @@ Static validation:
 
 ```powershell
 .\scripts\validate-phase4.ps1
+.\scripts\validate-phase5.ps1
 ```
 
 Live validation from `vdi-control-01`:
 
 ```bash
-cd ~/vdiforge-phase4-validation
 bash scripts/validate-phase4-live.sh
+bash scripts/validate-phase5-live.sh
 ```
 
-Live validation checks:
+Phase 5 live validation checks:
 
-- Helm client version
-- `helm lint`
-- `helm template`
-- rendered label conventions
-- no `cluster-admin`
-- Helm server dry-run schema validation
-- node readiness
-- Calico health
-- CoreDNS health
-- Metrics Server health
-- KubeVirt health
-- CDI health
-- install baseline
-- upgrade
-- repeated upgrade
-- rollback
-- expected resources
-- KubeVirt KVM resource remains available on `vdi-worker-02`
-
-Representative Phase 4 live result:
-
-```text
-Helm version: v4.2.4
-helm lint: PASS
-helm template: PASS
-Helm server dry-run: PASS
-install: PASS
-upgrade: PASS
-repeated upgrade: PASS
-rollback: PASS
-final Helm revision: recorded by validation output
-Phase 4 live validation: PASS
-```
+- Traefik install and placement
+- runtime-only secret generation
+- Keycloak/PostgreSQL deployment
+- trusted HTTPS discovery and JWKS
+- Authorization Code Flow with PKCE
+- JWT signature, issuer, audience, and expiration validation
+- role claims and unauthorized role absence
+- persistence after Keycloak pod recreation
+- NetworkPolicy enforcement
+- previous phase regression health
 
 ## Troubleshooting
 
-If Helm reports ownership conflicts during the first Phase 4 install, confirm that the command includes both:
+If Helm reports ownership conflicts, confirm the command includes:
 
 ```text
 --take-ownership
 --force-conflicts
 ```
 
-If Helm reports a failed release:
+If Keycloak is not Ready:
 
 ```bash
-helm status vdiforge --namespace vdiforge-system
-helm history vdiforge --namespace vdiforge-system
-helm get manifest vdiforge --namespace vdiforge-system
+kubectl -n keycloak get pods
+kubectl -n keycloak describe pod -l app.kubernetes.io/name=vdiforge-keycloak
+kubectl -n keycloak logs deployment/vdiforge-keycloak
 ```
 
-If ResourceQuota blocks a future phase, adjust the chart values and upgrade. Do not manually edit the live quota.
+If PostgreSQL is not Ready:
 
-If a future pod cannot reach DNS or the Kubernetes API, inspect the Helm-managed NetworkPolicies and add explicit allow policies in the appropriate future phase.
+```bash
+kubectl -n keycloak get pvc,pods
+kubectl -n keycloak logs statefulset/vdiforge-keycloak-postgres
+```
+
+If `auth.vdiforge.local` fails:
+
+```bash
+kubectl -n ingress-traefik get pods,svc
+kubectl -n keycloak get ingress vdiforge-keycloak
+curl --cacert .local/phase5/tls/vdiforge-local-ca.crt \
+  --resolve auth.vdiforge.local:443:192.168.56.11 \
+  https://auth.vdiforge.local/realms/vdiforge/.well-known/openid-configuration
+```
 
 ## Scope Boundary
 
-Phase 4 does not deploy:
+Phase 5 deploys Keycloak, PostgreSQL, Traefik ingress, the `vdiforge` realm, OIDC clients, and demo identities.
 
-- Keycloak
-- OIDC clients or demo identities
-- PostgreSQL
+Phase 5 does not deploy:
+
 - FastAPI
 - provisioner application code
 - React

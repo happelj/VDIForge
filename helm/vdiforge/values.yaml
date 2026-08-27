@@ -66,6 +66,20 @@ resourceGovernance:
         count/virtualmachines.kubevirt.io: "4"
         count/virtualmachineinstances.kubevirt.io: "4"
         count/datavolumes.cdi.kubevirt.io: "8"
+    identity:
+      enabled: false
+      name: vdiforge-identity-quota
+      hard:
+        pods: "8"
+        services: "6"
+        configmaps: "12"
+        secrets: "16"
+        persistentvolumeclaims: "2"
+        requests.storage: "10Gi"
+        requests.cpu: "1200m"
+        requests.memory: "3Gi"
+        limits.cpu: "2500m"
+        limits.memory: "4Gi"
   limitRanges:
     system:
       enabled: true
@@ -143,7 +157,84 @@ provisioner:
 
 keycloak:
   enabled: false
-  externalChart: true
+  managedByChart: true
+  name: vdiforge-keycloak
+  image:
+    repository: quay.io/keycloak/keycloak
+    tag: "26.7.2"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  existingSecret: vdiforge-keycloak-secrets
+  realmImportConfigMap: vdiforge-keycloak-realm
+  realmImportFile: vdiforge-realm.json
+  admin:
+    usernameKey: KEYCLOAK_ADMIN_USERNAME
+    passwordKey: KEYCLOAK_ADMIN_PASSWORD
+  database:
+    host: vdiforge-keycloak-postgres
+    port: 5432
+    name: keycloak
+    username: keycloak
+    passwordKey: KEYCLOAK_DB_PASSWORD
+  hostname: https://auth.vdiforge.local
+  httpEnabled: true
+  proxyHeaders: xforwarded
+  proxyTrustedAddresses: "10.244.0.0/16,192.168.56.0/24"
+  cache: local
+  healthEnabled: true
+  metricsEnabled: true
+  resources:
+    requests:
+      cpu: 250m
+      memory: 768Mi
+    limits:
+      cpu: "1"
+      memory: 1536Mi
+  service:
+    port: 8080
+    managementPort: 9000
+  ingress:
+    enabled: false
+    className: traefik
+    host: auth.vdiforge.local
+    tlsSecretName: vdiforge-keycloak-tls
+  postgresql:
+    enabled: true
+    name: vdiforge-keycloak-postgres
+    image:
+      repository: postgres
+      tag: "18.0-alpine"
+      pullPolicy: IfNotPresent
+    storageClassName: vdiforge-local-path
+    storageSize: 5Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+  networkPolicy:
+    enabled: true
+    defaultDeny:
+      name: keycloak-default-deny
+    allowDns:
+      name: keycloak-allow-dns
+    allowIngressToKeycloak:
+      name: keycloak-allow-ingress-controller
+      namespace: ingress-traefik
+      podSelector:
+        app.kubernetes.io/name: traefik
+    allowKeycloakToPostgres:
+      name: keycloak-allow-keycloak-to-postgres
+    allowPostgresFromKeycloak:
+      name: keycloak-allow-postgres-from-keycloak
+    allowFutureApiToKeycloak:
+      enabled: true
+      name: keycloak-allow-future-api
+      namespace: vdiforge-system
+      podSelector:
+        app.kubernetes.io/component: api
 
 guacamole:
   enabled: false

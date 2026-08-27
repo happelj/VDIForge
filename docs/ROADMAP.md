@@ -10,7 +10,7 @@ This roadmap defines planned implementation phases. Do not begin a future phase 
 | 2 | Local infrastructure | Complete | VirtualBox local lab, three Ubuntu Server nodes, Terraform/Ansible local foundation, `/dev/kvm` verified on VDI worker. |
 | 3 | Kubernetes/KubeVirt foundation | Complete | kubeadm cluster, containerd, Calico, Metrics Server, KubeVirt, CDI, storage, NetworkPolicy, and test VM validation. |
 | 4 | Helm/platform foundation | Complete | Helm v4.2.4 client, VDIForge foundation chart, release lifecycle, RBAC, quotas, LimitRange, NetworkPolicies, and validation. |
-| 5 | Keycloak/OIDC/RBAC | Planned | Realm, clients, demo users, token validation, RBAC policy tests. |
+| 5 | Keycloak/OIDC/RBAC | Complete | Keycloak, PostgreSQL persistence, Traefik ingress, local TLS, realm import, demo users, PKCE/JWT/RBAC validation. |
 | 6 | Ubuntu/Packer image pipeline | Planned | Three versioned Ubuntu desktop images built with Packer and Ansible. |
 | 7 | FastAPI VDI control plane | Planned | API, database models, desktop lifecycle, asynchronous provisioner. |
 | 8 | Guacamole remote desktop | Planned | Guacamole deployment, secure dynamic connection handling, RDP/VNC validation. |
@@ -74,6 +74,25 @@ Completed outcomes:
 
 Phase 4 validation confirms Helm lifecycle behavior while preserving the Phase 3 Kubernetes, KubeVirt, CDI, Metrics Server, Calico, storage, and KVM foundation.
 
+## Phase 5 - Keycloak / OIDC / RBAC
+
+Completed outcomes:
+
+- selected Keycloak `26.7.2` with the official container image
+- deployed Keycloak through the VDIForge Helm chart with Phase 5 local values
+- deployed single-instance PostgreSQL `18.0-alpine` with persistent local-path storage for Keycloak
+- installed Traefik chart `41.2.0` as the local ingress controller in `ingress-traefik`
+- exposed Keycloak at `https://auth.vdiforge.local` using a generated local development CA
+- defined the `vdiforge` realm as source-controlled JSON
+- created public OIDC client `vdiforge-frontend` using Authorization Code Flow with PKCE S256
+- created API audience client `vdiforge-api`
+- created realm roles `vdi-user`, `vdi-developer`, `vdi-devops`, and `vdi-admin`
+- created demo identities without committing passwords
+- validated discovery, JWKS, signed access tokens, issuer, audience, expiration, and role claims
+- validated negative cases including invalid credentials, invalid redirect URI, invalid PKCE verifier, tampered JWT, expired JWT, wrong issuer, wrong audience, and unauthorized admin role absence
+- verified Keycloak state survives ordinary Keycloak pod recreation
+- validated identity NetworkPolicies and previous phase regression health
+
 ## Future Enhancements
 
 Potential future work after the MVP:
@@ -100,14 +119,12 @@ Potential future work after the MVP:
 The following are intentionally deferred:
 
 - exact Ansible controller path for routine operations after Phase 3
-- exact Keycloak configuration-as-code mechanism and Helm chart choice
-- Keycloak persistence mode and resource allocation on the platform worker
-- local ingress controller, DNS, and TLS approach for browser-facing services
 - Guacamole dynamic connection implementation strategy
 - exact Ubuntu desktop flavor
 - remote desktop clipboard/file-transfer policy
-- exact PostgreSQL deployment mode
 - exact security and dependency scanning tools
+- refresh-token handling strategy for the future React portal
+- whether the future API needs a separate confidential admin/service client
 
 ## Roadmap Rules
 

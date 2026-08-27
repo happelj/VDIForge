@@ -90,7 +90,6 @@ Check-ContentAbsent "helm/vdiforge" "client-secret|client_secret|refresh_token|i
 Check-ContentAbsent "helm/vdiforge" 'password:\s*[^"''<{#\s][^#\r\n]+' "plaintext password in Helm chart"
 Check-ContentAbsent "helm/vdiforge/templates" "cluster-admin|ClusterRoleBinding" "cluster-admin or ClusterRoleBinding in Helm templates"
 Check-ContentAbsent "helm/vdiforge/templates" "vdi-control-01|vdi-worker-01|vdi-worker-02" "hardcoded node name in Helm templates"
-Check-ContentAbsent "helm/vdiforge/templates" "kind:\s*(Deployment|StatefulSet|DaemonSet|VirtualMachine)\s*$" "out-of-scope workload kind in Helm templates"
 
 $templateFiles = Get-ChildItem "helm/vdiforge/templates" -File -Recurse
 $labelMatches = $templateFiles | Select-String -Pattern "app\.kubernetes\.io/name|app\.kubernetes\.io/managed-by|helm\.sh/chart" -ErrorAction SilentlyContinue
@@ -101,7 +100,7 @@ if ($labelMatches) {
 }
 
 $chartYaml = Get-Content "helm/vdiforge/Chart.yaml" -Raw
-if ($chartYaml -match 'version:\s*0\.4\.0' -and $chartYaml -match 'kubeVersion:\s*">=1\.36\.0-0 <1\.37\.0-0"') {
+if ($chartYaml -match '(?m)^version:\s*\d+\.\d+\.\d+\s*$' -and $chartYaml -match 'kubeVersion:\s*">=1\.36\.0-0 <1\.37\.0-0"') {
     Pass "Chart version and Kubernetes compatibility are pinned"
 } else {
     Fail "Chart version or Kubernetes compatibility pin missing"
@@ -134,8 +133,18 @@ if (Get-Command helm -ErrorAction SilentlyContinue) {
     helm lint ./helm/vdiforge
     if ($LASTEXITCODE -eq 0) { Pass "local helm lint" } else { Fail "local helm lint" }
 
-    helm template vdiforge ./helm/vdiforge --namespace vdiforge-system --values ./helm/vdiforge/values-local.yaml --kube-version 1.36.4 | Out-Null
-    if ($LASTEXITCODE -eq 0) { Pass "local helm template" } else { Fail "local helm template" }
+    $rendered = helm template vdiforge ./helm/vdiforge --namespace vdiforge-system --values ./helm/vdiforge/values-local.yaml --kube-version 1.36.4
+    if ($LASTEXITCODE -eq 0) {
+        Pass "local helm template"
+        $renderedText = $rendered -join "`n"
+        if ($renderedText -match "(?m)^kind:\s*(Deployment|StatefulSet|DaemonSet|VirtualMachine)\s*$") {
+            Fail "Phase 4 local values render out-of-scope workload kinds"
+        } else {
+            Pass "Phase 4 local values render no application workload kinds"
+        }
+    } else {
+        Fail "local helm template"
+    }
 } else {
     Warn "helm is not installed on this Windows host; live validation runs Helm from vdi-control-01."
 }

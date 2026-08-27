@@ -27,8 +27,7 @@ function Check-File($Path) {
 function Check-ContentAbsent($Pattern, $Description) {
     $matches = Get-ChildItem -File -Recurse |
         Where-Object { $_.FullName -notmatch "\\.git\\" } |
-        Where-Object { $_.FullName -notmatch "\\scripts\\validate-phase3\.ps1$" } |
-        Where-Object { $_.FullName -notmatch "\\scripts\\validate-phase4\.ps1$" } |
+        Where-Object { $_.FullName -notmatch "\\scripts\\validate-phase\d+\.ps1$" } |
         Select-String -Pattern $Pattern -ErrorAction SilentlyContinue
 
     if ($matches) {
@@ -71,7 +70,7 @@ foreach ($file in $requiredFiles) {
 
 Check-ContentAbsent "BEGIN (RSA|OPENSSH|EC|DSA) PRIVATE KEY" "private key material"
 Check-ContentAbsent "kubeadm join .+--token" "committed kubeadm join token"
-Check-ContentAbsent "client-secret|refresh_token|id_token|access_token" "committed OAuth/token secret"
+Check-ContentAbsent '(client-secret|refresh_token|id_token|access_token)\s*[:=]\s*[''"][A-Za-z0-9._-]{20,}[''"]' "committed OAuth/token secret"
 Check-ContentAbsent "kind:\s*Config\s*$" "committed kubeconfig"
 function Check-NoClusterAdminBinding {
     $manifestFiles = Get-ChildItem kubernetes -Recurse -File | Where-Object { $_.Extension -in ".yml", ".yaml" }

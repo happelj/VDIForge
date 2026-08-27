@@ -1,0 +1,180 @@
+{
+  "realm": "vdiforge",
+  "enabled": true,
+  "displayName": "VDIForge",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "rememberMe": false,
+  "verifyEmail": false,
+  "loginWithEmailAllowed": false,
+  "duplicateEmailsAllowed": false,
+  "sslRequired": "external",
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 28800,
+  "roles": {
+    "realm": [
+      {
+        "name": "vdi-user",
+        "description": "Can launch Ubuntu Base desktops and manage owned desktops.",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "vdiforge"
+      },
+      {
+        "name": "vdi-developer",
+        "description": "Can launch Ubuntu Base and Ubuntu Developer desktops and manage owned desktops.",
+        "composite": true,
+        "composites": {
+          "realm": [
+            "vdi-user"
+          ]
+        },
+        "clientRole": false,
+        "containerId": "vdiforge"
+      },
+      {
+        "name": "vdi-devops",
+        "description": "Can launch Ubuntu Base, Ubuntu Developer, and Ubuntu DevOps desktops and manage owned desktops.",
+        "composite": true,
+        "composites": {
+          "realm": [
+            "vdi-developer"
+          ]
+        },
+        "clientRole": false,
+        "containerId": "vdiforge"
+      },
+      {
+        "name": "vdi-admin",
+        "description": "Can administer desktops, image promotion, and audit views.",
+        "composite": true,
+        "composites": {
+          "realm": [
+            "vdi-devops"
+          ]
+        },
+        "clientRole": false,
+        "containerId": "vdiforge"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "vdiforge-frontend",
+      "name": "VDIForge Frontend",
+      "description": "Public browser client for the future React portal.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "clientAuthenticatorType": "none",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": true,
+      "fullScopeAllowed": false,
+      "redirectUris": [
+        "https://vdiforge.local/oidc/callback"
+      ],
+      "webOrigins": [
+        "https://vdiforge.local"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "https://vdiforge.local/"
+      },
+      "protocolMappers": [
+        {
+          "name": "vdiforge roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "multivalued": "true",
+            "claim.name": "roles",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false"
+          }
+        },
+        {
+          "name": "vdiforge api audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "vdiforge-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "vdiforge-api",
+      "name": "VDIForge API Audience",
+      "description": "Audience marker consumed by the future FastAPI resource server.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "bearerOnly": true,
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": false
+    }
+  ],
+  "users": [
+    {
+      "username": "demo-user",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Demo",
+      "lastName": "User",
+      "email": "demo-user@vdiforge.local",
+      "realmRoles": [
+        "vdi-user"
+      ],
+      "requiredActions": []
+    },
+    {
+      "username": "demo-developer",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Demo",
+      "lastName": "Developer",
+      "email": "demo-developer@vdiforge.local",
+      "realmRoles": [
+        "vdi-developer"
+      ],
+      "requiredActions": []
+    },
+    {
+      "username": "demo-devops",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Demo",
+      "lastName": "DevOps",
+      "email": "demo-devops@vdiforge.local",
+      "realmRoles": [
+        "vdi-devops"
+      ],
+      "requiredActions": []
+    },
+    {
+      "username": "demo-admin",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Demo",
+      "lastName": "Admin",
+      "email": "demo-admin@vdiforge.local",
+      "realmRoles": [
+        "vdi-admin"
+      ],
+      "requiredActions": []
+    }
+  ]
+}

@@ -185,6 +185,7 @@ $excludedFragments = @(
   "\.venv\",
   "\venv\",
   "\packer_cache\",
+  "\scripts\validate-phase",
   "\VirtualBox VMs\"
 )
 

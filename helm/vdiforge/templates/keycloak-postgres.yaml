@@ -1,0 +1,116 @@
+{{- if and .Values.keycloak.enabled .Values.keycloak.postgresql.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "vdiforge.keycloak.postgresqlName" . }}
+  namespace: {{ include "vdiforge.namespace.identity" . }}
+  labels:
+    {{- include "vdiforge.keycloak.postgresqlLabels" . | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "vdiforge.keycloak.postgresqlName" . }}
+  namespace: {{ include "vdiforge.namespace.identity" . }}
+  labels:
+    {{- include "vdiforge.keycloak.postgresqlLabels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "vdiforge.keycloak.postgresqlSelectorLabels" . | nindent 4 }}
+  ports:
+    - name: postgres
+      port: {{ .Values.keycloak.database.port }}
+      targetPort: postgres
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "vdiforge.keycloak.postgresqlName" . }}
+  namespace: {{ include "vdiforge.namespace.identity" . }}
+  labels:
+    {{- include "vdiforge.keycloak.postgresqlLabels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "vdiforge.keycloak.postgresqlName" . }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "vdiforge.keycloak.postgresqlSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "vdiforge.keycloak.postgresqlLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "vdiforge.keycloak.postgresqlName" . }}
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 70
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector:
+        {{- toYaml .Values.placement.platform.nodeSelector | nindent 8 }}
+      containers:
+        - name: postgres
+          image: "{{ .Values.keycloak.postgresql.image.repository }}:{{ .Values.keycloak.postgresql.image.tag }}"
+          imagePullPolicy: {{ .Values.keycloak.postgresql.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+            runAsUser: 70
+            runAsGroup: 70
+          ports:
+            - name: postgres
+              containerPort: {{ .Values.keycloak.database.port }}
+              protocol: TCP
+          env:
+            - name: POSTGRES_DB
+              value: {{ .Values.keycloak.database.name | quote }}
+            - name: POSTGRES_USER
+              value: {{ .Values.keycloak.database.username | quote }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.keycloak.existingSecret }}
+                  key: {{ .Values.keycloak.database.passwordKey }}
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.keycloak.postgresql.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes: []
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          {{- include "vdiforge.keycloak.postgresqlLabels" . | nindent 10 }}
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: {{ .Values.keycloak.postgresql.storageClassName }}
+        resources:
+          requests:
+            storage: {{ .Values.keycloak.postgresql.storageSize }}
+{{- end }}

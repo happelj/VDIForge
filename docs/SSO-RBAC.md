@@ -2,6 +2,8 @@
 
 VDIForge uses Keycloak for identity and server-side FastAPI authorization for application permissions.
 
+Phase 5 implements the Keycloak/OIDC/RBAC identity foundation. It proves trusted identity claims, but it does not implement the FastAPI authorization code that will consume those claims.
+
 ## Realm
 
 ```text
@@ -17,19 +19,18 @@ demo-devops
 demo-admin
 ```
 
-Demo identities must use disposable credentials. Real passwords must not be committed.
+Demo identities use disposable local credentials generated outside Git by `scripts/phase5-create-local-secrets.sh`. Real passwords must not be committed.
 
 ## OIDC Clients
 
-Planned clients:
+Phase 5 clients:
 
 | Client | Type | Purpose |
 | --- | --- | --- |
 | `vdiforge-frontend` | public client | Browser-based React portal using Authorization Code Flow with PKCE. |
 | `vdiforge-api` | resource server audience | API audience and role mapping target. |
-| `vdiforge-admin` | confidential or service client, if needed later | Reproducible administrative automation. |
 
-The frontend should use Authorization Code Flow with PKCE. The implicit flow should not be used.
+The frontend client uses Authorization Code Flow with PKCE S256. The implicit flow and direct access grants are disabled. The future React portal does not receive a client secret.
 
 ## Token Validation
 
@@ -47,7 +48,7 @@ FastAPI must not accept tokens based on a decoded payload alone.
 
 ## Roles
 
-Planned roles:
+Roles:
 
 ```text
 vdi-user
@@ -114,28 +115,30 @@ These are separate controls. A user with `vdi-devops` is allowed to request an U
 
 ## Reproducible Keycloak Configuration
 
-Later phases should configure Keycloak through source-controlled automation. Acceptable options to evaluate:
+Phase 5 uses source-controlled realm import JSON plus a runtime-only admin CLI configuration script:
 
-- realm import JSON
-- Keycloak Operator custom resources
-- Keycloak admin API script
-- Terraform Keycloak provider if it is maintained and adds reliability
+```text
+keycloak/realm/vdiforge-realm.json
+helm/vdiforge/files/keycloak/vdiforge-realm.json
+scripts/phase5-configure-keycloak.sh
+```
 
-Manual admin-console clicking may be useful for discovery, but the final MVP configuration must be reproducible.
+The committed realm JSON contains no passwords or client secrets. `scripts/phase5-configure-keycloak.sh` uses generated local secrets to set demo-user credentials after the realm import is available.
+
+Manual admin-console clicking may be useful for inspection, but it is not the source of truth.
 
 ## Token Claims
 
-Preferred claims:
+Validated Phase 5 claims:
 
 - `sub` for stable user identity
 - `preferred_username` for display
-- `email` where needed
-- realm or client role claims for VDIForge roles
+- realm role claims in `roles`
 - `aud` for intended audience
 - `iss` for issuer
 - `exp` for expiration
 
-Role scope mappings should limit access-token roles to the roles needed by the VDIForge clients.
+The Phase 5 PKCE/JWT test validates signature, issuer, audience, expiration, expected role presence, and unauthorized role absence.
 
 ## Audit Events
 
@@ -151,7 +154,11 @@ If Keycloak owns the primary login event, VDIForge should still record applicati
 
 ## Open Questions
 
-- Should roles be realm roles or client roles for the MVP?
-- Which Keycloak automation path provides the simplest repeatable local setup?
 - How should refresh tokens be handled in the React portal while minimizing token exposure risk?
 - Should admin API access require a separate admin client audience?
+
+## Phase 5 References
+
+- [Keycloak, OIDC, and RBAC Foundation](KEYCLOAK-OIDC.md)
+- [ADR 0012: Keycloak OIDC Platform Deployment](ADR/0012-keycloak-oidc-platform.md)
+- [ADR 0013: Local Ingress and TLS for Browser-Facing Services](ADR/0013-local-ingress-and-tls.md)
