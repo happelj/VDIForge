@@ -28,6 +28,7 @@ function Check-ContentAbsent($Pattern, $Description) {
     $matches = Get-ChildItem -File -Recurse |
         Where-Object { $_.FullName -notmatch "\\.git\\" } |
         Where-Object { $_.FullName -notmatch "\\scripts\\validate-phase3\.ps1$" } |
+        Where-Object { $_.FullName -notmatch "\\scripts\\validate-phase4\.ps1$" } |
         Select-String -Pattern $Pattern -ErrorAction SilentlyContinue
 
     if ($matches) {

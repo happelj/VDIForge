@@ -4,7 +4,7 @@ This document records the Phase 2 local infrastructure implementation for VDIFor
 
 ## Status
 
-Phase 2 local infrastructure is host-validated on the current Windows workstation with VirtualBox. Phase 3 builds Kubernetes and KubeVirt on top of this foundation; see [Kubernetes and KubeVirt Foundation](KUBERNETES-KUBEVIRT.md). Keycloak, Guacamole, Helm application deployment, the VDIForge application, Prometheus, and Grafana remain later-phase work.
+Phase 2 local infrastructure is host-validated on the current Windows workstation with VirtualBox. Phase 3 builds Kubernetes and KubeVirt on top of this foundation; see [Kubernetes and KubeVirt Foundation](KUBERNETES-KUBEVIRT.md). Phase 4 adds the Helm platform foundation; see [Helm Platform Foundation](HELM-PLATFORM.md). Keycloak, Guacamole, the VDIForge application, Prometheus, and Grafana remain later-phase work.
 
 ## Host Findings
 
@@ -304,6 +304,7 @@ Do not delete VM folders unless intentionally rebuilding the lab. Rebuild proced
 - Terraform does not directly create the VirtualBox VMs because no selected provider met the maintainability bar.
 - Ansible is validated from `vdi-control-01`; decide in a later phase whether routine operations should remain there, use WSL, or use another Linux controller.
 - Phase 3 Kubernetes/KubeVirt details, including storage and KVM verification, are documented separately in [Kubernetes and KubeVirt Foundation](KUBERNETES-KUBEVIRT.md).
+- Phase 4 Helm deployment details are documented separately in [Helm Platform Foundation](HELM-PLATFORM.md).
 
 ## Sources
 

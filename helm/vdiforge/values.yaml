@@ -1,0 +1,154 @@
+global:
+  labels: {}
+
+helm:
+  testedVersion: "v4.2.4"
+
+namespaces:
+  create: false
+  system: vdiforge-system
+  desktops: vdiforge-desktops
+  identity: keycloak
+  remoteAccess: guacamole
+  monitoring: monitoring
+
+platformConfig:
+  enabled: true
+  environment: local
+  validationMarker: phase4-baseline
+  kubernetesVersion: "v1.36.4"
+  storageClass: vdiforge-local-path
+
+serviceAccounts:
+  enabled: true
+  api:
+    create: true
+    name: vdiforge-api
+    automountServiceAccountToken: false
+  provisioner:
+    create: true
+    name: vdiforge-provisioner
+    automountServiceAccountToken: true
+
+rbac:
+  enabled: true
+  provisioner:
+    enabled: true
+    roleName: vdiforge-provisioner-vdi-manager
+
+resourceGovernance:
+  enabled: true
+  quotas:
+    system:
+      enabled: true
+      name: vdiforge-system-quota
+      hard:
+        pods: "20"
+        services: "20"
+        configmaps: "40"
+        secrets: "40"
+        requests.cpu: "1500m"
+        requests.memory: "3Gi"
+        limits.cpu: "3"
+        limits.memory: "5Gi"
+    desktops:
+      enabled: true
+      name: vdiforge-desktops-quota
+      hard:
+        pods: "20"
+        services: "40"
+        persistentvolumeclaims: "10"
+        requests.storage: "80Gi"
+        requests.cpu: "6"
+        requests.memory: "12Gi"
+        limits.cpu: "8"
+        limits.memory: "16Gi"
+        count/virtualmachines.kubevirt.io: "4"
+        count/virtualmachineinstances.kubevirt.io: "4"
+        count/datavolumes.cdi.kubevirt.io: "8"
+  limitRanges:
+    system:
+      enabled: true
+      name: vdiforge-system-defaults
+      defaultRequest:
+        cpu: 50m
+        memory: 64Mi
+      default:
+        cpu: 500m
+        memory: 512Mi
+
+networkPolicy:
+  enabled: true
+  system:
+    defaultDeny:
+      enabled: true
+      name: vdiforge-system-default-deny
+    allowDns:
+      enabled: true
+      name: vdiforge-system-allow-dns
+    allowProvisionerKubernetesApi:
+      enabled: true
+      name: vdiforge-system-provisioner-kubernetes-api
+      apiServerCidr: 10.96.0.1/32
+      apiServerPort: 443
+
+placement:
+  platform:
+    nodeSelector:
+      vdiforge.io/node-role: platform
+    tolerations: []
+    affinity: {}
+  vdi:
+    nodeSelector:
+      vdiforge.io/node-role: vdi
+    tolerations: []
+    affinity: {}
+
+ingress:
+  enabled: false
+  className: ""
+  hosts:
+    portal: vdiforge.local
+    auth: auth.vdiforge.local
+    grafana: grafana.vdiforge.local
+  tls:
+    enabled: false
+
+frontend:
+  enabled: false
+  image:
+    repository: ""
+    tag: ""
+  resources: {}
+  autoscaling:
+    enabled: false
+
+api:
+  enabled: false
+  image:
+    repository: ""
+    tag: ""
+  resources: {}
+  autoscaling:
+    enabled: false
+
+provisioner:
+  enabled: false
+  image:
+    repository: ""
+    tag: ""
+  resources: {}
+  autoscaling:
+    enabled: false
+
+keycloak:
+  enabled: false
+  externalChart: true
+
+guacamole:
+  enabled: false
+  externalChart: true
+
+monitoring:
+  enabled: false
+  externalChart: true

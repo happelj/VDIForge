@@ -1,4 +1,4 @@
-.PHONY: validate-phase1 validate-phase2 validate-phase3 validate-phase3-live infra-init infra-plan infra-apply infra-output infra-destroy-spec configure configure-phase3 remove-temp-sudo terraform-init terraform-plan terraform-output ansible-syntax ansible-syntax-phase3
+.PHONY: validate-phase1 validate-phase2 validate-phase3 validate-phase3-live validate-phase4 validate-phase4-live install-helm-client infra-init infra-plan infra-apply infra-output infra-destroy-spec configure configure-phase3 remove-temp-sudo terraform-init terraform-plan terraform-output ansible-syntax ansible-syntax-phase3 helm-lint helm-template
 
 validate-phase1:
 	pwsh -NoProfile -File ./scripts/validate-phase1.ps1
@@ -11,6 +11,21 @@ validate-phase3:
 
 validate-phase3-live:
 	bash scripts/validate-phase3-live.sh
+
+validate-phase4:
+	pwsh -NoProfile -File ./scripts/validate-phase4.ps1
+
+validate-phase4-live:
+	bash scripts/validate-phase4-live.sh
+
+install-helm-client:
+	bash scripts/install-helm-client.sh
+
+helm-lint:
+	helm lint ./helm/vdiforge
+
+helm-template:
+	helm template vdiforge ./helm/vdiforge --namespace vdiforge-system --values ./helm/vdiforge/values-local.yaml --kube-version 1.36.4
 
 infra-init: terraform-init
 

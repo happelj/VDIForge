@@ -4,9 +4,9 @@ VDIForge is a portfolio platform project for a small, open-source, self-service 
 
 ## Project Status
 
-Phase 1 established the architecture, requirements, roadmap, standards, and documentation structure. Phase 2 added the local VirtualBox infrastructure foundation. Phase 3 established the Kubernetes and KubeVirt foundation.
+Phase 1 established the architecture, requirements, roadmap, standards, and documentation structure. Phase 2 added the local VirtualBox infrastructure foundation. Phase 3 established the Kubernetes and KubeVirt foundation. Phase 4 adds the Helm deployment foundation for future VDIForge platform services.
 
-The current local lab is three manually created Ubuntu Server VirtualBox VMs with Terraform infrastructure specifications, Ansible host configuration, kubeadm/containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, validation scripts, and verified `/dev/kvm` exposure on the VDI worker. Keycloak, Guacamole, FastAPI, React, Helm application deployment, Packer images, Prometheus, and Grafana dashboards are not implemented yet.
+The current local lab is three manually created Ubuntu Server VirtualBox VMs with Terraform infrastructure specifications, Ansible host configuration, kubeadm/containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, a Helm v4.2.4 foundation chart, validation scripts, and verified `/dev/kvm` exposure on the VDI worker. Keycloak, Guacamole, FastAPI, React application code, Packer images, Prometheus, and Grafana dashboards are not implemented yet.
 
 ## Goals
 
@@ -79,7 +79,7 @@ The client does not download or boot Ubuntu locally. Applications run on the rem
 | Frontend | React |
 | Identity | Keycloak, OIDC, OAuth 2.0, JWT validation |
 | Remote desktop | Apache Guacamole, MVP protocol RDP via xrdp, VNC as fallback |
-| Deployment | Helm |
+| Deployment | Helm v4.2.4 foundation chart and future application charts |
 | Observability | Prometheus, Grafana, structured logs, audit events |
 | CI/CD | GitHub Actions |
 
@@ -104,6 +104,8 @@ This local topology demonstrates scheduling, placement, node roles, labels, reso
 
 Phase 2 uses Oracle VirtualBox 7.2.16 on Windows 10 Pro because the developer cannot install Linux directly on bare metal or add storage. `vdi-worker-02` has nested virtualization enabled and `/dev/kvm` verified inside the Ubuntu guest. See [Local Infrastructure](docs/LOCAL-INFRASTRUCTURE.md).
 
+Phase 4 installs Helm only in the administrative environment and deploys a foundation release named `vdiforge` into `vdiforge-system`. The chart owns VDIForge platform ConfigMap conventions, ServiceAccounts, provisioner RBAC, ResourceQuotas, a LimitRange, and baseline NetworkPolicies. It does not deploy application workloads. See [Helm Platform Foundation](docs/HELM-PLATFORM.md).
+
 ## Repository Organization
 
 | Path | Purpose |
@@ -113,6 +115,7 @@ Phase 2 uses Oracle VirtualBox 7.2.16 on Windows 10 Pro because the developer ca
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Architecture diagrams and flows |
 | [docs/LOCAL-INFRASTRUCTURE.md](docs/LOCAL-INFRASTRUCTURE.md) | Phase 2 host, VirtualBox, network, SSH, and validation details |
 | [docs/KUBERNETES-KUBEVIRT.md](docs/KUBERNETES-KUBEVIRT.md) | Phase 3 Kubernetes, KubeVirt, storage, and validation details |
+| [docs/HELM-PLATFORM.md](docs/HELM-PLATFORM.md) | Phase 4 Helm chart, ownership, lifecycle, RBAC, quotas, and NetworkPolicies |
 | [docs/SECURITY.md](docs/SECURITY.md) | Threat model and security controls |
 | [docs/IMAGE-PIPELINE.md](docs/IMAGE-PIPELINE.md) | Packer and Ansible image lifecycle |
 | [docs/SSO-RBAC.md](docs/SSO-RBAC.md) | Keycloak, OIDC, roles, and authorization |
@@ -127,7 +130,7 @@ Phase 2 uses Oracle VirtualBox 7.2.16 on Windows 10 Pro because the developer ca
 | [ansible](ansible/README.md) | Host baseline and Kubernetes bootstrap roles |
 | [packer](packer/README.md) | Planned Ubuntu image build templates |
 | [kubernetes](kubernetes/README.md) | Kubernetes foundation manifests, namespace/RBAC skeletons, and KubeVirt test resources |
-| [helm/vdiforge](helm/vdiforge/README.md) | Planned VDIForge Helm chart |
+| [helm/vdiforge](helm/vdiforge/README.md) | Phase 4 VDIForge Helm foundation chart |
 | [backend](backend/README.md) | Planned FastAPI service |
 | [frontend](frontend/README.md) | Planned React portal |
 | [keycloak](keycloak/README.md) | Planned reproducible realm configuration |
@@ -141,6 +144,7 @@ Phase 2 uses Oracle VirtualBox 7.2.16 on Windows 10 Pro because the developer ca
 - [Architecture](docs/ARCHITECTURE.md)
 - [Local Infrastructure](docs/LOCAL-INFRASTRUCTURE.md)
 - [Kubernetes and KubeVirt](docs/KUBERNETES-KUBEVIRT.md)
+- [Helm Platform Foundation](docs/HELM-PLATFORM.md)
 - [Security](docs/SECURITY.md)
 - [Image Pipeline](docs/IMAGE-PIPELINE.md)
 - [SSO and RBAC](docs/SSO-RBAC.md)
@@ -153,7 +157,8 @@ Phase 2 uses Oracle VirtualBox 7.2.16 on Windows 10 Pro because the developer ca
 
 ## Limitations
 
-- The current lab is platform-foundation only. It does not yet run the VDIForge application.
+- The current lab is platform-foundation only. It does not yet run the VDIForge application, identity stack, remote desktop gateway, image pipeline, or observability stack.
+- The Helm chart deploys foundation resources only; disabled future values are extension points, not implemented services.
 - The local three-node lab is not production HA.
 - KubeVirt performance depends on KVM availability. The current Phase 3 acceptance condition requires KubeVirt to expose and consume KVM on `vdi-worker-02`.
 - KubeVirt software emulation is a development fallback, not a realistic performance target.
@@ -163,6 +168,6 @@ Phase 2 uses Oracle VirtualBox 7.2.16 on Windows 10 Pro because the developer ca
 
 ## Roadmap
 
-The next planned task after Phase 3 is Phase 4 - Helm / Platform Foundation. Later phases add Keycloak, image automation, backend, frontend, Guacamole, observability, security hardening, CI/CD, and the final end-to-end demo.
+The next planned task after Phase 4 is Phase 5 - Keycloak / OIDC / RBAC. Later phases add image automation, backend, frontend, Guacamole, observability, security hardening, CI/CD, and the final end-to-end demo.
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for the full roadmap.

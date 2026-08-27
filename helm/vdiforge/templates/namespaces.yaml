@@ -1,0 +1,14 @@
+{{- if .Values.namespaces.create }}
+{{- $root := . -}}
+{{- range $purpose, $namespace := dict "system" .Values.namespaces.system "desktops" .Values.namespaces.desktops "identity" .Values.namespaces.identity "remote-access" .Values.namespaces.remoteAccess "monitoring" .Values.namespaces.monitoring }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $namespace }}
+  labels:
+    {{- include "vdiforge.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: namespace
+    vdiforge.io/namespace-purpose: {{ $purpose | quote }}
+{{- end }}
+{{- end }}

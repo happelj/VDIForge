@@ -4,7 +4,7 @@ This document is the authoritative technical design for VDIForge. Later implemen
 
 ## Status
 
-Phase 2 local infrastructure foundation is documented and host-validated. Phase 3 establishes the Kubernetes and KubeVirt foundation on that lab with kubeadm, containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, namespace/RBAC foundations, NetworkPolicy validation, and a disposable KubeVirt test VM. The full VDI platform remains planned: Keycloak, Guacamole, FastAPI, React, Helm application deployment, Packer image automation, and Prometheus/Grafana are not implemented yet.
+Phase 2 local infrastructure foundation is documented and host-validated. Phase 3 establishes the Kubernetes and KubeVirt foundation on that lab with kubeadm, containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, namespace/RBAC foundations, NetworkPolicy validation, and a disposable KubeVirt test VM. Phase 4 establishes the Helm platform foundation with a `vdiforge` release that manages VDIForge ConfigMap conventions, ServiceAccounts, provisioner RBAC, ResourceQuotas, a LimitRange, and baseline NetworkPolicies. The full VDI platform remains planned: Keycloak, Guacamole, FastAPI, React application code, Packer image automation, and Prometheus/Grafana are not implemented yet.
 
 ## Goals
 
@@ -56,6 +56,8 @@ Sources reviewed during Phase 1:
 - Terraform libvirt provider status: [dmacvicar/libvirt Terraform provider](https://registry.terraform.io/providers/dmacvicar/libvirt/latest/docs)
 - Phase 2 local host implementation: [Local Infrastructure](LOCAL-INFRASTRUCTURE.md)
 - Phase 3 Kubernetes/KubeVirt implementation: [Kubernetes and KubeVirt Foundation](KUBERNETES-KUBEVIRT.md)
+- Phase 4 Helm implementation: [Helm Platform Foundation](HELM-PLATFORM.md)
+- Helm version support and installation: [Helm v4 version support policy](https://blog.helm.sh/docs/topics/version_skew/) and [Helm install documentation](https://helm.sh/docs/intro/install/)
 
 ## Selected Platform Version Pins
 
@@ -70,6 +72,7 @@ These pins are Phase 3 implementation inputs as of 2026-08-27. Later phases must
 | Metrics Server | 0.8.1 | Metrics Server 0.8.x supports Kubernetes 1.31 and newer. |
 | CDI | 1.66.0 | CDI release paired with the KubeVirt 1.9 release train and needed for DataVolume validation. |
 | Local-path provisioner | 0.0.32 | Simple local dynamic storage for the lab; documented in ADR 0010. |
+| Helm | 4.2.4 | Current stable Helm v4 release line; v4.2.x supports Kubernetes 1.36.x through 1.33.x. |
 | Terraform local lab | Terraform 1.15.8 with built-in `terraform_data` | Actual Phase 2 host uses VirtualBox; Terraform validates the lab specification without depending on an alpha VirtualBox provider. |
 | Apache Guacamole | 1.6.0 | Current documented Guacamole release with RDP, VNC, SSH, WebSocket, and container deployment support. |
 
@@ -260,21 +263,33 @@ Ansible also participates in golden image configuration by installing packages, 
 
 ## Helm Boundary
 
-Helm deploys VDIForge application resources into Kubernetes. The eventual local deployment command should approximate:
+Helm deploys VDIForge platform and application resources into Kubernetes. Phase 4 creates the foundation chart at `helm/vdiforge` and validates a release named `vdiforge` in `vdiforge-system`:
 
 ```bash
-helm upgrade --install vdiforge ./helm/vdiforge
+helm upgrade --install vdiforge ./helm/vdiforge \
+  --namespace vdiforge-system \
+  --values ./helm/vdiforge/values-local.yaml \
+  --take-ownership \
+  --force-conflicts \
+  --wait
 ```
 
-Planned chart resources:
+Phase 4 chart resources:
+
+- ConfigMap for non-sensitive platform conventions
+- ServiceAccounts for future API and provisioner components
+- namespace-scoped provisioner Role and RoleBinding for VDI resources
+- ResourceQuotas for `vdiforge-system` and `vdiforge-desktops`
+- LimitRange for future small platform containers
+- NetworkPolicies for `vdiforge-system` default deny, DNS egress, and future provisioner Kubernetes API egress
+
+Phase 4 does not create application Deployments, Services, Ingress, HPA, Keycloak, Guacamole, Prometheus, Grafana, or VDI desktops. Disabled values for those components are extension points only.
+
+Planned later chart resources:
 
 - frontend Deployment, Service, Ingress
 - FastAPI Deployment, Service, Ingress
 - provisioning worker Deployment
-- ConfigMaps
-- ServiceAccounts
-- Kubernetes Roles and RoleBindings
-- NetworkPolicies
 - HPA definitions
 
 Third-party systems such as Keycloak, PostgreSQL, Prometheus, Grafana, and Guacamole should use established upstream charts or images when that is simpler and safer than maintaining custom manifests.
@@ -449,6 +464,8 @@ Conceptual denied paths:
 - direct external access to remote desktop ports
 
 NetworkPolicies should default to least privilege. Remote desktop services should be reachable only by Guacamole or the controlled gateway path.
+
+Phase 4 adds the first Helm-managed NetworkPolicy baseline in `vdiforge-system`. It establishes default deny, DNS egress, and a future provisioner egress path to the Kubernetes API without imposing VDI namespace policies that would break KubeVirt/CDI before application labels and ports exist.
 
 ## Storage Design
 
@@ -663,7 +680,7 @@ Phase 2 produced local infrastructure that can host the planned three-node clust
 7. Terraform specification and outputs under `terraform/environments/local`.
 8. Ansible baseline inventory and roles under `ansible`.
 
-Phase 3 installs Kubernetes prerequisites, kubeadm/containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, namespace/RBAC foundations, and validation scripts. Phase 3 intentionally does not install VDIForge applications, Keycloak, Guacamole, Prometheus/Grafana, or final Ubuntu desktop images.
+Phase 3 installs Kubernetes prerequisites, kubeadm/containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, namespace/RBAC foundations, and validation scripts. Phase 4 installs the Helm deployment client on `vdi-control-01` and deploys the VDIForge foundation release. Phases 3 and 4 intentionally do not install VDIForge applications, Keycloak, Guacamole, Prometheus/Grafana, or final Ubuntu desktop images.
 
 ## Future Cloud or Bare-Metal Deployment
 
@@ -697,6 +714,7 @@ These are not required for the MVP.
 - Remote desktop performance will not match commercial proprietary protocols.
 - Windows desktops are excluded from the free MVP.
 - Version pins must be revalidated during implementation.
+- Helm now owns selected VDIForge platform resources; ad hoc `kubectl edit` changes against those objects create drift.
 
 ## Open Questions
 
@@ -704,3 +722,5 @@ These are not required for the MVP.
 - Should Guacamole connection handling use its REST/API integration, a custom extension, or short-lived generated connection records for the MVP?
 - What exact resource profiles should be exposed first?
 - Which Keycloak configuration-as-code method will be most reproducible for the lab: realm import, Keycloak Operator, Terraform provider, or admin API script?
+- Which Keycloak Helm chart and persistence approach should Phase 5 use within the small platform worker capacity?
+- Which local ingress, DNS, and TLS approach should be adopted once browser-facing services exist?

@@ -1,0 +1,10 @@
+VDIForge Phase 4 platform foundation has been rendered.
+
+Release namespace:
+  {{ .Release.Namespace }}
+
+Chart-managed foundation namespaces:
+  system: {{ .Values.namespaces.system }}
+  desktops: {{ .Values.namespaces.desktops }}
+
+No application Deployments are created in Phase 4.

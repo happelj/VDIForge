@@ -1,0 +1,73 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- if .Values.networkPolicy.system.defaultDeny.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Values.networkPolicy.system.defaultDeny.name }}
+  namespace: {{ include "vdiforge.namespace.system" . }}
+  labels:
+    {{- include "vdiforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+{{- end }}
+{{- if and .Values.networkPolicy.system.defaultDeny.enabled .Values.networkPolicy.system.allowDns.enabled }}
+---
+{{- end }}
+{{- if .Values.networkPolicy.system.allowDns.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Values.networkPolicy.system.allowDns.name }}
+  namespace: {{ include "vdiforge.namespace.system" . }}
+  labels:
+    {{- include "vdiforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+{{- end }}
+{{- if and .Values.networkPolicy.system.allowDns.enabled .Values.networkPolicy.system.allowProvisionerKubernetesApi.enabled }}
+---
+{{- end }}
+{{- if .Values.networkPolicy.system.allowProvisionerKubernetesApi.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Values.networkPolicy.system.allowProvisionerKubernetesApi.name }}
+  namespace: {{ include "vdiforge.namespace.system" . }}
+  labels:
+    {{- include "vdiforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: provisioner
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: {{ .Values.networkPolicy.system.allowProvisionerKubernetesApi.apiServerCidr }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.networkPolicy.system.allowProvisionerKubernetesApi.apiServerPort }}
+{{- end }}
+{{- end }}
