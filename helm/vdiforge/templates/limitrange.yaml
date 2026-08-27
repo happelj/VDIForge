@@ -1,0 +1,17 @@
+{{- if and .Values.resourceGovernance.enabled .Values.resourceGovernance.limitRanges.system.enabled }}
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: {{ .Values.resourceGovernance.limitRanges.system.name }}
+  namespace: {{ include "vdiforge.namespace.system" . }}
+  labels:
+    {{- include "vdiforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: resource-governance
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+        {{- toYaml .Values.resourceGovernance.limitRanges.system.defaultRequest | nindent 8 }}
+      default:
+        {{- toYaml .Values.resourceGovernance.limitRanges.system.default | nindent 8 }}
+{{- end }}

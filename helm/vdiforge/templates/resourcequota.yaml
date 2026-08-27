@@ -1,0 +1,31 @@
+{{- if .Values.resourceGovernance.enabled }}
+{{- if .Values.resourceGovernance.quotas.system.enabled }}
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: {{ .Values.resourceGovernance.quotas.system.name }}
+  namespace: {{ include "vdiforge.namespace.system" . }}
+  labels:
+    {{- include "vdiforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: resource-governance
+spec:
+  hard:
+    {{- toYaml .Values.resourceGovernance.quotas.system.hard | nindent 4 }}
+{{- end }}
+{{- if and .Values.resourceGovernance.quotas.system.enabled .Values.resourceGovernance.quotas.desktops.enabled }}
+---
+{{- end }}
+{{- if .Values.resourceGovernance.quotas.desktops.enabled }}
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: {{ .Values.resourceGovernance.quotas.desktops.name }}
+  namespace: {{ include "vdiforge.namespace.desktops" . }}
+  labels:
+    {{- include "vdiforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: resource-governance
+spec:
+  hard:
+    {{- toYaml .Values.resourceGovernance.quotas.desktops.hard | nindent 4 }}
+{{- end }}
+{{- end }}

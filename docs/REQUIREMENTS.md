@@ -105,6 +105,23 @@ Requirement -> Implementation -> Test -> Evidence -> PASS / FAIL
 | STOR-002 | The local storage design shall document binding mode, provisioner, limitations, and lack of physical HA. | `docs/KUBERNETES-KUBEVIRT.md` and ADR review. |
 | STOR-003 | Phase 3 shall not deploy Ceph or another distributed storage platform unless justified by an ADR. | Repository and cluster resource review. |
 
+## Helm Platform Foundation Requirements
+
+| ID | Requirement | Verification approach |
+| --- | --- | --- |
+| HELM-001 | Phase 4 shall use a pinned Helm client version compatible with the Kubernetes cluster version. | `helm version` and Helm/Kubernetes support matrix review. |
+| HELM-002 | The repository shall provide a VDIForge Helm chart under `helm/vdiforge`. | Repository review. |
+| HELM-003 | The Helm chart shall provide environment-neutral defaults and a local-lab override file. | `values.yaml` and `values-local.yaml` review. |
+| HELM-004 | The Phase 4 chart shall not create fake application Deployments, StatefulSets, DaemonSets, VirtualMachines, Ingresses, or HPAs for services not yet implemented. | Rendered manifest review. |
+| HELM-005 | The Helm ownership model shall distinguish Phase 3 namespace/add-on ownership from Phase 4 chart-managed resources. | Documentation and live resource metadata review. |
+| HELM-006 | The chart shall create future VDIForge ServiceAccounts and provisioner RBAC without granting `cluster-admin`. | Helm template review and RBAC scan. |
+| HELM-007 | The chart shall create lab-safe ResourceQuota and LimitRange resources where useful. | Rendered manifest and live cluster review. |
+| HELM-008 | The chart shall create a NetworkPolicy foundation that supports default deny and required DNS/Kubernetes API egress without breaking Phase 3 add-ons. | Rendered manifest review and live cluster regression validation. |
+| HELM-009 | The chart shall establish configuration and secret conventions without committing real secrets. | Secret scan and values review. |
+| HELM-010 | The chart shall express future platform and VDI placement through role labels rather than hardcoded node names. | Values and rendered manifest review. |
+| HELM-011 | The VDIForge Helm release shall pass install, upgrade, repeated upgrade, rollback, and final deployed-state validation. | Phase 4 live validation script. |
+| HELM-012 | Phase 4 validation shall produce explicit static and live PASS/FAIL results. | `scripts/validate-phase4.ps1` and `scripts/validate-phase4-live.sh`. |
+
 ## Security Requirements
 
 | ID | Requirement | Verification approach |
@@ -222,3 +239,29 @@ Requirement -> Implementation -> Test -> Evidence -> PASS / FAIL
 | `STOR-001` | [kubernetes/storage/local-path-provisioner.yaml](../kubernetes/storage/local-path-provisioner.yaml) | StorageClass and test VM disk import. | PASS | StorageClass is `vdiforge-local-path`. |
 | `STOR-002` | [docs/KUBERNETES-KUBEVIRT.md](KUBERNETES-KUBEVIRT.md), [docs/ADR/0010-local-path-storage-for-phase3.md](ADR/0010-local-path-storage-for-phase3.md) | Documentation review. | PASS | Local-path limitations documented. |
 | `STOR-003` | Repository review | No Ceph or distributed storage manifests. | PASS | Distributed storage remains future work. |
+
+## Phase 4 Traceability
+
+| Requirement | Implementation reference | Test or evidence | Status | Notes |
+| --- | --- | --- | --- | --- |
+| `NFR-003` | [helm/vdiforge/Chart.yaml](../helm/vdiforge/Chart.yaml), [helm/vdiforge/values.yaml](../helm/vdiforge/values.yaml), [docs/HELM-PLATFORM.md](HELM-PLATFORM.md) | Helm version and chart compatibility review. | PASS | Helm v4.2.4 is pinned/documented for Kubernetes 1.36.4. |
+| `NFR-006` | [helm/vdiforge](../helm/vdiforge), [scripts/validate-phase4-live.sh](../scripts/validate-phase4-live.sh) | Helm install, upgrade, repeated upgrade, rollback, and final deployed-state validation. | PASS | Phase 4 proves repeatable Helm release lifecycle for foundation resources. |
+| `NFR-008` | [helm/vdiforge](../helm/vdiforge), [docs/HELM-PLATFORM.md](HELM-PLATFORM.md) | Chart and documentation review. | PASS | No Kafka, RabbitMQ, service mesh, OpenStack, Ceph, Vault cluster, Argo CD, Crossplane, or Elasticsearch introduced. |
+| `NFR-012` | [helm/vdiforge/templates/limitrange.yaml](../helm/vdiforge/templates/limitrange.yaml), [helm/vdiforge/values.yaml](../helm/vdiforge/values.yaml) | Rendered manifest and live resource review. | PASS | Phase 4 defines default requests/limits for future platform containers through a LimitRange. |
+| `SEC-003` | [helm/vdiforge/templates/rbac.yaml](../helm/vdiforge/templates/rbac.yaml), [scripts/validate-phase4.ps1](../scripts/validate-phase4.ps1) | RBAC scan. | PASS | The chart does not grant `cluster-admin`. |
+| `SEC-004` | [helm/vdiforge/templates/rbac.yaml](../helm/vdiforge/templates/rbac.yaml) | Namespace-scoped Role review. | PASS | Provisioner RBAC remains limited to future VDI resources in `vdiforge-desktops`. |
+| `SEC-005` | [helm/vdiforge/templates/networkpolicies.yaml](../helm/vdiforge/templates/networkpolicies.yaml), [scripts/validate-phase4-live.sh](../scripts/validate-phase4-live.sh) | Rendered manifest and Phase 3 NetworkPolicy regression. | PASS | Phase 4 establishes platform NetworkPolicies and preserves Calico enforcement. |
+| `SEC-008` | [helm/vdiforge/values.yaml](../helm/vdiforge/values.yaml), [scripts/validate-phase4.ps1](../scripts/validate-phase4.ps1) | Secret scan and values review. | PASS | No real secrets are committed. |
+| `OPS-012` | [scripts/validate-phase4.ps1](../scripts/validate-phase4.ps1), [scripts/validate-phase4-live.sh](../scripts/validate-phase4-live.sh) | Phase validation and Git workflow evidence. | PASS | Static and live validation are automated. |
+| `HELM-001` | [docs/HELM-PLATFORM.md](HELM-PLATFORM.md), [scripts/install-helm-client.sh](../scripts/install-helm-client.sh) | `helm version` and official Helm support matrix. | PASS | Helm v4.2.4 supports Kubernetes 1.36.x. |
+| `HELM-002` | [helm/vdiforge](../helm/vdiforge) | Repository review. | PASS | Chart directory exists with standard Helm files. |
+| `HELM-003` | [helm/vdiforge/values.yaml](../helm/vdiforge/values.yaml), [helm/vdiforge/values-local.yaml](../helm/vdiforge/values-local.yaml) | Values review and template rendering. | PASS | Local overrides do not duplicate the chart. |
+| `HELM-004` | [helm/vdiforge/templates](../helm/vdiforge/templates), [scripts/validate-phase4.ps1](../scripts/validate-phase4.ps1) | Static workload-kind scan. | PASS | No fake application workload resources are rendered. |
+| `HELM-005` | [docs/ADR/0011-helm-platform-ownership.md](ADR/0011-helm-platform-ownership.md), [docs/HELM-PLATFORM.md](HELM-PLATFORM.md) | Documentation and live Helm adoption review. | PASS | Phase 3 owns namespaces/add-ons; Helm owns VDIForge platform resources. |
+| `HELM-006` | [helm/vdiforge/templates/serviceaccounts.yaml](../helm/vdiforge/templates/serviceaccounts.yaml), [helm/vdiforge/templates/rbac.yaml](../helm/vdiforge/templates/rbac.yaml) | RBAC scan and rendered manifest review. | PASS | Frontend receives no Kubernetes privileges; provisioner RBAC is namespace-scoped. |
+| `HELM-007` | [helm/vdiforge/templates/resourcequota.yaml](../helm/vdiforge/templates/resourcequota.yaml), [helm/vdiforge/templates/limitrange.yaml](../helm/vdiforge/templates/limitrange.yaml) | Live resource review. | PASS | Quotas and platform LimitRange are chart-managed. |
+| `HELM-008` | [helm/vdiforge/templates/networkpolicies.yaml](../helm/vdiforge/templates/networkpolicies.yaml) | Server-side dry-run and cluster regression validation. | PASS | Policies allow DNS and future provisioner Kubernetes API egress without breaking Phase 3 components. |
+| `HELM-009` | [docs/HELM-PLATFORM.md](HELM-PLATFORM.md), [scripts/validate-phase4.ps1](../scripts/validate-phase4.ps1) | Values review and secret scan. | PASS | Secrets remain a later runtime input, not committed chart data. |
+| `HELM-010` | [helm/vdiforge/values.yaml](../helm/vdiforge/values.yaml), [docs/HELM-PLATFORM.md](HELM-PLATFORM.md) | Hardcoded-node-name scan. | PASS | Placement uses `vdiforge.io/node-role` labels. |
+| `HELM-011` | [scripts/validate-phase4-live.sh](../scripts/validate-phase4-live.sh) | Live Helm lifecycle test. | PASS | Install, upgrade, repeated upgrade, rollback, and final deployed-state checks pass. |
+| `HELM-012` | [scripts/validate-phase4.ps1](../scripts/validate-phase4.ps1), [scripts/validate-phase4-live.sh](../scripts/validate-phase4-live.sh) | Validator execution. | PASS | Static and live validators emit explicit PASS/FAIL results. |

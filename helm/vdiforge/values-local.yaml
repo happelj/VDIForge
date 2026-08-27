@@ -1,0 +1,37 @@
+helm:
+  testedVersion: "v4.2.4"
+
+namespaces:
+  create: false
+  system: vdiforge-system
+  desktops: vdiforge-desktops
+  identity: keycloak
+  remoteAccess: guacamole
+  monitoring: monitoring
+
+platformConfig:
+  environment: local-virtualbox
+  validationMarker: phase4-baseline
+  kubernetesVersion: "v1.36.4"
+  storageClass: vdiforge-local-path
+
+resourceGovernance:
+  quotas:
+    system:
+      hard:
+        requests.cpu: "1500m"
+        requests.memory: "3Gi"
+        limits.cpu: "3"
+        limits.memory: "5Gi"
+    desktops:
+      hard:
+        requests.storage: "80Gi"
+        requests.cpu: "6"
+        requests.memory: "12Gi"
+        limits.cpu: "8"
+        limits.memory: "16Gi"
+
+networkPolicy:
+  system:
+    allowProvisionerKubernetesApi:
+      apiServerCidr: 10.96.0.1/32

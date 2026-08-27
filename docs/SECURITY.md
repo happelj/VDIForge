@@ -1,6 +1,6 @@
 # Security Model
 
-This document defines the VDIForge threat model and security controls. Phase 2 local infrastructure controls and Phase 3 Kubernetes foundation controls apply to the current lab. Identity, application authorization, Guacamole, audit persistence, and image-pipeline controls remain later-phase work.
+This document defines the VDIForge threat model and security controls. Phase 2 local infrastructure controls, Phase 3 Kubernetes foundation controls, and Phase 4 Helm platform controls apply to the current lab. Identity, application authorization, Guacamole, audit persistence, and image-pipeline controls remain later-phase work.
 
 ## Security Objectives
 
@@ -84,13 +84,13 @@ The React UI may hide actions for usability, but all access must be denied by th
 
 The provisioner is sensitive because it manages KubeVirt resources. It must use a dedicated ServiceAccount.
 
-Phase 3 creates an initial Kubernetes RBAC foundation:
+Phase 3 creates an initial Kubernetes RBAC foundation, and Phase 4 adopts the VDIForge-owned portions into Helm management:
 
 - ServiceAccount `vdiforge-provisioner` in `vdiforge-system`
 - Role `vdiforge-provisioner-vdi-manager` in `vdiforge-desktops`
 - RoleBinding from the Role to the ServiceAccount
 
-This is a placeholder privilege boundary for later application phases; no provisioner application is deployed in Phase 3.
+This is a placeholder privilege boundary for later application phases; no provisioner application is deployed in Phase 3 or Phase 4.
 
 Conceptual Role scope:
 
@@ -135,6 +135,8 @@ Calico and Kubernetes NetworkPolicies will enforce namespace and workload-level 
 
 Phase 3 proves standard Kubernetes NetworkPolicy enforcement with `scripts/phase3-networkpolicy-test.sh`. The test uses disposable pods to confirm initial traffic, deny ingress, restore an explicit allow rule, and clean up the validation namespace.
 
+Phase 4 adds Helm-managed baseline policies in `vdiforge-system`: default deny for future platform pods, DNS egress, and provisioner-labeled pod egress to the Kubernetes API. It intentionally does not apply a broad default deny to `vdiforge-desktops` yet because Guacamole and VM labels/ports are not implemented.
+
 ## Phase 2 Local Infrastructure Security
 
 Current Phase 2 controls:
@@ -162,6 +164,22 @@ Phase 3 adds these security-relevant controls:
 - static validation for committed secrets, kubeconfigs, join tokens, and private keys
 
 Phase 3 does not deploy frontend, API, Keycloak, Guacamole, database, Prometheus, Grafana, or desktop image workloads.
+
+## Phase 4 Helm Platform Security
+
+Phase 4 adds these security-relevant controls:
+
+- Helm-managed `vdiforge-api` ServiceAccount with automatic token mounting disabled
+- Helm-managed `vdiforge-provisioner` ServiceAccount for future Kubernetes API access
+- namespace-scoped provisioner Role and RoleBinding in `vdiforge-desktops`
+- no ClusterRoleBinding and no `cluster-admin` grant for VDIForge components
+- ResourceQuotas for `vdiforge-system` and `vdiforge-desktops`
+- a conservative LimitRange for future platform containers
+- baseline NetworkPolicies in `vdiforge-system`
+- chart values and ConfigMap conventions that exclude real secrets
+- static and live validation for RBAC scope, secret patterns, rendering, and Helm lifecycle behavior
+
+Phase 4 does not deploy Keycloak, Guacamole, FastAPI, React, PostgreSQL, Prometheus, Grafana, or desktop workloads.
 
 ## Secret Handling
 

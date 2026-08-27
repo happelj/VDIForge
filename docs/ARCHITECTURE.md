@@ -1,6 +1,6 @@
 # VDIForge Architecture
 
-This document contains architecture views for VDIForge. The local VirtualBox infrastructure and Kubernetes/KubeVirt foundation views reflect Phase 2 and Phase 3. Diagrams that include identity, application, remote desktop, and full observability flows remain planned until their later implementation phases.
+This document contains architecture views for VDIForge. The local VirtualBox infrastructure, Kubernetes/KubeVirt foundation, and Helm platform foundation views reflect Phases 2, 3, and 4. Diagrams that include identity, application, remote desktop, and full observability flows remain planned until their later implementation phases.
 
 ## System Context
 
@@ -148,6 +148,34 @@ flowchart TB
 ```
 
 The disposable test VM validates the KubeVirt foundation only. It is not one of the final Ubuntu desktop images and must be deleted after validation.
+
+## Helm Platform Foundation
+
+```mermaid
+flowchart TB
+  Git[Git repository<br/>Helm chart and values]
+  Helm[Helm v4.2.4 client<br/>vdi-control-01]
+  Release[Release: vdiforge<br/>namespace: vdiforge-system]
+  CM[ConfigMap<br/>platform conventions]
+  SA[ServiceAccounts<br/>vdiforge-api / vdiforge-provisioner]
+  RBAC[Role and RoleBinding<br/>vdiforge-desktops]
+  Quota[ResourceQuotas<br/>system and desktops]
+  Limit[LimitRange<br/>system namespace]
+  NP[NetworkPolicies<br/>default deny, DNS, Kubernetes API egress]
+  Future[Future application charts<br/>Keycloak, API, portal, Guacamole, monitoring]
+
+  Git --> Helm
+  Helm --> Release
+  Release --> CM
+  Release --> SA
+  Release --> RBAC
+  Release --> Quota
+  Release --> Limit
+  Release --> NP
+  Release -. later phases .-> Future
+```
+
+Phase 4 does not deploy application workloads. It establishes Helm ownership, values conventions, RBAC boundaries, resource governance, NetworkPolicy foundations, and lifecycle validation for install, upgrade, repeated upgrade, and rollback.
 
 ## Authentication Flow
 

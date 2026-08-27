@@ -175,8 +175,26 @@ Helm:
 
 ```bash
 helm lint ./helm/vdiforge
-helm template vdiforge ./helm/vdiforge
+helm template vdiforge ./helm/vdiforge \
+  --namespace vdiforge-system \
+  --values ./helm/vdiforge/values-local.yaml \
+  --kube-version 1.36.4
 ```
+
+Phase 4 static validation:
+
+```powershell
+.\scripts\validate-phase4.ps1
+```
+
+Phase 4 live validation from `vdi-control-01`:
+
+```bash
+cd ~/vdiforge-phase4-validation
+bash scripts/validate-phase4-live.sh
+```
+
+The Phase 4 live validator checks Helm v4.2.4, chart linting, chart rendering, Helm server dry-run validation, node/add-on health, release install, safe upgrade, repeated upgrade, rollback, expected resources, least-privilege RBAC patterns, ResourceQuotas, LimitRange, NetworkPolicies, and continued KubeVirt/KVM availability.
 
 Kubernetes manifests:
 

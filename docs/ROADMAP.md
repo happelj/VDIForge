@@ -9,7 +9,7 @@ This roadmap defines planned implementation phases. Do not begin a future phase 
 | 1 | Architecture and requirements | Complete | Documentation, repository foundation, ADRs, validation. |
 | 2 | Local infrastructure | Complete | VirtualBox local lab, three Ubuntu Server nodes, Terraform/Ansible local foundation, `/dev/kvm` verified on VDI worker. |
 | 3 | Kubernetes/KubeVirt foundation | Complete | kubeadm cluster, containerd, Calico, Metrics Server, KubeVirt, CDI, storage, NetworkPolicy, and test VM validation. |
-| 4 | Helm/platform foundation | Planned | Namespaces, base Helm chart, platform deployment skeleton, PostgreSQL dependency path. |
+| 4 | Helm/platform foundation | Complete | Helm v4.2.4 client, VDIForge foundation chart, release lifecycle, RBAC, quotas, LimitRange, NetworkPolicies, and validation. |
 | 5 | Keycloak/OIDC/RBAC | Planned | Realm, clients, demo users, token validation, RBAC policy tests. |
 | 6 | Ubuntu/Packer image pipeline | Planned | Three versioned Ubuntu desktop images built with Packer and Ansible. |
 | 7 | FastAPI VDI control plane | Planned | API, database models, desktop lifecycle, asynchronous provisioner. |
@@ -59,6 +59,21 @@ Completed outcomes:
 
 Phase 3 validation passed with `KUBEVIRT_KVM_VERIFIED` on `vdi-worker-02`, clean Ansible idempotency, and successful disposable KubeVirt VM lifecycle cleanup.
 
+## Phase 4 - Helm / Platform Foundation
+
+Completed outcomes:
+
+- selected and documented Helm v4.2.4 for the Kubernetes 1.36.4 lab
+- created the `helm/vdiforge` chart with environment-neutral defaults and local overrides
+- deployed release `vdiforge` in `vdiforge-system`
+- documented namespace ownership: Phase 3 owns foundational namespaces, Helm owns VDIForge platform resources
+- adopted the Phase 3 provisioner ServiceAccount, Role, and RoleBinding into Helm ownership
+- created Helm-managed ServiceAccounts, provisioner RBAC, ResourceQuotas, a platform LimitRange, ConfigMap conventions, and baseline NetworkPolicies
+- validated install, upgrade, repeated upgrade, rollback, and final deployed release state
+- confirmed Phase 4 does not deploy Keycloak, Guacamole, FastAPI, React, Prometheus/Grafana, Packer images, or VDI desktops
+
+Phase 4 validation confirms Helm lifecycle behavior while preserving the Phase 3 Kubernetes, KubeVirt, CDI, Metrics Server, Calico, storage, and KVM foundation.
+
 ## Future Enhancements
 
 Potential future work after the MVP:
@@ -85,7 +100,9 @@ Potential future work after the MVP:
 The following are intentionally deferred:
 
 - exact Ansible controller path for routine operations after Phase 3
-- exact Keycloak configuration-as-code mechanism
+- exact Keycloak configuration-as-code mechanism and Helm chart choice
+- Keycloak persistence mode and resource allocation on the platform worker
+- local ingress controller, DNS, and TLS approach for browser-facing services
 - Guacamole dynamic connection implementation strategy
 - exact Ubuntu desktop flavor
 - remote desktop clipboard/file-transfer policy

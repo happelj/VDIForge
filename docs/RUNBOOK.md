@@ -222,6 +222,56 @@ This runbook defines troubleshooting procedures for the VDIForge local lab and p
 | Remediation | Delete orphaned resources, expand storage if available, prune old image artifacts, lower desktop quotas. |
 | Logs/metrics | PVC status, node disk metrics, provisioner cleanup logs. |
 
+## Helm Release Install or Upgrade Failure
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | `helm upgrade --install vdiforge ./helm/vdiforge` fails, release status is `failed`, or expected VDIForge foundation resources are missing. |
+| Likely causes | chart rendering error, Kubernetes schema rejection, existing Phase 3 RBAC resources not adopted, missing namespace, API-server pressure, insufficient permissions. |
+| Diagnostics | `helm lint ./helm/vdiforge`; `helm template vdiforge ./helm/vdiforge --namespace vdiforge-system --values ./helm/vdiforge/values-local.yaml --kube-version 1.36.4`; `helm upgrade --install vdiforge ./helm/vdiforge --namespace vdiforge-system --values ./helm/vdiforge/values-local.yaml --take-ownership --force-conflicts --dry-run=server`; `helm status vdiforge --namespace vdiforge-system`; `helm history vdiforge --namespace vdiforge-system`; `kubectl get events -n vdiforge-system --sort-by=.lastTimestamp`. |
+| Remediation | Fix chart or values, confirm `vdiforge-system` exists, include `--take-ownership --force-conflicts` for the first Phase 4 adoption on this lab, wait for API pressure to settle, then rerun the Phase 4 live validator. |
+| Logs/metrics | Helm status/history, Kubernetes events, API-server logs, `scripts/validate-phase4-live.sh` output. |
+
+## Helm Ownership Drift
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | Manual `kubectl edit` changes disappear after a Helm upgrade, Helm reports unexpected diffs, or live resources no longer match chart values. |
+| Likely causes | Operators edited Helm-managed objects directly, chart values changed without review, failed rollback left an unexpected revision active. |
+| Diagnostics | `helm get values vdiforge --namespace vdiforge-system`; `helm get manifest vdiforge --namespace vdiforge-system`; `kubectl get <resource> -n <namespace> -o yaml`; compare the live object to `helm template` output. |
+| Remediation | Make intended changes in Git through chart templates or values, run lint/render validation, upgrade the release, and use `helm rollback` only to return to a known previous revision. |
+| Logs/metrics | Helm manifest, Helm revision history, Git diff, Kubernetes managed fields. |
+
+## Helm Rollback Required
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | A Helm upgrade succeeds but causes incorrect foundation resource values, bad quotas, or unexpected NetworkPolicy behavior. |
+| Likely causes | Incorrect local values, faulty chart template change, unsafe quota or policy adjustment. |
+| Diagnostics | `helm history vdiforge --namespace vdiforge-system`; `helm status vdiforge --namespace vdiforge-system`; inspect the affected resources with `kubectl describe`. |
+| Remediation | Identify the last known-good revision and run `helm rollback vdiforge <revision> --namespace vdiforge-system --force-conflicts --wait`. After rollback, rerun Phase 4 live validation and document the faulty change before attempting another upgrade. |
+| Logs/metrics | Helm revision history, Kubernetes events, validation script output. |
+
+## ResourceQuota or LimitRange Blocks a Future Phase
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | Future platform pods or VM resources fail to create with quota or limit errors. |
+| Likely causes | Lab-safe Phase 4 quota too restrictive, missing explicit resource requests, desktop resource profile larger than the local lab can support. |
+| Diagnostics | `kubectl describe resourcequota -n vdiforge-system`; `kubectl describe resourcequota -n vdiforge-desktops`; `kubectl describe limitrange -n vdiforge-system`; inspect scheduler events for the rejected object. |
+| Remediation | Adjust `helm/vdiforge/values-local.yaml`, run Helm lint/template validation, perform a Helm upgrade, and avoid manual live edits that create drift. |
+| Logs/metrics | Admission error messages, ResourceQuota usage, Kubernetes events, Helm values. |
+
+## Helm-Managed NetworkPolicy Blocks Traffic
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | A future platform pod in `vdiforge-system` cannot resolve DNS or reach an explicitly required service. |
+| Likely causes | Default-deny policy is active without a matching allow policy, pod labels do not match the intended policy selector, service port differs from the documented path. |
+| Diagnostics | `kubectl get networkpolicy -n vdiforge-system`; `kubectl describe networkpolicy -n vdiforge-system`; run a temporary debug pod only if the phase allows it; inspect pod labels and service endpoints. |
+| Remediation | Add a narrow explicit allow policy in the appropriate future phase, keep DNS egress enabled, update Helm values/templates, and validate with a targeted NetworkPolicy test. |
+| Logs/metrics | Pod connectivity errors, CoreDNS logs, Calico status, Kubernetes events. |
+
 ## Keycloak Unavailable
 
 | Area | Detail |

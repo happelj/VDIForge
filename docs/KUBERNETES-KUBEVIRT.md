@@ -371,3 +371,5 @@ Phase 3 does not deploy:
 - final Ubuntu desktop images
 
 The cluster ends Phase 3 as a Kubernetes/KubeVirt foundation only.
+
+Phase 4 builds on this cluster with Helm-managed VDIForge platform foundation resources. See [Helm Platform Foundation](HELM-PLATFORM.md) for chart ownership, lifecycle validation, quotas, RBAC, and NetworkPolicy conventions.

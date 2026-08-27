@@ -1,0 +1,23 @@
+{{- if .Values.platformConfig.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "vdiforge.fullname" . }}-platform-config
+  namespace: {{ include "vdiforge.namespace.system" . }}
+  labels:
+    {{- include "vdiforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: platform-config
+data:
+  environment: {{ .Values.platformConfig.environment | quote }}
+  validationMarker: {{ .Values.platformConfig.validationMarker | quote }}
+  helmTestedVersion: {{ .Values.helm.testedVersion | quote }}
+  kubernetesVersion: {{ .Values.platformConfig.kubernetesVersion | quote }}
+  storageClass: {{ .Values.platformConfig.storageClass | quote }}
+  systemNamespace: {{ .Values.namespaces.system | quote }}
+  desktopsNamespace: {{ .Values.namespaces.desktops | quote }}
+  identityNamespace: {{ .Values.namespaces.identity | quote }}
+  remoteAccessNamespace: {{ .Values.namespaces.remoteAccess | quote }}
+  monitoringNamespace: {{ .Values.namespaces.monitoring | quote }}
+  platformNodeSelector: {{ .Values.placement.platform.nodeSelector | toJson | quote }}
+  vdiNodeSelector: {{ .Values.placement.vdi.nodeSelector | toJson | quote }}
+{{- end }}
