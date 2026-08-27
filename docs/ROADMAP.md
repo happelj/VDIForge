@@ -8,7 +8,7 @@ This roadmap defines planned implementation phases. Do not begin a future phase 
 | ---: | --- | --- | --- |
 | 1 | Architecture and requirements | Complete | Documentation, repository foundation, ADRs, validation. |
 | 2 | Local infrastructure | Complete | VirtualBox local lab, three Ubuntu Server nodes, Terraform/Ansible local foundation, `/dev/kvm` verified on VDI worker. |
-| 3 | Kubernetes/KubeVirt foundation | Next | kubeadm cluster, containerd, Calico, Metrics Server, KubeVirt validated. |
+| 3 | Kubernetes/KubeVirt foundation | Complete | kubeadm cluster, containerd, Calico, Metrics Server, KubeVirt, CDI, storage, NetworkPolicy, and test VM validation. |
 | 4 | Helm/platform foundation | Planned | Namespaces, base Helm chart, platform deployment skeleton, PostgreSQL dependency path. |
 | 5 | Keycloak/OIDC/RBAC | Planned | Realm, clients, demo users, token validation, RBAC policy tests. |
 | 6 | Ubuntu/Packer image pipeline | Planned | Three versioned Ubuntu desktop images built with Packer and Ansible. |
@@ -43,6 +43,22 @@ Phase 2 validation notes:
 - Outbound connectivity passed on all three nodes.
 - Temporary validation-only passwordless sudo was removed after the idempotency check.
 
+## Phase 3 - Kubernetes/KubeVirt Foundation
+
+Completed outcomes:
+
+- install pinned Kubernetes 1.36.4 with kubeadm and containerd
+- install Calico v3.32.1 for pod networking and NetworkPolicy support
+- label `vdi-worker-01` as the platform worker and `vdi-worker-02` as the VDI worker
+- install Metrics Server v0.8.1 for future HPA metrics
+- install KubeVirt v1.9.0 and CDI v1.66.0
+- install local-path provisioner v0.0.32 with StorageClass `vdiforge-local-path`
+- create namespace and least-privilege RBAC foundations without deploying applications
+- prove NetworkPolicy deny/allow behavior
+- prove a disposable CirrOS VM can run on `vdi-worker-02` with KVM
+
+Phase 3 validation passed with `KUBEVIRT_KVM_VERIFIED` on `vdi-worker-02`, clean Ansible idempotency, and successful disposable KubeVirt VM lifecycle cleanup.
+
 ## Future Enhancements
 
 Potential future work after the MVP:
@@ -68,8 +84,7 @@ Potential future work after the MVP:
 
 The following are intentionally deferred:
 
-- storage class for KubeVirt desktop disks
-- exact Ansible controller path for routine operations after Phase 2
+- exact Ansible controller path for routine operations after Phase 3
 - exact Keycloak configuration-as-code mechanism
 - Guacamole dynamic connection implementation strategy
 - exact Ubuntu desktop flavor

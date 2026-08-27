@@ -71,6 +71,40 @@ Requirement -> Implementation -> Test -> Evidence -> PASS / FAIL
 | INFRA-009 | Phase 2 shall not install Kubernetes, KubeVirt, Keycloak, Guacamole, Prometheus, Grafana, or application workloads. | Repository review and node package/service review. |
 | INFRA-010 | Phase 2 infrastructure validation shall produce a useful PASS/FAIL summary and distinguish static checks from live infrastructure checks. | `scripts/validate-phase2.ps1` review and execution. |
 
+## Kubernetes Foundation Requirements
+
+| ID | Requirement | Verification approach |
+| --- | --- | --- |
+| K8S-001 | Phase 3 shall evaluate Ubuntu, Kubernetes, containerd, Calico, Metrics Server, KubeVirt, CDI, and storage compatibility before installing cluster components. | Compatibility matrix review in `docs/KUBERNETES-KUBEVIRT.md`. |
+| K8S-002 | The local lab shall run a three-node kubeadm cluster with `vdi-control-01`, `vdi-worker-01`, and `vdi-worker-02` in `Ready` state. | `kubectl get nodes -o wide`. |
+| K8S-003 | Kubernetes node packages shall be pinned to the selected Kubernetes patch version. | Ansible variable and package review. |
+| K8S-004 | containerd shall be installed, enabled, active, and configured with a Kubernetes-compatible CRI and systemd cgroup driver. | `containerd --version`, `systemctl is-active containerd`, and config review. |
+| K8S-005 | Calico shall provide the pod network and Kubernetes NetworkPolicy enforcement. | Calico status checks and NetworkPolicy deny/allow validation. |
+| K8S-006 | CoreDNS shall be healthy after CNI installation. | `kubectl -n kube-system rollout status deployment/coredns`. |
+| K8S-007 | `vdi-worker-01` shall be labeled `vdiforge.io/node-role=platform` and `vdi-worker-02` shall be labeled `vdiforge.io/node-role=vdi`. | `kubectl get nodes --show-labels`. |
+| K8S-008 | Metrics Server shall be installed and `kubectl top nodes` shall return node metrics. | Metrics Server rollout and `kubectl top` checks. |
+| K8S-009 | Phase 3 shall create only the minimal namespace foundation required by the architecture and shall not deploy application workloads. | Manifest review and `kubectl get namespaces`. |
+| K8S-010 | Phase 3 live validation shall produce a clear PASS/FAIL result and shall not hide failed checks. | `scripts/validate-phase3-live.sh`. |
+
+## KubeVirt Foundation Requirements
+
+| ID | Requirement | Verification approach |
+| --- | --- | --- |
+| KV-001 | KubeVirt shall be installed from a pinned release compatible with the selected Kubernetes version. | KubeVirt manifest version review and `kubectl get kubevirt -n kubevirt`. |
+| KV-002 | KubeVirt shall expose a KVM device resource on `vdi-worker-02`. | Node allocatable check for `devices.kubevirt.io/kvm`. |
+| KV-003 | The Phase 3 hardware-virtualization result shall be classified as `KUBEVIRT_KVM_VERIFIED`, `KUBEVIRT_KVM_NOT_VERIFIED`, or `KUBEVIRT_KVM_UNAVAILABLE`. | Phase 3 live validation report. |
+| KV-004 | CDI shall be installed if required for the planned image/DataVolume workflow. | CDI decision review and `kubectl get pods -n cdi`. |
+| KV-005 | A disposable KubeVirt test VM shall schedule onto `vdi-worker-02`, reach `Running`, and request KVM acceleration. | `scripts/phase3-kubevirt-test-vm.sh`. |
+| KV-006 | The disposable KubeVirt test VM shall stop, restart, delete, and clean up related disposable resources. | KubeVirt lifecycle validation script. |
+
+## Storage Foundation Requirements
+
+| ID | Requirement | Verification approach |
+| --- | --- | --- |
+| STOR-001 | Phase 3 shall provide a functional StorageClass suitable for the disposable KubeVirt/CDI test VM. | `kubectl get storageclass` and VM disk import test. |
+| STOR-002 | The local storage design shall document binding mode, provisioner, limitations, and lack of physical HA. | `docs/KUBERNETES-KUBEVIRT.md` and ADR review. |
+| STOR-003 | Phase 3 shall not deploy Ceph or another distributed storage platform unless justified by an ADR. | Repository and cluster resource review. |
+
 ## Security Requirements
 
 | ID | Requirement | Verification approach |
@@ -145,12 +179,46 @@ Requirement -> Implementation -> Test -> Evidence -> PASS / FAIL
 | `SEC-008` | [.gitignore](../.gitignore), [scripts/validate-phase2.ps1](../scripts/validate-phase2.ps1) | Secret scan and Git review. | PASS | Private SSH keys and passwords are not committed. |
 | `OPS-012` | [scripts/validate-phase2.ps1](../scripts/validate-phase2.ps1) | Phase validation and Git workflow evidence. | PASS | Static validation is automated; live checks are manual or key-based SSH. |
 | `INFRA-001` | [terraform/environments/local/main.tf](../terraform/environments/local/main.tf), VirtualBox VMs | VirtualBox metadata and Terraform spec review. | PASS | Three expected node definitions exist. |
-| `INFRA-002` | [terraform/environments/local/main.tf](../terraform/environments/local/main.tf), VirtualBox metadata | CPU/RAM/disk review. | PASS | `vdi-control-01` is 2 vCPU, 4096 MiB RAM, 40 GiB disk. |
+| `INFRA-002` | [terraform/environments/local/main.tf](../terraform/environments/local/main.tf), VirtualBox metadata | CPU/RAM/disk review. | PASS | `vdi-control-01` is 4 vCPU, 6144 MiB RAM, 40 GiB disk after the Phase 3 stability resize. |
 | `INFRA-003` | [terraform/environments/local/main.tf](../terraform/environments/local/main.tf), VirtualBox metadata | CPU/RAM/disk review. | PASS | `vdi-worker-01` is 2 vCPU, 6144 MiB RAM, 50 GiB disk. |
 | `INFRA-004` | [terraform/environments/local/main.tf](../terraform/environments/local/main.tf), VirtualBox metadata | CPU/RAM/disk review. | PASS | `vdi-worker-02` is 4 vCPU, 8192 MiB RAM, 60 GiB disk. |
 | `INFRA-005` | [docs/LOCAL-INFRASTRUCTURE.md](LOCAL-INFRASTRUCTURE.md) | User-confirmed SSH from host to all three nodes. | PASS | Password bootstrap worked; key-based SSH remains recommended. |
 | `INFRA-006` | [docs/LOCAL-INFRASTRUCTURE.md](LOCAL-INFRASTRUCTURE.md) | User-confirmed node-to-node ping matrix. | PASS | Host-only network is `192.168.56.0/24`. |
 | `INFRA-007` | [docs/LOCAL-INFRASTRUCTURE.md](LOCAL-INFRASTRUCTURE.md) | User-confirmed outbound checks passed on all three nodes. | PASS | NAT is configured on Adapter 1 for each VM. |
 | `INFRA-008` | [docs/LOCAL-INFRASTRUCTURE.md](LOCAL-INFRASTRUCTURE.md) | User-confirmed `svm` flags and `/dev/kvm` on `vdi-worker-02`. | PASS | KubeVirt hardware acceleration readiness is VERIFIED for Phase 2. |
-| `INFRA-009` | Repository review | No Kubernetes/KubeVirt manifests or install automation added in Phase 2. | PASS | Phase 3 remains unimplemented. |
+| `INFRA-009` | Repository review | No Kubernetes/KubeVirt manifests or install automation added in Phase 2. | PASS | Phase 2 correctly stopped before Kubernetes/KubeVirt implementation. |
 | `INFRA-010` | [scripts/validate-phase2.ps1](../scripts/validate-phase2.ps1) | Static validator execution. | PASS | Live SSH mode requires key-based SSH for non-interactive checks. |
+
+## Phase 3 Traceability
+
+| Requirement | Implementation reference | Test or evidence | Status | Notes |
+| --- | --- | --- | --- | --- |
+| `NFR-003` | [ansible/inventory/local/group_vars/all.yml](../ansible/inventory/local/group_vars/all.yml), [docs/KUBERNETES-KUBEVIRT.md](KUBERNETES-KUBEVIRT.md) | Compatibility matrix and static validation. | PASS | Version set is pinned and live validation passed. |
+| `NFR-005` | [ansible/playbooks/phase3.yml](../ansible/playbooks/phase3.yml) | Syntax, lint, and repeat playbook execution. | PASS | Final rerun reported `changed=0`, `failed=0`, `unreachable=0` on all nodes. |
+| `SEC-003` | [kubernetes/rbac/vdiforge-provisioner-foundation.yaml](../kubernetes/rbac/vdiforge-provisioner-foundation.yaml) | RBAC manifest review and static secret/RBAC scan. | PASS | No VDIForge application component receives `cluster-admin`. |
+| `SEC-004` | [kubernetes/rbac/vdiforge-provisioner-foundation.yaml](../kubernetes/rbac/vdiforge-provisioner-foundation.yaml) | Namespace-scoped Role review. | PASS | Provisioner role is limited to future VDI namespace resource management. |
+| `SEC-005` | [scripts/phase3-networkpolicy-test.sh](../scripts/phase3-networkpolicy-test.sh) | Deny/allow NetworkPolicy validation. | PASS | Disposable validation resources are cleaned up. |
+| `SEC-008` | [.gitignore](../.gitignore), [scripts/validate-phase3.ps1](../scripts/validate-phase3.ps1) | Secret scan and Git review. | PASS | Kubeconfigs, join tokens, certificates, and keys are not committed. |
+| `OPS-001` | [docs/RUNBOOK.md](RUNBOOK.md) | Runbook review for node NotReady. | PASS | Phase 3 adds Kubernetes-specific diagnostics. |
+| `OPS-002` | [docs/RUNBOOK.md](RUNBOOK.md) | Runbook review for pod Pending and CrashLoopBackOff. | PASS | Phase 3 adds cluster add-on examples. |
+| `OPS-003` | [docs/RUNBOOK.md](RUNBOOK.md), [docs/KUBERNETES-KUBEVIRT.md](KUBERNETES-KUBEVIRT.md) | Storage and capacity runbook review. | PASS | Local-path and control-plane memory limitations are documented. |
+| `OPS-012` | [scripts/validate-phase3.ps1](../scripts/validate-phase3.ps1), [scripts/validate-phase3-live.sh](../scripts/validate-phase3-live.sh) | Phase validation and Git workflow evidence. | PASS | Validation passed before merge to `main`. |
+| `K8S-001` | [docs/KUBERNETES-KUBEVIRT.md](KUBERNETES-KUBEVIRT.md) | Compatibility matrix review. | PASS | Ubuntu 26.04, Kubernetes 1.36.4, Calico 3.32.1, KubeVirt 1.9.0, CDI 1.66.0. |
+| `K8S-002` | [ansible/playbooks/kubernetes.yml](../ansible/playbooks/kubernetes.yml) | `kubectl get nodes -o wide`. | PASS | All three nodes are Ready. |
+| `K8S-003` | [ansible/roles/kubernetes-common/tasks/main.yml](../ansible/roles/kubernetes-common/tasks/main.yml) | Package version and apt hold review. | PASS | kubelet, kubeadm, and kubectl are pinned at `1.36.4-1.1`. |
+| `K8S-004` | [ansible/roles/containerd](../ansible/roles/containerd) | `containerd --version` and service health checks. | PASS | Uses containerd `2.2.2` with systemd cgroups. |
+| `K8S-005` | [kubernetes/calico/custom-resources.yaml](../kubernetes/calico/custom-resources.yaml), [scripts/phase3-networkpolicy-test.sh](../scripts/phase3-networkpolicy-test.sh) | Calico status and NetworkPolicy validation. | PASS | Uses Calico VXLAN and NetworkPolicy enforcement passed. |
+| `K8S-006` | [scripts/validate-phase3-live.sh](../scripts/validate-phase3-live.sh) | CoreDNS rollout status. | PASS | CoreDNS rollout passed after CNI installation. |
+| `K8S-007` | [ansible/playbooks/kubernetes.yml](../ansible/playbooks/kubernetes.yml) | `kubectl get nodes --show-labels`. | PASS | Platform and VDI labels applied. |
+| `K8S-008` | [ansible/playbooks/cluster-addons.yml](../ansible/playbooks/cluster-addons.yml) | Metrics Server rollout and `kubectl top nodes`. | PASS | Local TLS exception documented; node and pod metrics passed. |
+| `K8S-009` | [kubernetes/namespaces/vdiforge-namespaces.yaml](../kubernetes/namespaces/vdiforge-namespaces.yaml) | Namespace manifest and cluster review. | PASS | No application workloads deployed. |
+| `K8S-010` | [scripts/validate-phase3-live.sh](../scripts/validate-phase3-live.sh) | Live PASS/FAIL summary. | PASS | Live validation ended with `Phase 3 live validation: PASS`. |
+| `KV-001` | [ansible/playbooks/cluster-addons.yml](../ansible/playbooks/cluster-addons.yml) | `kubectl get kubevirt -n kubevirt`. | PASS | KubeVirt v1.9.0 pinned and Available. |
+| `KV-002` | [scripts/validate-phase3-live.sh](../scripts/validate-phase3-live.sh) | KVM allocatable resource check. | PASS | `devices.kubevirt.io/kvm` is exposed on `vdi-worker-02`. |
+| `KV-003` | [docs/KUBERNETES-KUBEVIRT.md](KUBERNETES-KUBEVIRT.md) | Final KVM classification. | PASS | Result is `KUBEVIRT_KVM_VERIFIED`. |
+| `KV-004` | [ansible/playbooks/cluster-addons.yml](../ansible/playbooks/cluster-addons.yml) | `kubectl get pods -n cdi`. | PASS | CDI v1.66.0 pinned and Available. |
+| `KV-005` | [kubernetes/kubevirt/phase3-test-vm.yaml](../kubernetes/kubevirt/phase3-test-vm.yaml), [scripts/phase3-kubevirt-test-vm.sh](../scripts/phase3-kubevirt-test-vm.sh) | Disposable VM lifecycle test. | PASS | VM ran on `vdi-worker-02` and requested KVM. |
+| `KV-006` | [scripts/phase3-kubevirt-test-vm.sh](../scripts/phase3-kubevirt-test-vm.sh) | Stop, restart, delete, cleanup checks. | PASS | Disposable VM was cleaned up. |
+| `STOR-001` | [kubernetes/storage/local-path-provisioner.yaml](../kubernetes/storage/local-path-provisioner.yaml) | StorageClass and test VM disk import. | PASS | StorageClass is `vdiforge-local-path`. |
+| `STOR-002` | [docs/KUBERNETES-KUBEVIRT.md](KUBERNETES-KUBEVIRT.md), [docs/ADR/0010-local-path-storage-for-phase3.md](ADR/0010-local-path-storage-for-phase3.md) | Documentation review. | PASS | Local-path limitations documented. |
+| `STOR-003` | Repository review | No Ceph or distributed storage manifests. | PASS | Distributed storage remains future work. |

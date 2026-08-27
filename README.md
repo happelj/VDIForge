@@ -4,9 +4,9 @@ VDIForge is a portfolio platform project for a small, open-source, self-service 
 
 ## Project Status
 
-Phase 1 established the architecture, requirements, roadmap, standards, and documentation structure. Phase 2 adds the local infrastructure foundation for the developer workstation.
+Phase 1 established the architecture, requirements, roadmap, standards, and documentation structure. Phase 2 added the local VirtualBox infrastructure foundation. Phase 3 established the Kubernetes and KubeVirt foundation.
 
-The current local lab is three manually created Ubuntu Server VirtualBox VMs with documented Terraform infrastructure specifications, Ansible baseline roles, validation scripts, and verified `/dev/kvm` exposure on the future VDI worker. Kubernetes, KubeVirt, Keycloak, Guacamole, FastAPI, React, Helm application deployment, Packer images, and monitoring dashboards are not implemented yet.
+The current local lab is three manually created Ubuntu Server VirtualBox VMs with Terraform infrastructure specifications, Ansible host configuration, kubeadm/containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, validation scripts, and verified `/dev/kvm` exposure on the VDI worker. Keycloak, Guacamole, FastAPI, React, Helm application deployment, Packer images, Prometheus, and Grafana dashboards are not implemented yet.
 
 ## Goals
 
@@ -89,7 +89,7 @@ The initial lab is designed around three Ubuntu Server Kubernetes nodes:
 
 | Node | Role | Host-only IP | CPU | RAM | Disk |
 | --- | --- | --- | ---: | ---: | ---: |
-| `vdi-control-01` | future control-plane node | `192.168.56.10` | 2 vCPU | 4096 MiB | 40 GiB |
+| `vdi-control-01` | control-plane node | `192.168.56.10` | 4 vCPU | 6144 MiB | 40 GiB |
 | `vdi-worker-01` | future platform worker | `192.168.56.11` | 2 vCPU | 6144 MiB | 50 GiB |
 | `vdi-worker-02` | future VDI worker | `192.168.56.12` | 4 vCPU | 8192 MiB | 60 GiB |
 
@@ -112,6 +112,7 @@ Phase 2 uses Oracle VirtualBox 7.2.16 on Windows 10 Pro because the developer ca
 | [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) | Formal testable requirements |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Architecture diagrams and flows |
 | [docs/LOCAL-INFRASTRUCTURE.md](docs/LOCAL-INFRASTRUCTURE.md) | Phase 2 host, VirtualBox, network, SSH, and validation details |
+| [docs/KUBERNETES-KUBEVIRT.md](docs/KUBERNETES-KUBEVIRT.md) | Phase 3 Kubernetes, KubeVirt, storage, and validation details |
 | [docs/SECURITY.md](docs/SECURITY.md) | Threat model and security controls |
 | [docs/IMAGE-PIPELINE.md](docs/IMAGE-PIPELINE.md) | Packer and Ansible image lifecycle |
 | [docs/SSO-RBAC.md](docs/SSO-RBAC.md) | Keycloak, OIDC, roles, and authorization |
@@ -123,9 +124,9 @@ Phase 2 uses Oracle VirtualBox 7.2.16 on Windows 10 Pro because the developer ca
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Multi-phase implementation roadmap |
 | [docs/ADR](docs/ADR) | Architecture decision records |
 | [terraform](terraform/README.md) | Planned infrastructure lifecycle code |
-| [ansible](ansible/README.md) | Planned host and image configuration roles |
+| [ansible](ansible/README.md) | Host baseline and Kubernetes bootstrap roles |
 | [packer](packer/README.md) | Planned Ubuntu image build templates |
-| [kubernetes](kubernetes/README.md) | Planned namespaces, policies, and KubeVirt resources |
+| [kubernetes](kubernetes/README.md) | Kubernetes foundation manifests, namespace/RBAC skeletons, and KubeVirt test resources |
 | [helm/vdiforge](helm/vdiforge/README.md) | Planned VDIForge Helm chart |
 | [backend](backend/README.md) | Planned FastAPI service |
 | [frontend](frontend/README.md) | Planned React portal |
@@ -139,6 +140,7 @@ Phase 2 uses Oracle VirtualBox 7.2.16 on Windows 10 Pro because the developer ca
 - [Requirements](docs/REQUIREMENTS.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Local Infrastructure](docs/LOCAL-INFRASTRUCTURE.md)
+- [Kubernetes and KubeVirt](docs/KUBERNETES-KUBEVIRT.md)
 - [Security](docs/SECURITY.md)
 - [Image Pipeline](docs/IMAGE-PIPELINE.md)
 - [SSO and RBAC](docs/SSO-RBAC.md)
@@ -151,15 +153,16 @@ Phase 2 uses Oracle VirtualBox 7.2.16 on Windows 10 Pro because the developer ca
 
 ## Limitations
 
-- The current lab is infrastructure-only. It does not yet run Kubernetes or the VDIForge application.
+- The current lab is platform-foundation only. It does not yet run the VDIForge application.
 - The local three-node lab is not production HA.
-- KubeVirt performance depends on KVM availability. Nested virtualization is verified on `vdi-worker-02` for the current VirtualBox lab, but Phase 3 must still validate Kubernetes and KubeVirt on the installed Ubuntu/kernel combination.
+- KubeVirt performance depends on KVM availability. The current Phase 3 acceptance condition requires KubeVirt to expose and consume KVM on `vdi-worker-02`.
 - KubeVirt software emulation is a development fallback, not a realistic performance target.
+- Local-path storage is suitable for lab validation only and is not physically highly available.
 - True Kubernetes node autoscaling is future cloud or bare-metal functionality, not part of the fixed local lab.
 - Windows desktops are out of scope for the free MVP because they require licensing.
 
 ## Roadmap
 
-The next planned task is Phase 3 - Kubernetes/KubeVirt Foundation. Later phases add Helm, Keycloak, image automation, backend, frontend, Guacamole, observability, security hardening, CI/CD, and the final end-to-end demo.
+The next planned task after Phase 3 is Phase 4 - Helm / Platform Foundation. Later phases add Keycloak, image automation, backend, frontend, Guacamole, observability, security hardening, CI/CD, and the final end-to-end demo.
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for the full roadmap.

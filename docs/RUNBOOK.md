@@ -1,6 +1,6 @@
 # Operations Runbook
 
-This runbook defines troubleshooting procedures for the VDIForge local lab and planned platform. Kubernetes commands apply to later phases and may require namespace adjustment.
+This runbook defines troubleshooting procedures for the VDIForge local lab and planned platform. Kubernetes foundation commands apply to Phase 3 and application commands apply to later phases where noted.
 
 ## VirtualBox VM Does Not Start
 
@@ -72,6 +72,16 @@ This runbook defines troubleshooting procedures for the VDIForge local lab and p
 | Remediation | Shut down the affected VM, remove only that VM in VirtualBox, delete only that VM folder under `F:\VirtualBox VMs`, recreate it with documented values, reapply static networking, then validate ping, SSH, and `/dev/kvm` where applicable. |
 | Logs/metrics | VirtualBox metadata, validation script output, manual ping/SSH evidence. |
 
+## Control Plane API Pressure
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | `kubectl` commands hang or time out, Ansible reports OpenAPI/TLS handshake timeouts, add-on pods restart during reconciliation, and SSH to `vdi-control-01` is delayed. |
+| Likely causes | Control-plane VM undersized for Kubernetes, Calico, Metrics Server, KubeVirt, and CDI; many add-on controllers reconciling at once; no swap; host CPU pressure. |
+| Diagnostics | On `vdi-control-01`, run `uptime`, `free -h`, `kubectl top nodes`, `kubectl get pods -A`, and inspect kube-apiserver/controller-manager restart counts. From Windows, verify VM resources with `VBoxManage showvminfo vdi-control-01 --machinereadable`. |
+| Remediation | Prefer waiting for reconciliation to settle, then rerun validation. If pressure remains sustained, gracefully shut down `vdi-control-01`, increase it to the documented 4 vCPU / 6144 MiB allocation, restart it, wait for Kubernetes to recover, and rerun Phase 3 idempotency and live validation. |
+| Logs/metrics | `kubectl top nodes`, kube-apiserver logs, controller-manager logs, VirtualBox VM metadata, Ansible timeout output. |
+
 ## Kubernetes Node NotReady
 
 | Area | Detail |
@@ -81,6 +91,96 @@ This runbook defines troubleshooting procedures for the VDIForge local lab and p
 | Diagnostics | `kubectl describe node <node>`; `kubectl get events -A --sort-by=.lastTimestamp`; `systemctl status kubelet`; `systemctl status containerd`; `journalctl -u kubelet -xe`. |
 | Remediation | Restore host/network, restart failed services, clear disk pressure, verify CNI pods, cordon/drain only when safe. |
 | Logs/metrics | Node conditions, kubelet logs, containerd logs, Calico pod logs, node CPU/memory/disk metrics. |
+
+## kubeadm Initialization Failure
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | `ansible/playbooks/phase3.yml` fails during control-plane initialization; `/etc/kubernetes/admin.conf` is absent. |
+| Likely causes | containerd not active, swap enabled, missing kernel modules, port `6443` conflict, package mismatch, host-only IP not bound. |
+| Diagnostics | `systemctl status containerd`; `systemctl status kubelet`; `journalctl -u kubelet -n 200 --no-pager`; `sudo kubeadm init phase preflight --config /etc/kubernetes/kubeadm-init.yaml`; `ip -br addr`. |
+| Remediation | Fix the failing preflight condition, rerun the Ansible playbook, and avoid `kubeadm reset` unless initialization partially succeeded and the operator explicitly chooses a rebuild. |
+| Logs/metrics | kubeadm output, kubelet logs, containerd logs, `/var/log/syslog`. |
+
+## Worker Join Failure
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | One or both workers are missing from `kubectl get nodes`; Ansible fails during `kubernetes-worker`. |
+| Likely causes | expired join token, API endpoint unreachable, wrong CRI socket, kubelet package mismatch, host-only network issue. |
+| Diagnostics | From worker: `nc -vz 192.168.56.10 6443`; `systemctl status kubelet`; `journalctl -u kubelet -n 200 --no-pager`; from control: `kubeadm token list`. |
+| Remediation | Confirm host-only network reachability, rerun the Phase 3 playbook to generate a fresh short-lived token, and inspect kubelet logs before any reset. |
+| Logs/metrics | kubelet logs, kubeadm join output, control-plane API server logs. |
+
+## Calico Failure
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | Nodes remain NotReady after kubeadm, CoreDNS Pending/NotReady, or pod networking fails. |
+| Likely causes | Calico operator not Available, wrong pod CIDR, image pull failure, host firewall or kernel module issue. |
+| Diagnostics | `kubectl get tigerastatus`; `kubectl get pods -n tigera-operator`; `kubectl get pods -n calico-system`; `kubectl describe installation default`; `kubectl get ippools.crd.projectcalico.org -o yaml`. |
+| Remediation | Confirm pod CIDR `10.244.0.0/16` matches kubeadm config, fix image pull or network issues, reapply pinned Calico manifests, and rerun live validation. |
+| Logs/metrics | Tigera operator logs, Calico node logs, node conditions. |
+
+## CoreDNS Failure
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | `kubectl -n kube-system rollout status deployment/coredns` fails; pods cannot resolve service names. |
+| Likely causes | CNI not ready, CoreDNS image pull failure, insufficient resources, malformed CoreDNS config. |
+| Diagnostics | `kubectl get pods -n kube-system -l k8s-app=kube-dns`; `kubectl describe pod -n kube-system -l k8s-app=kube-dns`; `kubectl logs -n kube-system deploy/coredns`. |
+| Remediation | Fix CNI first, confirm node readiness, then restart CoreDNS only if configuration and networking are healthy. |
+| Logs/metrics | CoreDNS logs, pod events, Calico status. |
+
+## Metrics Server Failure
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | `kubectl top nodes` fails; Metrics Server pod is not Ready. |
+| Likely causes | kubelet serving certificate trust issue, wrong preferred node address, image pull failure, API aggregation issue. |
+| Diagnostics | `kubectl logs -n kube-system deploy/metrics-server`; `kubectl describe apiservice v1beta1.metrics.k8s.io`; `kubectl get endpoints -n kube-system metrics-server`. |
+| Remediation | In the local lab, confirm the documented `metrics-server-local-patch.yaml` is applied. For non-lab environments, provision proper kubelet serving certificates instead of relying on `--kubelet-insecure-tls`. |
+| Logs/metrics | Metrics Server logs, APIService status, kube-apiserver aggregation errors. |
+
+## KubeVirt Failure
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | `kubectl wait kubevirt/kubevirt -n kubevirt --for=condition=Available` fails; virt pods Pending or CrashLoopBackOff. |
+| Likely causes | unsupported Kubernetes/KubeVirt version pair, missing privileges, image pull failure, no schedulable nodes, KVM device issue. |
+| Diagnostics | `kubectl get kubevirt -n kubevirt -o yaml`; `kubectl get pods -n kubevirt`; `kubectl logs -n kubevirt deploy/virt-operator`; `kubectl describe ds -n kubevirt virt-handler`. |
+| Remediation | Verify selected versions, inspect operator logs, confirm node health, confirm `vdi-worker-02` exposes `/dev/kvm`, and reapply pinned KubeVirt manifests if needed. |
+| Logs/metrics | virt-operator logs, virt-handler logs, KubeVirt conditions. |
+
+## KubeVirt KVM Resource Missing
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | `devices.kubevirt.io/kvm` is missing or zero on `vdi-worker-02`; test VM does not request KVM. |
+| Likely causes | `/dev/kvm` unavailable inside the node, nested virtualization disabled after reboot, KubeVirt virt-handler not running on the node, node label mismatch. |
+| Diagnostics | On `vdi-worker-02`: `ls -l /dev/kvm`, `grep -E -m 5 '(vmx|svm)' /proc/cpuinfo`; in Kubernetes: `kubectl describe node vdi-worker-02`; `kubectl get pods -n kubevirt -o wide`. |
+| Remediation | Shut down the VM, re-enable VirtualBox Nested VT-x/AMD-V, ensure the Windows hypervisor remains disabled for this lab, boot the node, and restart/reconcile KubeVirt. Do not switch to software emulation unless an ADR changes Phase 3 acceptance. |
+| Logs/metrics | guest `dmesg`, virt-handler logs, node allocatable resources. |
+
+## Disposable KubeVirt Test VM Failure
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | `scripts/phase3-kubevirt-test-vm.sh` fails, DataVolume not Ready, VMI not Running, or VM schedules on the wrong node. |
+| Likely causes | CDI unavailable, storage provisioning failure, local-path capacity issue, node selector missing, KVM resource unavailable, image download failure. |
+| Diagnostics | `kubectl get vm,vmi,dv,pvc -n vdiforge-desktops`; `kubectl describe datavolume phase3-cirros-dv -n vdiforge-desktops`; `kubectl describe vmi phase3-cirros -n vdiforge-desktops`; `kubectl get pods -n vdiforge-desktops -o wide`. |
+| Remediation | Fix CDI/storage/KVM root cause, run `bash scripts/phase3-kubevirt-test-vm.sh --cleanup-only`, then rerun the test. The disposable VM should not remain running after validation. |
+| Logs/metrics | CDI importer logs, PVC events, virt-launcher logs, VMI conditions. |
+
+## Storage Provisioning Failure
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | PVC or DataVolume remains Pending; local-path provisioner pod is unhealthy; test VM cannot attach disk. |
+| Likely causes | local-path provisioner not running, no backing directory, disk full, node affinity mismatch, image import failure. |
+| Diagnostics | `kubectl get storageclass`; `kubectl get pods -n local-path-storage`; `kubectl logs -n local-path-storage deploy/local-path-provisioner`; `kubectl describe pvc -n vdiforge-desktops phase3-cirros-dv`; `df -h /opt/local-path-provisioner`. |
+| Remediation | Restore local-path provisioner, create/fix `/opt/local-path-provisioner`, free disk space, delete failed disposable test resources, and rerun validation. |
+| Logs/metrics | local-path provisioner logs, PVC events, node disk metrics. |
 
 ## Pod Pending
 

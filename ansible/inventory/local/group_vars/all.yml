@@ -3,6 +3,7 @@ vdiforge_common_packages:
   - ca-certificates
   - curl
   - gnupg
+  - jq
   - lsb-release
   - openssh-server
   - python3
@@ -12,3 +13,22 @@ vdiforge_common_packages:
 vdiforge_manage_swap_for_kubernetes_prereq: true
 vdiforge_ssh_password_authentication: true
 vdiforge_ssh_permit_root_login: "no"
+
+vdiforge_containerd_package_version: "2.2.2-0ubuntu1.1"
+vdiforge_kubernetes_version: "1.36.4"
+vdiforge_kubernetes_package_version: "1.36.4-1.1"
+vdiforge_kubernetes_minor: "v1.36"
+vdiforge_kubernetes_api_port: 6443
+vdiforge_kubernetes_control_plane_endpoint: "192.168.56.10"
+vdiforge_kubernetes_cri_socket: "unix:///run/containerd/containerd.sock"
+vdiforge_kubectl_request_timeout: "120s"
+vdiforge_pod_cidr: "10.244.0.0/16"
+vdiforge_service_cidr: "10.96.0.0/12"
+
+vdiforge_calico_version: "v3.32.1"
+vdiforge_metrics_server_version: "v0.8.1"
+vdiforge_kubevirt_version: "v1.9.0"
+vdiforge_cdi_version: "v1.66.0"
+vdiforge_local_path_provisioner_version: "v0.0.32"
+vdiforge_local_path_storage_class: "vdiforge-local-path"
+vdiforge_local_path_root: "/opt/local-path-provisioner"

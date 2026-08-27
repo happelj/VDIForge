@@ -1,0 +1,10 @@
+---
+- name: Remove temporary Phase 3 passwordless sudo
+  hosts: vdiforge
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Remove temporary Phase 3 sudoers file
+      ansible.builtin.file:
+        path: /etc/sudoers.d/90-vdiforge-phase3
+        state: absent

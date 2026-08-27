@@ -1,0 +1,87 @@
+---
+- name: Prepare nodes for Kubernetes
+  hosts: vdiforge
+  become: true
+  gather_facts: true
+  roles:
+    - role: common
+    - role: security-baseline
+    - role: containerd
+    - role: kubernetes-common
+
+- name: Bootstrap Kubernetes control plane
+  hosts: control_plane
+  become: true
+  gather_facts: true
+  roles:
+    - role: kubernetes-control-plane
+
+- name: Generate short-lived worker join command
+  hosts: control_plane
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Generate kubeadm worker join command
+      ansible.builtin.command:
+        argv:
+          - kubeadm
+          - token
+          - create
+          - --ttl
+          - 2h
+          - --print-join-command
+      register: vdiforge_kubeadm_join
+      no_log: true
+      changed_when: false
+
+- name: Join Kubernetes workers
+  hosts: platform_workers:vdi_workers
+  become: true
+  gather_facts: true
+  roles:
+    - role: kubernetes-worker
+      vars:
+        vdiforge_kubeadm_join_command: "{{ hostvars[groups['control_plane'][0]].vdiforge_kubeadm_join.stdout }}"
+
+- name: Apply VDIForge node labels
+  hosts: control_plane
+  become: false
+  gather_facts: false
+  tasks:
+    - name: Ensure control-plane node keeps NoSchedule taint
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --request-timeout={{ vdiforge_kubectl_request_timeout }}
+          - taint
+          - node
+          - vdi-control-01
+          - node-role.kubernetes.io/control-plane:NoSchedule
+          - --overwrite
+      changed_when: false
+
+    - name: Label platform worker
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --request-timeout={{ vdiforge_kubectl_request_timeout }}
+          - label
+          - node
+          - vdi-worker-01
+          - vdiforge.io/node-role=platform
+          - --overwrite
+      register: vdiforge_label_platform
+      changed_when: false
+
+    - name: Label VDI worker
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --request-timeout={{ vdiforge_kubectl_request_timeout }}
+          - label
+          - node
+          - vdi-worker-02
+          - vdiforge.io/node-role=vdi
+          - --overwrite
+      register: vdiforge_label_vdi
+      changed_when: false

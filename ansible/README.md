@@ -1,17 +1,12 @@
 # Ansible
 
-This directory contains the Phase 2 operating-system baseline foundation and remains the home for later Kubernetes and image configuration roles.
+This directory contains the Phase 2 operating-system baseline foundation and the Phase 3 Kubernetes/KubeVirt bootstrap roles.
 
-## Phase 2 Roles
+## Roles
 
 ```text
 common
 security-baseline
-```
-
-Later roles:
-
-```text
 containerd
 kubernetes-common
 kubernetes-control-plane
@@ -31,8 +26,14 @@ Additional image-specific roles will be added under the image pipeline work when
 - swap handling for future Kubernetes prerequisites
 - root-login and password-authentication policy
 - sudo group policy
+- containerd installation and CRI configuration
+- Kubernetes package repository and pinned package installation
+- kubeadm control-plane initialization
+- worker join with short-lived token
+- node labeling
+- Phase 3 add-on installation
 
-Phase 2 does not install containerd, kubeadm, Kubernetes, KubeVirt, Keycloak, Guacamole, Prometheus, Grafana, or application workloads.
+Phase 3 installs Kubernetes, Calico, Metrics Server, KubeVirt, CDI, and storage foundations. It does not install Keycloak, Guacamole, Prometheus, Grafana, Helm application resources, backend, frontend, or VDI desktop images.
 
 Ansible playbooks should be idempotent and safe to rerun.
 
@@ -43,11 +44,18 @@ The current Windows host does not have a native Ansible control environment. Pha
 ```bash
 cd ansible
 ansible-playbook --syntax-check playbooks/baseline.yml
-ansible-playbook playbooks/baseline.yml --ask-become-pass
-ansible-playbook playbooks/baseline.yml --ask-become-pass
+ansible-playbook --syntax-check playbooks/phase3.yml
+ansible-playbook playbooks/phase3.yml --private-key ~/.ssh/vdiforge_ansible
+ansible-playbook playbooks/phase3.yml --private-key ~/.ssh/vdiforge_ansible
 ```
 
-The second full playbook run is the idempotency check.
+The second full Phase 3 playbook run is the idempotency check. It must not reset or recreate a healthy cluster.
+
+If temporary passwordless sudo was enabled for lab bootstrap, remove it after validation:
+
+```bash
+ansible-playbook playbooks/remove-temporary-sudo.yml --private-key ~/.ssh/vdiforge_ansible
+```
 
 ## Structure
 
@@ -59,5 +67,9 @@ ansible/
   roles/
     common/
     security-baseline/
+    containerd/
+    kubernetes-common/
+    kubernetes-control-plane/
+    kubernetes-worker/
   playbooks/
 ```

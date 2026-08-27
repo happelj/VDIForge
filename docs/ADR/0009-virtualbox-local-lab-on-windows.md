@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted for this local Phase 2 host.
+Accepted for this local Phase 2/Phase 3 host.
 
 ## Context
 
@@ -46,5 +46,6 @@ Do not use the older `terra-farm/virtualbox` Terraform provider as an authoritat
 - The local lab remains a single physical failure domain.
 - VM lifecycle is partially manual through VirtualBox GUI or `VBoxManage`, not fully Terraform-managed.
 - Terraform still defines, validates, and outputs the lab specification.
-- Ansible requires a Linux/WSL controller or equivalent in a later phase for full syntax/idempotency execution.
-- Phase 3 must validate Kubernetes/KubeVirt compatibility on Ubuntu Server 26.04 LTS before installing cluster components.
+- Ansible runs from `vdi-control-01` for Phase 3 because the Windows host does not provide a native Ansible control environment.
+- Phase 3 must validate Kubernetes/KubeVirt compatibility on Ubuntu Server 26.04 LTS before installing cluster components and must prove KubeVirt can consume KVM on `vdi-worker-02`.
+- Phase 3 validation showed the control plane needs 4 vCPU and 6144 MiB RAM on this host for reliable Kubernetes/KubeVirt add-on reconciliation.

@@ -1,0 +1,18 @@
+---
+- name: Check whether worker has already joined the cluster
+  ansible.builtin.stat:
+    path: /etc/kubernetes/kubelet.conf
+  register: vdiforge_worker_kubelet_conf
+
+- name: Require a generated kubeadm join command for unjoined workers
+  ansible.builtin.fail:
+    msg: "Worker is not joined and no kubeadm join command was provided."
+  when:
+    - not vdiforge_worker_kubelet_conf.stat.exists
+    - vdiforge_kubeadm_join_command is not defined
+
+- name: Join worker to Kubernetes cluster
+  ansible.builtin.command: "{{ vdiforge_kubeadm_join_command }} --cri-socket {{ vdiforge_kubernetes_cri_socket }} --node-name {{ inventory_hostname }}"
+  when: not vdiforge_worker_kubelet_conf.stat.exists
+  no_log: true
+  changed_when: true

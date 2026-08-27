@@ -58,7 +58,7 @@ foreach ($file in $requiredFiles) {
 
 $expectedNodes = @{
   "vdi-control-01" = @{
-    Cpu = 2; Memory = 4096; DiskMb = 40960; Ip = "192.168.56.10"; Nested = $false
+    Cpu = 4; Memory = 6144; DiskMb = 40960; Ip = "192.168.56.10"; Nested = $false
   }
   "vdi-worker-01" = @{
     Cpu = 2; Memory = 6144; DiskMb = 51200; Ip = "192.168.56.11"; Nested = $false
