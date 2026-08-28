@@ -14,7 +14,7 @@ VDIForge will use requirements-driven testing. Later phases should trace tests b
 
 ## Backend Tests
 
-Planned Python tests:
+Phase 7 Python tests cover:
 
 - model validation
 - API request validation
@@ -27,6 +27,12 @@ Planned Python tests:
 - error response format
 - audit event creation
 - metrics output
+
+Run the Phase 7 backend checks through the repository validator:
+
+```powershell
+.\scripts\validate-phase7.ps1
+```
 
 ## Frontend Tests
 
@@ -80,7 +86,7 @@ Required cases:
 - admin can view all desktops
 - frontend-supplied user ID or role is ignored
 
-Phase 5 implements the identity-provider side of these tests with `scripts/phase5-oidc-pkce-test.py`. Backend API authorization tests remain Phase 7 work.
+Phase 5 implements the identity-provider side of these tests with `scripts/phase5-oidc-pkce-test.py`. Phase 7 adds backend API authorization tests and a live OIDC/API/KubeVirt workflow through `scripts/phase7-api-e2e-test.py`.
 
 ## Kubernetes and KubeVirt Tests
 
@@ -98,13 +104,20 @@ Phase 3 foundation tests:
 - `vdi-worker-02` exposes `devices.kubevirt.io/kvm` to KubeVirt
 - disposable CirrOS VM creates, boots, schedules on `vdi-worker-02`, requests KVM, stops, restarts, deletes, and cleans up
 
-Later VDIForge application tests:
+Phase 7 VDIForge application tests:
 
 - provisioner can create required KubeVirt resources
 - provisioner cannot perform disallowed Kubernetes API operations
 - VirtualMachine reaches expected phases
 - PVC or DataVolume is created and cleaned up
 - Service is created only for the owning desktop
+- image launch is denied when the caller lacks the required role
+- launch idempotency replays the original desktop when inputs match
+- active desktop quota rejects a second launch for the same non-admin user
+- admin-only audit access is enforced
+
+Later remote desktop tests:
+
 - NetworkPolicies allow Guacamole to desktop remote port
 - NetworkPolicies deny direct unauthorized access
 - failed scheduling transitions desktop to `FAILED` after timeout
@@ -238,6 +251,23 @@ kubectl apply --dry-run=server -f <manifest>
 ```
 
 These commands become active as each area gains implementation files.
+
+## API Control Plane Validation
+
+Phase 7 static validation:
+
+```powershell
+.\scripts\validate-phase7.ps1
+```
+
+Phase 7 live validation from `vdi-control-01`:
+
+```bash
+cd ~/vdiforge-phase7-validation
+bash scripts/validate-phase7-live.sh
+```
+
+The Phase 7 live validator checks cluster regression health, Helm lint/render/server dry-run, runtime-only secrets, app PostgreSQL, API/provisioner rollout, trusted HTTPS API health/readiness, least-privilege RBAC, NetworkPolicy denial from an unauthorized namespace, Keycloak-issued token acceptance, image RBAC, idempotency, quota enforcement, ownership checks, KubeVirt `DataVolume`/`VirtualMachine`/Service reconciliation, `vdi-worker-02` placement, KVM resource requests, stop/start/delete lifecycle, cleanup, audit events, and API restart persistence.
 
 ## Image Validation
 

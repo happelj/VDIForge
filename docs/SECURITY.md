@@ -1,6 +1,6 @@
 # Security Model
 
-This document defines the VDIForge threat model and security controls. Phase 2 local infrastructure controls, Phase 3 Kubernetes foundation controls, Phase 4 Helm platform controls, Phase 5 identity controls, and Phase 6 image-pipeline controls apply to the current lab. FastAPI application authorization, Guacamole, audit persistence, and application observability remain later-phase work.
+This document defines the VDIForge threat model and security controls. Phase 2 local infrastructure controls, Phase 3 Kubernetes foundation controls, Phase 4 Helm platform controls, Phase 5 identity controls, Phase 6 image-pipeline controls, and Phase 7 FastAPI control-plane controls apply to the current lab. Guacamole, browser remote desktop sessions, full Prometheus/Grafana observability, and the React portal remain later-phase work.
 
 ## Security Objectives
 
@@ -91,7 +91,7 @@ Phase 3 creates an initial Kubernetes RBAC foundation, and Phase 4 adopts the VD
 - Role `vdiforge-provisioner-vdi-manager` in `vdiforge-desktops`
 - RoleBinding from the Role to the ServiceAccount
 
-This is a placeholder privilege boundary for later application phases; no provisioner application is deployed in Phase 3 or Phase 4.
+Phase 7 deploys the provisioner application against this privilege boundary.
 
 Conceptual Role scope:
 
@@ -99,8 +99,8 @@ Conceptual Role scope:
 | --- | --- | --- |
 | `kubevirt.io` | `virtualmachines`, `virtualmachineinstances` | `get`, `list`, `watch`, `create`, `patch`, `update`, `delete` |
 | `cdi.kubevirt.io` | `datavolumes` | `get`, `list`, `watch`, `create`, `patch`, `delete` |
-| core | `persistentvolumeclaims`, `services`, `events` | `get`, `list`, `watch`, `create`, `patch`, `delete` |
-| core | `secrets` | `get`, `create`, `patch`, `delete` only if runtime credential storage cannot be avoided |
+| core | `persistentvolumeclaims`, `services`, `events` | `get`, `list`, `watch`, `create`, `patch`, `update`, `delete` |
+| core | `pods` | `get`, `list`, `watch` |
 
 Rules:
 
@@ -139,6 +139,8 @@ Phase 3 proves standard Kubernetes NetworkPolicy enforcement with `scripts/phase
 Phase 4 adds Helm-managed baseline policies in `vdiforge-system`: default deny for future platform pods, DNS egress, and provisioner-labeled pod egress to the Kubernetes API. It intentionally does not apply a broad default deny to `vdiforge-desktops` yet because Guacamole and VM labels/ports are not implemented.
 
 Phase 5 adds Helm-managed identity policies in `keycloak`: default deny, DNS egress, Traefik-to-Keycloak ingress, Keycloak-to-PostgreSQL egress, PostgreSQL ingress from Keycloak only, and a reserved future API-to-Keycloak discovery/JWKS path. The live validation includes an allow/deny test proving arbitrary pods cannot reach Keycloak or PostgreSQL.
+
+Phase 7 enables the API/provisioner policies in `vdiforge-system`: Traefik-to-API ingress, API-to-Keycloak JWKS access, API/provisioner/migration-to-application-PostgreSQL, and PostgreSQL ingress from only those clients. Validation proves an unauthorized namespace cannot reach the API ClusterIP or application PostgreSQL.
 
 ## Phase 2 Local Infrastructure Security
 
@@ -218,6 +220,23 @@ Phase 6 adds these security-relevant controls:
 - The KubeVirt boot proof injects a temporary validation SSH key through cloud-init and removes the disposable VM, DataVolume, and PVC after validation.
 
 Phase 6 does not commit passwords, private SSH keys, kubeconfigs, Kubernetes tokens, OIDC tokens, cloud credentials, or generated disk artifacts.
+
+## Phase 7 API Control Plane Security
+
+Phase 7 adds these security-relevant controls:
+
+- FastAPI validates bearer access tokens with PyJWT and Keycloak JWKS rather than trusting decoded JWT payloads.
+- JWT validation checks RS256 signature, issuer `https://auth.vdiforge.local/realms/vdiforge`, audience `vdiforge-api`, expiration, subject, username, and role claims.
+- API authorization is server-side for image visibility, desktop launch, ownership reads, start, stop, delete, list-all, and audit access.
+- The API ignores client-supplied ownership or role data.
+- Desktop launch requires an idempotency key and enforces a bounded per-user active desktop quota.
+- Audit events for desktop requests, lifecycle changes, failures, and admin audit access are stored in application PostgreSQL.
+- `vdiforge-api` does not mount a Kubernetes ServiceAccount token.
+- `vdiforge-provisioner` uses the namespace-scoped `vdiforge-provisioner-vdi-manager` Role and does not receive Secret access or cluster-admin.
+- Runtime database passwords and API TLS private keys are generated under ignored `.local/phase7` paths and applied as Kubernetes Secrets.
+- API/provisioner containers run as non-root where practical with dropped Linux capabilities and read-only root filesystems.
+
+Phase 7 does not expose browser remote desktop credentials and does not deploy Guacamole.
 
 ## Secret Handling
 

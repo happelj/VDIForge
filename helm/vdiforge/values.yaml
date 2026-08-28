@@ -29,6 +29,10 @@ serviceAccounts:
     create: true
     name: vdiforge-provisioner
     automountServiceAccountToken: true
+  database:
+    create: true
+    name: vdiforge-app-postgres
+    automountServiceAccountToken: false
 
 rbac:
   enabled: true
@@ -105,6 +109,30 @@ networkPolicy:
       name: vdiforge-system-provisioner-kubernetes-api
       apiServerCidr: 10.96.0.1/32
       apiServerPort: 443
+      endpoints:
+        - cidr: 10.96.0.1/32
+          port: 443
+        - cidr: 192.168.56.10/32
+          port: 6443
+    allowIngressToApi:
+      enabled: false
+      name: vdiforge-system-allow-api-ingress
+      namespace: ingress-traefik
+      podSelector:
+        app.kubernetes.io/name: traefik
+      port: 8000
+    allowApiToKeycloak:
+      enabled: false
+      name: vdiforge-system-api-to-keycloak
+      namespace: keycloak
+      podSelector:
+        app.kubernetes.io/component: identity
+      port: 8080
+    allowAppDatabase:
+      enabled: false
+      clientEgressName: vdiforge-system-app-to-app-postgres
+      databaseName: vdiforge-system-app-postgres-ingress
+      port: 5432
 
 placement:
   platform:
@@ -124,9 +152,11 @@ ingress:
   hosts:
     portal: vdiforge.local
     auth: auth.vdiforge.local
+    api: api.vdiforge.local
     grafana: grafana.vdiforge.local
   tls:
     enabled: false
+    apiSecretName: vdiforge-api-tls
 
 frontend:
   enabled: false
@@ -140,20 +170,97 @@ frontend:
 api:
   enabled: false
   image:
-    repository: ""
-    tag: ""
-  resources: {}
+    repository: localhost/vdiforge-api
+    tag: "0.7.0"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  service:
+    name: vdiforge-api
+    port: 8000
+  env:
+    databaseSecretName: vdiforge-app-secrets
+    databasePasswordKey: VDIFORGE_APP_DB_PASSWORD
+    keycloakCaSecretName: vdiforge-api-keycloak-ca
+    keycloakCaKey: vdiforge-local-ca.crt
+    keycloakIssuer: https://auth.vdiforge.local/realms/vdiforge
+    keycloakJwksUrl: http://vdiforge-keycloak.keycloak.svc.cluster.local:8080/realms/vdiforge/protocol/openid-connect/certs
+    jwtAudience: vdiforge-api
+    imageCatalogPath: /app/images/catalog.json
+    databaseName: vdiforge
+    databaseUser: vdiforge
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
   autoscaling:
     enabled: false
+  ingress:
+    enabled: false
+    className: traefik
+    host: api.vdiforge.local
+    tlsSecretName: vdiforge-api-tls
 
 provisioner:
   enabled: false
   image:
-    repository: ""
-    tag: ""
-  resources: {}
+    repository: localhost/vdiforge-api
+    tag: "0.7.0"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  env:
+    databaseSecretName: vdiforge-app-secrets
+    databasePasswordKey: VDIFORGE_APP_DB_PASSWORD
+    keycloakCaSecretName: vdiforge-api-keycloak-ca
+    keycloakCaKey: vdiforge-local-ca.crt
+    keycloakIssuer: https://auth.vdiforge.local/realms/vdiforge
+    keycloakJwksUrl: http://vdiforge-keycloak.keycloak.svc.cluster.local:8080/realms/vdiforge/protocol/openid-connect/certs
+    jwtAudience: vdiforge-api
+    imageCatalogPath: /app/images/catalog.json
+    databaseName: vdiforge
+    databaseUser: vdiforge
+    maxDesktopsPerUser: "1"
+    maxDesktopsPerAdmin: "3"
+    desktopsNamespace: vdiforge-desktops
+    storageClass: vdiforge-local-path
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
   autoscaling:
     enabled: false
+
+applicationDatabase:
+  enabled: false
+  name: vdiforge-app-postgres
+  image:
+    repository: postgres
+    tag: "18.0-alpine"
+    pullPolicy: IfNotPresent
+  existingSecret: vdiforge-app-secrets
+  passwordKey: VDIFORGE_APP_DB_PASSWORD
+  database: vdiforge
+  username: vdiforge
+  storageClassName: vdiforge-local-path
+  storageSize: 4Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+migrations:
+  enabled: false
+  name: vdiforge-api-migrations
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 3600
 
 keycloak:
   enabled: false
@@ -201,6 +308,7 @@ keycloak:
   postgresql:
     enabled: true
     name: vdiforge-keycloak-postgres
+    volumeClaimTemplateLabels: {}
     image:
       repository: postgres
       tag: "18.0-alpine"

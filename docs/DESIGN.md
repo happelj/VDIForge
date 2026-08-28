@@ -4,7 +4,7 @@ This document is the authoritative technical design for VDIForge. Later implemen
 
 ## Status
 
-Phase 2 local infrastructure foundation is documented and host-validated. Phase 3 establishes the Kubernetes and KubeVirt foundation on that lab with kubeadm, containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, namespace/RBAC foundations, NetworkPolicy validation, and a disposable KubeVirt test VM. Phase 4 establishes the Helm platform foundation with a `vdiforge` release that manages VDIForge ConfigMap conventions, ServiceAccounts, provisioner RBAC, ResourceQuotas, a LimitRange, and baseline NetworkPolicies. Phase 5 adds Keycloak, PostgreSQL persistence, Traefik ingress, local TLS, realm import, demo identities, Authorization Code Flow with PKCE validation, JWT validation, RBAC claim validation, and identity NetworkPolicies. Phase 6 establishes the Packer/Ansible Ubuntu golden-image pipeline, image catalog foundation, QCOW2 artifact format, CDI import path, and KubeVirt boot validation. The full VDI platform remains planned: Guacamole, FastAPI, React application code, and Prometheus/Grafana are not implemented yet.
+Phase 2 local infrastructure foundation is documented and host-validated. Phase 3 establishes the Kubernetes and KubeVirt foundation on that lab with kubeadm, containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, namespace/RBAC foundations, NetworkPolicy validation, and a disposable KubeVirt test VM. Phase 4 establishes the Helm platform foundation with a `vdiforge` release that manages VDIForge ConfigMap conventions, ServiceAccounts, provisioner RBAC, ResourceQuotas, a LimitRange, and baseline NetworkPolicies. Phase 5 adds Keycloak, PostgreSQL persistence, Traefik ingress, local TLS, realm import, demo identities, Authorization Code Flow with PKCE validation, JWT validation, RBAC claim validation, and identity NetworkPolicies. Phase 6 establishes the Packer/Ansible Ubuntu golden-image pipeline, image catalog foundation, QCOW2 artifact format, CDI import path, and KubeVirt boot validation. Phase 7 adds the FastAPI VDI control plane, application PostgreSQL, Alembic migrations, API/provisioner Helm resources, server-side authorization, audit persistence, and KubeVirt desktop lifecycle reconciliation. Guacamole, React application code, full Prometheus/Grafana observability, and browser remote desktop sessions remain planned.
 
 ## Goals
 
@@ -62,6 +62,7 @@ Sources reviewed during Phase 1:
 - Keycloak Phase 5 references: [Keycloak database configuration](https://www.keycloak.org/server/db), [Keycloak reverse proxy configuration](https://www.keycloak.org/server/reverseproxy), [Keycloak import/export](https://www.keycloak.org/server/importExport), [Keycloak OIDC endpoints](https://www.keycloak.org/securing-apps/oidc-layers), and [Keycloak health endpoints](https://www.keycloak.org/observability/health)
 - Phase 6 image pipeline implementation: [Golden Images](GOLDEN-IMAGES.md)
 - Packer and image references: [Packer install documentation](https://developer.hashicorp.com/packer/install), [Packer QEMU plugin](https://developer.hashicorp.com/packer/integrations/hashicorp/qemu), [Packer Ansible plugin](https://developer.hashicorp.com/packer/integrations/hashicorp/ansible), [Ubuntu 26.04 cloud images](https://cloud-images.ubuntu.com/releases/resolute/release/), [CDI DataVolumes](https://github.com/kubevirt/containerized-data-importer/blob/main/doc/datavolumes.md), and [KubeVirt VM access](https://kubevirt.io/user-guide/user_workloads/accessing_virtual_machines/)
+- Phase 7 control plane implementation: [FastAPI VDI Control Plane](API-CONTROL-PLANE.md)
 
 ## Selected Platform Version Pins
 
@@ -89,6 +90,14 @@ These pins are Phase 3 implementation inputs as of 2026-08-27. Later phases must
 | Helm in DevOps image | v4.2.4 | Matches the Phase 4/5 administrative Helm client. |
 | Terraform local lab | Terraform 1.15.8 with built-in `terraform_data` | Actual Phase 2 host uses VirtualBox; Terraform validates the lab specification without depending on an alpha VirtualBox provider. |
 | Apache Guacamole | 1.6.0 | Current documented Guacamole release with RDP, VNC, SSH, WebSocket, and container deployment support. |
+| Python runtime | 3.14.4 slim | Phase 7 API/provisioner container runtime. |
+| FastAPI | 0.141.1 | Phase 7 API framework. |
+| Pydantic | 2.13.4 | Phase 7 schema validation. |
+| SQLAlchemy | 2.0.52 | Phase 7 ORM. |
+| Alembic | 1.19.1 | Phase 7 database migrations. |
+| psycopg | 3.3.4 | Phase 7 PostgreSQL driver. |
+| PyJWT | 2.13.0 | Phase 7 JWT validation. |
+| Kubernetes Python client | 36.0.2 | Phase 7 Kubernetes/KubeVirt API access. |
 
 No implementation phase should use floating `latest` tags for platform components, images, or charts.
 
@@ -328,7 +337,7 @@ Initial image catalog:
 | `ubuntu-developer:1.0.0` | Developer desktop with Git, Python, build tools, CLI utilities, and Geany. |
 | `ubuntu-devops:1.0.0` | Infrastructure desktop with Terraform, Ansible, kubectl, Helm, Git, Python, and useful infrastructure CLIs. |
 
-The catalog is implemented as [../images/catalog.json](../images/catalog.json). It expresses image policy and role eligibility only; Phase 7 must enforce it server-side.
+The catalog is implemented as [../images/catalog.json](../images/catalog.json). It expresses image policy and role eligibility as data; Phase 7 enforces that policy server-side in the FastAPI control plane.
 
 Image lifecycle:
 
@@ -369,16 +378,16 @@ Patching should rebuild and promote new versioned images. Rollback changes which
 
 ## VDI Control Plane Design
 
-The backend is planned as Python with FastAPI, Pydantic models, and PostgreSQL for MVP persistence. Do not introduce multiple databases for the MVP.
+The backend is implemented as Python with FastAPI, Pydantic models, SQLAlchemy, Alembic migrations, and PostgreSQL for MVP persistence. Do not introduce multiple databases for the MVP.
 
-Primary entities:
+Primary Phase 7 entities:
 
 - `Desktop`
 - `Image`
 - `ProvisioningOperation`
 - `AuditEvent`
 
-Planned API surface:
+Implemented Phase 7 API surface:
 
 ```text
 POST   /api/v1/desktops
@@ -399,12 +408,21 @@ GET    /metrics
 Desktop lifecycle:
 
 ```text
-REQUESTED -> PROVISIONING -> BOOTING -> READY -> CONNECTED -> STOPPING -> TERMINATED
+REQUESTED -> PROVISIONING -> BOOTING -> READY -> STOPPING -> STOPPED -> TERMINATING -> TERMINATED
 ```
 
-Any appropriate stage may transition to `FAILED`.
+Any appropriate stage may transition to `FAILED`. `CONNECTED` remains reserved for Phase 8 remote-session integration.
 
-Provisioning is asynchronous. The API records desired state and returns quickly. A provisioner reconciles desired state against Kubernetes/KubeVirt observed state using idempotent operations, request IDs, bounded retries, backoff, timeouts, and cleanup logic.
+Provisioning is asynchronous. The API records desired state and returns `202 Accepted`; a separate provisioner reconciles desired state against Kubernetes/KubeVirt observed state using idempotent operations, request IDs, bounded retries, backoff, timeouts, and cleanup logic. The provisioner uses the Kubernetes Python client and does not shell out to `kubectl` or `virtctl`.
+
+Phase 7 deploys the backend through Helm as:
+
+- `vdiforge-api`
+- `vdiforge-provisioner`
+- `vdiforge-app-postgres`
+- `vdiforge-api-migrations`
+
+Only `ubuntu-devops:1.0.0` is launchable in Phase 7. `ubuntu-base` and `ubuntu-developer` remain catalog candidates until later promotion.
 
 Authoritative sources of truth:
 
@@ -437,7 +455,7 @@ Phase 5 OIDC clients:
 | Client | Type | Purpose |
 | --- | --- | --- |
 | `vdiforge-frontend` | public | Future browser portal using Authorization Code Flow with PKCE S256. |
-| `vdiforge-api` | audience marker | Future FastAPI JWT audience validation. |
+| `vdiforge-api` | audience marker | FastAPI JWT audience validation. |
 
 Roles:
 
@@ -454,7 +472,7 @@ Roles are realm roles with composite inheritance:
 vdi-admin -> vdi-devops -> vdi-developer -> vdi-user
 ```
 
-The frontend client uses Authorization Code Flow with PKCE. The backend must validate tokens server-side:
+The frontend client uses Authorization Code Flow with PKCE. The backend validates tokens server-side:
 
 - JWT signature through Keycloak JWKS
 - issuer
@@ -741,7 +759,7 @@ Phase 2 produced local infrastructure that can host the planned three-node clust
 7. Terraform specification and outputs under `terraform/environments/local`.
 8. Ansible baseline inventory and roles under `ansible`.
 
-Phase 3 installs Kubernetes prerequisites, kubeadm/containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, namespace/RBAC foundations, and validation scripts. Phase 4 installs the Helm deployment client on `vdi-control-01` and deploys the VDIForge foundation release. Phase 5 installs Traefik ingress, Keycloak, PostgreSQL persistence, local TLS, the `vdiforge` realm, OIDC clients, demo identities, and identity validation scripts. Phase 6 adds the Packer/Ansible golden-image pipeline and KubeVirt boot validation for the DevOps image. Phases 3-6 intentionally do not install the VDIForge FastAPI application, React portal, Guacamole, Prometheus/Grafana, or self-service VDI provisioning.
+Phase 3 installs Kubernetes prerequisites, kubeadm/containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, namespace/RBAC foundations, and validation scripts. Phase 4 installs the Helm deployment client on `vdi-control-01` and deploys the VDIForge foundation release. Phase 5 installs Traefik ingress, Keycloak, PostgreSQL persistence, local TLS, the `vdiforge` realm, OIDC clients, demo identities, and identity validation scripts. Phase 6 adds the Packer/Ansible golden-image pipeline and KubeVirt boot validation for the DevOps image. Phase 7 installs the FastAPI API, provisioner, application PostgreSQL, migrations, and validates KubeVirt desktop launch/stop/restart/delete for the DevOps image. React, Guacamole, Prometheus/Grafana, browser remote sessions, and application autoscaling remain later phases.
 
 ## Future Cloud or Bare-Metal Deployment
 

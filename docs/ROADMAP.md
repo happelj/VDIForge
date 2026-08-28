@@ -12,7 +12,7 @@ This roadmap defines planned implementation phases. Do not begin a future phase 
 | 4 | Helm/platform foundation | Complete | Helm v4.2.4 client, VDIForge foundation chart, release lifecycle, RBAC, quotas, LimitRange, NetworkPolicies, and validation. |
 | 5 | Keycloak/OIDC/RBAC | Complete | Keycloak, PostgreSQL persistence, Traefik ingress, local TLS, realm import, demo users, PKCE/JWT/RBAC validation. |
 | 6 | Ubuntu/Packer image pipeline | Complete | Packer/QEMU image templates, Ansible image roles, image catalog, QCOW2 artifacts, CDI import, and KubeVirt boot validation. |
-| 7 | FastAPI VDI control plane | Planned | API, database models, desktop lifecycle, asynchronous provisioner. |
+| 7 | FastAPI VDI control plane | Complete | API, database models, desktop lifecycle, asynchronous provisioner, audit persistence, KubeVirt reconciliation. |
 | 8 | Guacamole remote desktop | Planned | Guacamole deployment, secure dynamic connection handling, RDP/VNC validation. |
 | 9 | React self-service portal | Planned | Authenticated portal, image catalog, desktop launch, lifecycle, connect/delete UI. |
 | 10 | HPA/autoscaling | Planned | API/provisioner HPA, controlled load demo, capacity failure handling. |
@@ -112,6 +112,24 @@ Completed outcomes:
 
 Phase 6 validation requires the final `ubuntu-devops:1.0.0` artifact to import through CDI, boot as a KubeVirt VM on `vdi-worker-02`, request KVM, validate DevOps tools inside the guest, stop, restart, delete, and clean up.
 
+## Phase 7 - FastAPI VDI Control Plane
+
+Completed outcomes:
+
+- selected and pinned FastAPI, Pydantic, SQLAlchemy, Alembic, psycopg, PyJWT, and the Kubernetes Python client
+- implemented the `backend/app` FastAPI API with health, readiness, image catalog, desktop lifecycle, audit, and metrics endpoints
+- implemented JWT validation against Keycloak-issued RS256 tokens with issuer, audience, expiration, and role-claim checks
+- implemented server-side RBAC, ownership enforcement, quotas, resource profiles, idempotent launches, consistent error responses, and request IDs
+- implemented PostgreSQL persistence for desktops, provisioning operations, and audit events
+- implemented Alembic database migration `0001_phase7_initial`
+- implemented an asynchronous provisioner that reconciles VDIForge desktop records into CDI DataVolumes, KubeVirt VirtualMachines, and per-desktop Services through the Kubernetes Python client
+- updated the Helm chart to deploy the API, provisioner, app PostgreSQL, migration job, API ingress, runtime Secret references, and NetworkPolicies through `values-phase7-local.yaml`
+- promoted only `ubuntu-devops:1.0.0` to launchable catalog state with a CDI source PVC reference
+- validated unauthorized image access, idempotency, quota enforcement, ownership checks, admin audit access, KubeVirt placement on `vdi-worker-02`, KVM requests, stop/start/delete lifecycle, cleanup, and audit persistence
+- confirmed Phase 7 does not deploy Guacamole, React, Prometheus/Grafana, HPA, or browser remote desktop sessions
+
+Phase 7 validation requires the API/provisioner deployment to preserve Phase 3-6 health while proving a backend-requested `ubuntu-devops:1.0.0` desktop reaches KubeVirt `READY` on `vdi-worker-02` with KVM and cleans up after deletion.
+
 ## Future Enhancements
 
 Potential future work after the MVP:
@@ -138,12 +156,13 @@ Potential future work after the MVP:
 The following are intentionally deferred:
 
 - exact Ansible controller path for routine operations after Phase 3
-- Guacamole dynamic connection implementation strategy
+- Guacamole dynamic connection implementation strategy for Phase 8
 - whether future image builds should move from `vdi-worker-02` to a dedicated Linux/KVM build host
 - remote desktop clipboard/file-transfer policy
 - exact security and dependency scanning tools
 - refresh-token handling strategy for the future React portal
 - whether the future API needs a separate confidential admin/service client
+- whether the local API image import workflow should move to a registry before CI/CD
 
 ## Roadmap Rules
 

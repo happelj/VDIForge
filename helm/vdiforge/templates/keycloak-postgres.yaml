@@ -105,7 +105,7 @@ spec:
     - metadata:
         name: data
         labels:
-          {{- include "vdiforge.keycloak.postgresqlLabels" . | nindent 10 }}
+          {{- include "vdiforge.keycloak.postgresqlVolumeClaimTemplateLabels" . | nindent 10 }}
       spec:
         accessModes:
           - ReadWriteOnce

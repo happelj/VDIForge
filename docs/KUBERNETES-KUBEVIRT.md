@@ -1,6 +1,6 @@
 # Kubernetes and KubeVirt Foundation
 
-This document records the Phase 3 Kubernetes and KubeVirt foundation for the VDIForge local lab. It covers the selected version set, bootstrap workflow, cluster add-ons, validation approach, and limitations. It does not implement the VDIForge application.
+This document records the Phase 3 Kubernetes and KubeVirt foundation for the VDIForge local lab. It covers the selected version set, bootstrap workflow, cluster add-ons, validation approach, and limitations. Phase 7 now consumes this foundation through the FastAPI provisioner; this document remains the lower-layer Kubernetes/KubeVirt reference.
 
 ## Status
 
@@ -228,6 +228,8 @@ Phase 3 uses Rancher local-path provisioner v0.0.32 with StorageClass `vdiforge-
 
 This is intentionally simple and free. It is not physically highly available and does not support live migration semantics expected from distributed storage. Production alternatives may include distributed block storage, CSI drivers backed by cloud disks, or a purpose-built storage platform justified by a later ADR.
 
+Because `vdiforge-local-path` uses `WaitForFirstConsumer`, later provisioners must create a schedulable workload that consumes a new PVC before waiting for the PVC/DataVolume to become ready. Phase 7 follows this by creating the per-desktop `DataVolume`, `VirtualMachine`, and Service before waiting for the clone to finish, which lets the PVC bind on the selected VDI worker.
+
 The storage decision is recorded in [ADR 0010](ADR/0010-local-path-storage-for-phase3.md).
 
 ## Namespace Foundation
@@ -377,3 +379,5 @@ Phase 4 builds on this cluster with Helm-managed VDIForge platform foundation re
 Phase 5 adds Keycloak/OIDC/RBAC on top of this foundation without modifying KubeVirt. See [Keycloak, OIDC, and RBAC Foundation](KEYCLOAK-OIDC.md).
 
 Phase 6 uses the existing KubeVirt, CDI, and `vdiforge-local-path` foundation to validate a generated Ubuntu golden-image artifact. The `ubuntu-devops:1.0.0` QCOW2 is imported through CDI into a disposable DataVolume/PVC, booted as a KubeVirt VM scheduled with `vdiforge.io/node-role=vdi`, verified on `vdi-worker-02` with a `devices.kubevirt.io/kvm` launcher request, and then cleaned up. See [Golden Images](GOLDEN-IMAGES.md).
+
+Phase 7 uses the same KubeVirt/CDI/storage foundation to clone the promoted `ubuntu-devops:1.0.0` source PVC into per-desktop DataVolumes and to create KubeVirt `VirtualMachine` resources from the provisioner. See [FastAPI VDI Control Plane](API-CONTROL-PLANE.md).

@@ -63,11 +63,136 @@ spec:
   policyTypes:
     - Egress
   egress:
+    {{- if .Values.networkPolicy.system.allowProvisionerKubernetesApi.endpoints }}
+    {{- range .Values.networkPolicy.system.allowProvisionerKubernetesApi.endpoints }}
+    - to:
+        - ipBlock:
+            cidr: {{ .cidr }}
+      ports:
+        - protocol: TCP
+          port: {{ .port }}
+    {{- end }}
+    {{- else }}
     - to:
         - ipBlock:
             cidr: {{ .Values.networkPolicy.system.allowProvisionerKubernetesApi.apiServerCidr }}
       ports:
         - protocol: TCP
           port: {{ .Values.networkPolicy.system.allowProvisionerKubernetesApi.apiServerPort }}
+    {{- end }}
+{{- end }}
+{{- if .Values.networkPolicy.system.allowIngressToApi.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Values.networkPolicy.system.allowIngressToApi.name }}
+  namespace: {{ include "vdiforge.namespace.system" . }}
+  labels:
+    {{- include "vdiforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "vdiforge.api.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.system.allowIngressToApi.namespace }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.system.allowIngressToApi.podSelector | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.networkPolicy.system.allowIngressToApi.port }}
+{{- end }}
+{{- if .Values.networkPolicy.system.allowApiToKeycloak.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Values.networkPolicy.system.allowApiToKeycloak.name }}
+  namespace: {{ include "vdiforge.namespace.system" . }}
+  labels:
+    {{- include "vdiforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "vdiforge.api.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.system.allowApiToKeycloak.namespace }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.system.allowApiToKeycloak.podSelector | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.networkPolicy.system.allowApiToKeycloak.port }}
+{{- end }}
+{{- if .Values.networkPolicy.system.allowAppDatabase.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Values.networkPolicy.system.allowAppDatabase.clientEgressName }}
+  namespace: {{ include "vdiforge.namespace.system" . }}
+  labels:
+    {{- include "vdiforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: In
+        values:
+          - api
+          - provisioner
+          - migration
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "vdiforge.appDatabase.selectorLabels" . | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.networkPolicy.system.allowAppDatabase.port }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Values.networkPolicy.system.allowAppDatabase.databaseName }}
+  namespace: {{ include "vdiforge.namespace.system" . }}
+  labels:
+    {{- include "vdiforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "vdiforge.appDatabase.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/component
+                operator: In
+                values:
+                  - api
+                  - provisioner
+                  - migration
+      ports:
+        - protocol: TCP
+          port: {{ .Values.networkPolicy.system.allowAppDatabase.port }}
 {{- end }}
 {{- end }}

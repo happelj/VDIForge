@@ -1,0 +1,115 @@
+{{- if .Values.applicationDatabase.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "vdiforge.appDatabase.name" . }}
+  namespace: {{ include "vdiforge.namespace.system" . }}
+  labels:
+    {{- include "vdiforge.appDatabase.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "vdiforge.appDatabase.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "vdiforge.appDatabase.name" . }}
+  namespace: {{ include "vdiforge.namespace.system" . }}
+  labels:
+    {{- include "vdiforge.appDatabase.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "vdiforge.appDatabase.name" . }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "vdiforge.appDatabase.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "vdiforge.appDatabase.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "vdiforge.serviceAccount.databaseName" . }}
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 70
+        seccompProfile:
+          type: RuntimeDefault
+      {{- with .Values.placement.platform.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.placement.platform.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.placement.platform.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: postgres
+          image: "{{ .Values.applicationDatabase.image.repository }}:{{ .Values.applicationDatabase.image.tag }}"
+          imagePullPolicy: {{ .Values.applicationDatabase.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+            runAsUser: 70
+            runAsGroup: 70
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: {{ .Values.applicationDatabase.database | quote }}
+            - name: POSTGRES_USER
+              value: {{ .Values.applicationDatabase.username | quote }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.applicationDatabase.existingSecret }}
+                  key: {{ .Values.applicationDatabase.passwordKey }}
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.applicationDatabase.resources | nindent 12 }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          {{- include "vdiforge.appDatabase.labels" . | nindent 10 }}
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: {{ .Values.applicationDatabase.storageClassName }}
+        resources:
+          requests:
+            storage: {{ .Values.applicationDatabase.storageSize }}
+{{- end }}

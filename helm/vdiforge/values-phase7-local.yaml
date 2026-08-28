@@ -1,0 +1,29 @@
+platformConfig:
+  validationMarker: phase7-fastapi-control-plane
+
+api:
+  enabled: true
+  replicas: 1
+  ingress:
+    enabled: true
+    host: api.vdiforge.local
+    tlsSecretName: vdiforge-api-tls
+
+provisioner:
+  enabled: true
+  replicas: 1
+
+applicationDatabase:
+  enabled: true
+
+migrations:
+  enabled: true
+
+networkPolicy:
+  system:
+    allowIngressToApi:
+      enabled: true
+    allowApiToKeycloak:
+      enabled: true
+    allowAppDatabase:
+      enabled: true

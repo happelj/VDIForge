@@ -24,9 +24,21 @@ function Check-File($Path) {
     }
 }
 
-function Check-ContentAbsent($Pattern, $Description) {
-    $matches = Get-ChildItem -File -Recurse |
+function Get-RepositoryFiles {
+    Get-ChildItem -File -Recurse -Force -ErrorAction SilentlyContinue |
         Where-Object { $_.FullName -notmatch "\\.git\\" } |
+        Where-Object { $_.FullName -notmatch "\\.local\\" } |
+        Where-Object { $_.FullName -notmatch "\\artifacts\\" } |
+        Where-Object { $_.FullName -notmatch "\\packer_cache\\" } |
+        Where-Object { $_.FullName -notmatch "\\node_modules\\" } |
+        Where-Object { $_.FullName -notmatch "\\.terraform\\" } |
+        Where-Object { $_.FullName -notmatch "\\.pytest_cache\\" } |
+        Where-Object { $_.FullName -notmatch "\\__pycache__\\" } |
+        Where-Object { $_.FullName -notmatch "\\.venv\\" }
+}
+
+function Check-ContentAbsent($Pattern, $Description) {
+    $matches = Get-RepositoryFiles |
         Where-Object { $_.FullName -notmatch "\\scripts\\validate-phase\d+\.ps1$" } |
         Select-String -Pattern $Pattern -ErrorAction SilentlyContinue
 

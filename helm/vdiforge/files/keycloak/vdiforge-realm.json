@@ -115,7 +115,7 @@
     {
       "clientId": "vdiforge-api",
       "name": "VDIForge API Audience",
-      "description": "Audience marker consumed by the future FastAPI resource server.",
+      "description": "Audience marker consumed by the VDIForge FastAPI resource server.",
       "enabled": true,
       "protocol": "openid-connect",
       "bearerOnly": true,

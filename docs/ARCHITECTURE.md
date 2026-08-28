@@ -1,6 +1,6 @@
 # VDIForge Architecture
 
-This document contains architecture views for VDIForge. The local VirtualBox infrastructure, Kubernetes/KubeVirt foundation, Helm platform foundation, Keycloak identity foundation, and golden-image pipeline views reflect Phases 2 through 6. Diagrams that include the FastAPI application, React portal, Guacamole remote desktop flow, and full observability flows remain planned until their later implementation phases.
+This document contains architecture views for VDIForge. The local VirtualBox infrastructure, Kubernetes/KubeVirt foundation, Helm platform foundation, Keycloak identity foundation, golden-image pipeline, and FastAPI control-plane views reflect Phases 2 through 7. Diagrams that include the React portal, Guacamole remote desktop flow, and full observability flows remain planned until their later implementation phases.
 
 ## System Context
 
@@ -210,7 +210,33 @@ flowchart TB
   W1 --> PG
 ```
 
-The identity foundation proves OIDC discovery, JWKS, Authorization Code Flow with PKCE, signed JWT validation, expected role claims, unauthorized role absence, negative security cases, and persistence after Keycloak pod recreation. It does not implement FastAPI or React.
+The identity foundation proves OIDC discovery, JWKS, Authorization Code Flow with PKCE, signed JWT validation, expected role claims, unauthorized role absence, negative security cases, and persistence after Keycloak pod recreation. Phase 7 consumes those Keycloak access tokens from the FastAPI API. React remains planned.
+
+## API Control Plane
+
+```mermaid
+flowchart LR
+  Browser[Browser or validation client]
+  Ingress[Traefik ingress<br/>api.vdiforge.local]
+  API[vdiforge-api<br/>FastAPI]
+  Keycloak[Keycloak JWKS<br/>internal Service]
+  DB[(vdiforge-app-postgres)]
+  Provisioner[vdiforge-provisioner]
+  K8s[Kubernetes API]
+  CDI[CDI DataVolume]
+  VM[KubeVirt VirtualMachine]
+
+  Browser -->|HTTPS + bearer token| Ingress
+  Ingress --> API
+  API -->|JWKS fetch| Keycloak
+  API -->|desktop/audit state| DB
+  Provisioner -->|desired state| DB
+  Provisioner -->|Kubernetes Python client| K8s
+  K8s --> CDI
+  K8s --> VM
+```
+
+The API validates the external issuer claim `https://auth.vdiforge.local/realms/vdiforge` while using an internal Keycloak Service URL for JWKS retrieval from inside the cluster. This avoids relying on workstation hosts-file DNS from pods.
 
 ## Authentication Flow
 
@@ -229,7 +255,7 @@ sequenceDiagram
   P->>K: Exchange code with PKCE verifier
   K->>P: Return ID/access tokens
   P->>A: Call API with bearer access token
-  A->>K: Retrieve JWKS and issuer metadata as needed
+  A->>K: Retrieve JWKS as needed
   A->>A: Validate signature, issuer, audience, expiration, claims
   A->>A: Enforce application RBAC
   A-->>P: Authorized API response
@@ -263,7 +289,7 @@ sequenceDiagram
   R->>K: Observe VM state
   R->>DB: Update observed state and audit events
   P->>A: Poll or subscribe to desktop status
-  A-->>P: READY when remote session is available
+  A-->>P: READY when KubeVirt VM is boot-ready
 ```
 
 Provisioning is asynchronous. The HTTP request is not held open while a VM boots.
@@ -316,6 +342,8 @@ flowchart LR
 ```
 
 Remote desktop credentials and backend connection details are not exposed to frontend JavaScript.
+
+The remote connection flow remains planned for Phase 8. Phase 7 creates the internal per-desktop Service for future SSH/RDP reachability but does not expose Guacamole or reusable remote desktop credentials.
 
 ## Image Pipeline
 

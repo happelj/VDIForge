@@ -65,6 +65,8 @@ def main() -> None:
                 fail(f"{image_id} {version.get('version')} has invalid lifecycle")
             if not version.get("manifestPath", "").endswith(".manifest.json"):
                 fail(f"{image_id} {version.get('version')} manifestPath is invalid")
+            if version.get("lifecycle") == "available" and not version.get("sourcePvcName"):
+                fail(f"{image_id} {version.get('version')} is available but lacks sourcePvcName")
 
     print("PASS: image catalog validation completed")
 

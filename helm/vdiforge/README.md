@@ -1,6 +1,6 @@
 # VDIForge Helm Chart
 
-This chart establishes the Helm-managed VDIForge platform foundation. Phase 4 rendered only shared foundation resources. Phase 5 enables the Keycloak identity foundation through `values-phase5-local.yaml`. Phase 6 adds the separate Packer/Ansible golden-image pipeline outside Helm because it produces VM disk artifacts. Guacamole, FastAPI, React, Prometheus, Grafana, and self-service VDI desktops remain unimplemented.
+This chart establishes the Helm-managed VDIForge platform foundation. Phase 4 rendered only shared foundation resources. Phase 5 enables the Keycloak identity foundation through `values-phase5-local.yaml`. Phase 6 adds the separate Packer/Ansible golden-image pipeline outside Helm because it produces VM disk artifacts. Phase 7 enables the FastAPI API, asynchronous provisioner, application PostgreSQL, migrations, API ingress, and API-specific NetworkPolicies through `values-phase7-local.yaml`. Guacamole, React, Prometheus, Grafana, and browser remote desktop sessions remain unimplemented.
 
 ## Scope
 
@@ -14,6 +14,7 @@ Chart-managed resources:
 - a platform namespace LimitRange
 - baseline NetworkPolicies for future platform isolation
 - optional Phase 5 Keycloak, PostgreSQL, identity ingress, identity ResourceQuota, and identity NetworkPolicies
+- optional Phase 7 FastAPI API, provisioner, app PostgreSQL, migration Job, API ingress, and API NetworkPolicies
 
 Cluster add-ons from Phase 3 remain outside this chart:
 
@@ -61,6 +62,36 @@ helm upgrade --install vdiforge ./helm/vdiforge \
 
 Phase 5 deploys Keycloak and PostgreSQL into the existing `keycloak` namespace. Traefik is installed as a separate shared ingress release in `ingress-traefik`.
 
+## Install Phase 7 API Foundation
+
+Create runtime-only secrets and the source golden-image PVC before enabling the API/provisioner:
+
+```bash
+bash scripts/phase7-create-local-secrets.sh
+bash scripts/phase7-prepare-golden-source.sh
+bash scripts/phase7-build-load-image.sh
+```
+
+`phase7-build-load-image.sh` uses Podman or Buildah on `vdi-worker-01` when available. If neither exists, it falls back to temporary BuildKit/importer validation pods so the lab does not require a permanent container builder installation.
+
+Install or upgrade with the Phase 5 and Phase 7 values files:
+
+```bash
+kubectl delete job vdiforge-api-migrations -n vdiforge-system --ignore-not-found=true --wait=true
+helm upgrade --install vdiforge ./helm/vdiforge \
+  --namespace vdiforge-system \
+  --values ./helm/vdiforge/values-local.yaml \
+  --values ./helm/vdiforge/values-phase5-local.yaml \
+  --values ./helm/vdiforge/values-phase7-local.yaml \
+  --take-ownership \
+  --force-conflicts \
+  --wait \
+  --wait-for-jobs
+kubectl rollout restart deployment/vdiforge-api deployment/vdiforge-provisioner -n vdiforge-system
+```
+
+Phase 7 deploys only the backend control plane and a disposable-capable KubeVirt provisioning path. Guacamole connection brokering remains Phase 8.
+
 ## Validate
 
 ```bash
@@ -81,11 +112,23 @@ helm template vdiforge ./helm/vdiforge \
   --kube-version 1.36.4
 ```
 
+Render with identity and API/provisioner enabled:
+
+```bash
+helm template vdiforge ./helm/vdiforge \
+  --namespace vdiforge-system \
+  --values ./helm/vdiforge/values-local.yaml \
+  --values ./helm/vdiforge/values-phase5-local.yaml \
+  --values ./helm/vdiforge/values-phase7-local.yaml \
+  --kube-version 1.36.4
+```
+
 For live validation:
 
 ```bash
 bash scripts/validate-phase4-live.sh
 bash scripts/validate-phase5-live.sh
+bash scripts/validate-phase7-live.sh
 ```
 
 ## Values
@@ -102,9 +145,10 @@ The values file includes disabled future sections for:
 - Guacamole
 - monitoring
 
-These values are extension points only. Phase 4 does not create nonfunctional Deployments for services that do not exist yet.
+These values are extension points unless enabled by a phase-specific values file. Phase 7 enables the API/provisioner values; frontend, Guacamole, monitoring, and HPA remain future work.
 
 `keycloak.enabled` remains `false` in `values.yaml`. Phase 5 enables it only through `values-phase5-local.yaml`.
+`api.enabled`, `provisioner.enabled`, `applicationDatabase.enabled`, and `migrations.enabled` remain `false` in `values.yaml`. Phase 7 enables them only through `values-phase7-local.yaml`.
 
 ## Ownership
 

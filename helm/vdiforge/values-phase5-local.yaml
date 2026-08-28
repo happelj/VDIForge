@@ -2,6 +2,15 @@ keycloak:
   enabled: true
   ingress:
     enabled: true
+  postgresql:
+    volumeClaimTemplateLabels:
+      app.kubernetes.io/component: identity-database
+      app.kubernetes.io/instance: vdiforge
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: vdiforge-keycloak-postgres
+      app.kubernetes.io/part-of: vdiforge
+      app.kubernetes.io/version: "0.5.0"
+      helm.sh/chart: vdiforge-0.5.0
 
 resourceGovernance:
   quotas:

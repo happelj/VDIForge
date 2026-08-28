@@ -29,6 +29,7 @@ credentials/
 *.srl
 !keycloak/local-secrets.env.example
 !scripts/phase5-create-local-secrets.sh
+!scripts/phase7-create-local-secrets.sh
 
 # Terraform and OpenTofu
 .terraform/

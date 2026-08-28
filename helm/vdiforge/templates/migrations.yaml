@@ -1,0 +1,65 @@
+{{- if .Values.migrations.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Values.migrations.name }}
+  namespace: {{ include "vdiforge.namespace.system" . }}
+  labels:
+    {{- include "vdiforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migration
+spec:
+  backoffLimit: {{ .Values.migrations.backoffLimit }}
+  ttlSecondsAfterFinished: {{ .Values.migrations.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Values.migrations.name }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: migration
+        app.kubernetes.io/part-of: vdiforge
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: {{ include "vdiforge.serviceAccount.apiName" . }}
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      {{- with .Values.placement.platform.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: migrations
+          image: "{{ .Values.api.image.repository }}:{{ .Values.api.image.tag }}"
+          imagePullPolicy: {{ .Values.api.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -ec
+            - python -m app.db.wait_for_db --timeout 180 && python -m alembic -c /app/alembic.ini upgrade head
+          env:
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+            - name: VDIFORGE_DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.api.env.databaseSecretName }}
+                  key: {{ .Values.api.env.databasePasswordKey }}
+            - name: VDIFORGE_DATABASE_URL
+              value: "postgresql+psycopg://{{ .Values.api.env.databaseUser }}:$(VDIFORGE_DATABASE_PASSWORD)@{{ include "vdiforge.appDatabase.name" . }}.{{ include "vdiforge.namespace.system" . }}.svc.cluster.local:5432/{{ .Values.api.env.databaseName }}"
+          resources:
+            {{- toYaml .Values.api.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10001
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- end }}

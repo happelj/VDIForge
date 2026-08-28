@@ -63,6 +63,82 @@ app.kubernetes.io/part-of: vdiforge
 {{- required "serviceAccounts.provisioner.name is required" .Values.serviceAccounts.provisioner.name -}}
 {{- end -}}
 
+{{- define "vdiforge.serviceAccount.databaseName" -}}
+{{- required "serviceAccounts.database.name is required" .Values.serviceAccounts.database.name -}}
+{{- end -}}
+
+{{- define "vdiforge.api.name" -}}
+{{- default "vdiforge-api" .Values.api.service.name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "vdiforge.api.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "vdiforge.api.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: api
+app.kubernetes.io/part-of: vdiforge
+{{- end -}}
+
+{{- define "vdiforge.api.labels" -}}
+helm.sh/chart: {{ include "vdiforge.chart" . }}
+app.kubernetes.io/name: {{ include "vdiforge.api.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+app.kubernetes.io/component: api
+app.kubernetes.io/part-of: vdiforge
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- with .Values.global.labels }}
+{{ toYaml . }}
+{{- end }}
+{{- end -}}
+
+{{- define "vdiforge.provisioner.name" -}}
+{{- default "vdiforge-provisioner" .Values.provisioner.name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "vdiforge.provisioner.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "vdiforge.provisioner.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: provisioner
+app.kubernetes.io/part-of: vdiforge
+{{- end -}}
+
+{{- define "vdiforge.provisioner.labels" -}}
+helm.sh/chart: {{ include "vdiforge.chart" . }}
+app.kubernetes.io/name: {{ include "vdiforge.provisioner.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+app.kubernetes.io/component: provisioner
+app.kubernetes.io/part-of: vdiforge
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- with .Values.global.labels }}
+{{ toYaml . }}
+{{- end }}
+{{- end -}}
+
+{{- define "vdiforge.appDatabase.name" -}}
+{{- required "applicationDatabase.name is required" .Values.applicationDatabase.name -}}
+{{- end -}}
+
+{{- define "vdiforge.appDatabase.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "vdiforge.appDatabase.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: app-database
+app.kubernetes.io/part-of: vdiforge
+{{- end -}}
+
+{{- define "vdiforge.appDatabase.labels" -}}
+helm.sh/chart: {{ include "vdiforge.chart" . }}
+app.kubernetes.io/name: {{ include "vdiforge.appDatabase.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+app.kubernetes.io/component: app-database
+app.kubernetes.io/part-of: vdiforge
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- with .Values.global.labels }}
+{{ toYaml . }}
+{{- end }}
+{{- end -}}
+
 {{- define "vdiforge.keycloak.name" -}}
 {{- required "keycloak.name is required" .Values.keycloak.name -}}
 {{- end -}}
@@ -108,5 +184,13 @@ app.kubernetes.io/part-of: vdiforge
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- with .Values.global.labels }}
 {{ toYaml . }}
+{{- end }}
+{{- end -}}
+
+{{- define "vdiforge.keycloak.postgresqlVolumeClaimTemplateLabels" -}}
+{{- if .Values.keycloak.postgresql.volumeClaimTemplateLabels }}
+{{ toYaml .Values.keycloak.postgresql.volumeClaimTemplateLabels }}
+{{- else }}
+{{ include "vdiforge.keycloak.postgresqlLabels" . }}
 {{- end }}
 {{- end -}}
