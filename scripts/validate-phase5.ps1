@@ -32,11 +32,13 @@ function Check-File($Path) {
 }
 
 function Get-RepositoryFiles {
-    Get-ChildItem -File -Recurse |
+    Get-ChildItem -File -Recurse -Force -ErrorAction SilentlyContinue |
         Where-Object { $_.FullName -notmatch "\\.git\\" } |
         Where-Object { $_.FullName -notmatch "\\.local\\" } |
         Where-Object { $_.FullName -notmatch "\\node_modules\\" } |
         Where-Object { $_.FullName -notmatch "\\.terraform\\" } |
+        Where-Object { $_.FullName -notmatch "\\.pytest_cache\\" } |
+        Where-Object { $_.FullName -notmatch "\\.venv\\" } |
         Where-Object { $_.FullName -notmatch "\\__pycache__\\" }
 }
 
@@ -108,10 +110,10 @@ Check-ContentAbsent @("helm/vdiforge/values.yaml", "helm/vdiforge/values-local.y
 Check-ContentAbsent @("helm/vdiforge", "keycloak") ":[Ll]atest\b" "floating latest image tag"
 
 $chartYaml = Get-Content "helm/vdiforge/Chart.yaml" -Raw
-if ($chartYaml -match '(?m)^version:\s*0\.5\.0\s*$' -and $chartYaml -match 'kubeVersion:\s*">=1\.36\.0-0 <1\.37\.0-0"') {
-    Pass "Phase 5 chart version and Kubernetes compatibility are pinned"
+if ($chartYaml -match '(?m)^version:\s*\d+\.\d+\.\d+\s*$' -and $chartYaml -match 'kubeVersion:\s*">=1\.36\.0-0 <1\.37\.0-0"') {
+    Pass "chart version and Kubernetes compatibility are pinned"
 } else {
-    Fail "Phase 5 chart version or Kubernetes compatibility pin missing"
+    Fail "chart version or Kubernetes compatibility pin missing"
 }
 
 $values = Get-Content "helm/vdiforge/values.yaml" -Raw

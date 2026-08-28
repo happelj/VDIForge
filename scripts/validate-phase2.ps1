@@ -180,11 +180,15 @@ $secretPatterns = @(
 
 $excludedFragments = @(
   "\.git\",
+  "\.local\",
   "\.terraform\",
   "\node_modules\",
   "\.venv\",
   "\venv\",
+  "\artifacts\",
   "\packer_cache\",
+  "\.pytest_cache\",
+  "\__pycache__\",
   "\scripts\validate-phase",
   "\VirtualBox VMs\"
 )
@@ -212,7 +216,7 @@ $textExtensions = @(
   ".yml"
 )
 
-$repoTextFiles = Get-ChildItem -Recurse -File -Force | Where-Object {
+$repoTextFiles = Get-ChildItem -Recurse -File -Force -ErrorAction SilentlyContinue | Where-Object {
   $fullName = $_.FullName
   $isExcluded = $false
   foreach ($fragment in $excludedFragments) {

@@ -1,0 +1,96 @@
+{{- if .Values.provisioner.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "vdiforge.provisioner.name" . }}
+  namespace: {{ include "vdiforge.namespace.system" . }}
+  labels:
+    {{- include "vdiforge.provisioner.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.provisioner.replicas }}
+  selector:
+    matchLabels:
+      {{- include "vdiforge.provisioner.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "vdiforge.provisioner.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "vdiforge.serviceAccount.provisionerName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccounts.provisioner.automountServiceAccountToken }}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      {{- with .Values.placement.platform.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.placement.platform.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.placement.platform.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: provisioner
+          image: "{{ .Values.provisioner.image.repository }}:{{ .Values.provisioner.image.tag }}"
+          imagePullPolicy: {{ .Values.provisioner.image.pullPolicy }}
+          command:
+            - python
+            - -m
+            - app.provisioning.reconciler
+          env:
+            - name: VDIFORGE_SERVICE_NAME
+              value: vdiforge-provisioner
+            - name: VDIFORGE_RUN_MODE
+              value: provisioner
+            - name: VDIFORGE_DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.provisioner.env.databaseSecretName }}
+                  key: {{ .Values.provisioner.env.databasePasswordKey }}
+            - name: VDIFORGE_DATABASE_URL
+              value: "postgresql+psycopg://{{ .Values.provisioner.env.databaseUser }}:$(VDIFORGE_DATABASE_PASSWORD)@{{ include "vdiforge.appDatabase.name" . }}.{{ include "vdiforge.namespace.system" . }}.svc.cluster.local:5432/{{ .Values.provisioner.env.databaseName }}"
+            - name: VDIFORGE_KEYCLOAK_ISSUER
+              value: {{ .Values.provisioner.env.keycloakIssuer | quote }}
+            - name: VDIFORGE_KEYCLOAK_JWKS_URL
+              value: {{ .Values.provisioner.env.keycloakJwksUrl | quote }}
+            - name: VDIFORGE_JWT_AUDIENCE
+              value: {{ .Values.provisioner.env.jwtAudience | quote }}
+            - name: VDIFORGE_KEYCLOAK_CA_FILE
+              value: /var/run/vdiforge/keycloak-ca/{{ .Values.provisioner.env.keycloakCaKey }}
+            - name: VDIFORGE_IMAGE_CATALOG_PATH
+              value: {{ .Values.provisioner.env.imageCatalogPath | quote }}
+            - name: VDIFORGE_DESKTOPS_NAMESPACE
+              value: {{ .Values.provisioner.env.desktopsNamespace | quote }}
+            - name: VDIFORGE_STORAGE_CLASS
+              value: {{ .Values.provisioner.env.storageClass | quote }}
+            - name: VDIFORGE_MAX_DESKTOPS_PER_USER
+              value: {{ .Values.provisioner.env.maxDesktopsPerUser | quote }}
+            - name: VDIFORGE_MAX_DESKTOPS_PER_ADMIN
+              value: {{ .Values.provisioner.env.maxDesktopsPerAdmin | quote }}
+          volumeMounts:
+            - name: keycloak-ca
+              mountPath: /var/run/vdiforge/keycloak-ca
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            {{- toYaml .Values.provisioner.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10001
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: keycloak-ca
+          secret:
+            secretName: {{ .Values.provisioner.env.keycloakCaSecretName }}
+        - name: tmp
+          emptyDir: {}
+{{- end }}

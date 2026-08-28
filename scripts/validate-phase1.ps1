@@ -72,7 +72,30 @@ if ($missingDirs.Count -gt 0) {
   throw "Missing required directories: $($missingDirs -join ', ')"
 }
 
-$markdownFiles = Get-ChildItem -Recurse -File -Include *.md
+$excludedMarkdownFragments = @(
+  "\.git\",
+  "\.local\",
+  "\.terraform\",
+  "\node_modules\",
+  "\.venv\",
+  "\venv\",
+  "\artifacts\",
+  "\packer_cache\",
+  "\.pytest_cache\",
+  "\__pycache__\"
+)
+
+$markdownFiles = Get-ChildItem -Recurse -File -Include *.md -Force -ErrorAction SilentlyContinue | Where-Object {
+  $fullName = $_.FullName
+  $isExcluded = $false
+  foreach ($fragment in $excludedMarkdownFragments) {
+    if ($fullName.Contains($fragment)) {
+      $isExcluded = $true
+      break
+    }
+  }
+  -not $isExcluded
+}
 $allMarkdown = ($markdownFiles | ForEach-Object { Get-Content -LiteralPath $_.FullName -Raw }) -join "`n"
 
 $bannedClaims = @(

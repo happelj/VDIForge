@@ -59,8 +59,9 @@
           "ubuntuRelease": "26.04 LTS",
           "architecture": "amd64",
           "artifactFormat": "qcow2",
-          "lifecycle": "candidate",
-          "manifestPath": "artifacts/images/ubuntu-devops/1.0.0/ubuntu-devops-1.0.0.manifest.json"
+          "lifecycle": "available",
+          "manifestPath": "artifacts/images/ubuntu-devops/1.0.0/ubuntu-devops-1.0.0.manifest.json",
+          "sourcePvcName": "vdiforge-golden-ubuntu-devops-1-0-0"
         }
       ]
     }

@@ -238,7 +238,7 @@ It records:
 - lifecycle state
 - generated manifest path
 
-The catalog expresses image policy only. Phase 7 will implement server-side authorization.
+The catalog expresses image policy only. Phase 7 consumes the catalog and enforces server-side authorization.
 
 ## CDI Import
 
@@ -371,6 +371,6 @@ The live validator checks:
 
 - Building on `vdi-worker-02` competes with the VDI worker's cluster duties.
 - `vdiforge-local-path` is not high availability storage.
-- The catalog starts as a policy foundation; Phase 7 must enforce it server-side.
+- The catalog starts as a policy foundation; Phase 7 consumes it for server-side authorization.
 - Phase 6 installs `xrdp` prerequisites but does not implement Guacamole integration.
 - Generated artifacts are local; rebuilding from source is the portable recovery path.

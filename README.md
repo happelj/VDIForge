@@ -4,9 +4,9 @@ VDIForge is a portfolio platform project for a small, open-source, self-service 
 
 ## Project Status
 
-Phase 1 established the architecture, requirements, roadmap, standards, and documentation structure. Phase 2 added the local VirtualBox infrastructure foundation. Phase 3 established the Kubernetes and KubeVirt foundation. Phase 4 added the Helm deployment foundation. Phase 5 established the Keycloak/OIDC/RBAC identity foundation. Phase 6 establishes the Ubuntu/Packer golden-image pipeline.
+Phase 1 established the architecture, requirements, roadmap, standards, and documentation structure. Phase 2 added the local VirtualBox infrastructure foundation. Phase 3 established the Kubernetes and KubeVirt foundation. Phase 4 added the Helm deployment foundation. Phase 5 established the Keycloak/OIDC/RBAC identity foundation. Phase 6 established the Ubuntu/Packer golden-image pipeline. Phase 7 establishes the FastAPI VDI control plane, PostgreSQL application persistence, and asynchronous KubeVirt provisioning.
 
-The current local lab is three manually created Ubuntu Server VirtualBox VMs with Terraform infrastructure specifications, Ansible host configuration, kubeadm/containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, a Helm v4.2.4 foundation chart, Traefik ingress, Keycloak, PostgreSQL persistence, source-controlled realm configuration, Packer/Ansible golden-image definitions, image catalog policy, validation scripts, and verified `/dev/kvm` exposure on the VDI worker. Guacamole, FastAPI, React application code, Prometheus, and Grafana dashboards are not implemented yet.
+The current local lab is three manually created Ubuntu Server VirtualBox VMs with Terraform infrastructure specifications, Ansible host configuration, kubeadm/containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, a Helm v4.2.4 foundation chart, Traefik ingress, Keycloak, PostgreSQL persistence, source-controlled realm configuration, Packer/Ansible golden-image definitions, image catalog policy, FastAPI API/provisioner services, application PostgreSQL persistence, validation scripts, and verified `/dev/kvm` exposure on the VDI worker. Guacamole, React application code, Prometheus, and Grafana dashboards are not implemented yet.
 
 ## Goals
 
@@ -66,7 +66,7 @@ The client does not download or boot Ubuntu locally. Applications run on the rem
 
 ## Planned Technology Stack
 
-| Area | Planned technology |
+| Area | Technology |
 | --- | --- |
 | Operating system | Ubuntu Server for Kubernetes nodes; Ubuntu Desktop for VDI images |
 | Cluster bootstrap | kubeadm, containerd |
@@ -110,6 +110,8 @@ Phase 5 deploys Keycloak `26.7.2`, PostgreSQL `18.0-alpine`, and Traefik chart `
 
 Phase 6 defines three Ubuntu 26.04 LTS golden images: `ubuntu-base`, `ubuntu-developer`, and `ubuntu-devops`. The current pipeline uses Packer with the QEMU builder, dedicated Ansible image roles, XFCE, QCOW2 artifacts, source checksums, image manifests, a machine-readable image catalog, CDI import, and a KubeVirt boot proof for the DevOps image. Generated image artifacts stay under ignored local `artifacts/images/` paths. See [Golden Images](docs/GOLDEN-IMAGES.md).
 
+Phase 7 deploys `localhost/vdiforge-api:0.7.0` through Helm as a FastAPI API and a separate provisioner process backed by PostgreSQL. The API validates Keycloak JWTs, enforces image RBAC, ownership, quotas, idempotency, and audit-event persistence, then returns `202 Accepted` while the provisioner reconciles desktop records into KubeVirt `DataVolume`, `VirtualMachine`, and `Service` resources. The only launchable image in Phase 7 is `ubuntu-devops:1.0.0`; Guacamole connection brokering remains Phase 8. See [FastAPI VDI Control Plane](docs/API-CONTROL-PLANE.md).
+
 ## Repository Organization
 
 | Path | Purpose |
@@ -124,6 +126,7 @@ Phase 6 defines three Ubuntu 26.04 LTS golden images: `ubuntu-base`, `ubuntu-dev
 | [docs/SECURITY.md](docs/SECURITY.md) | Threat model and security controls |
 | [docs/IMAGE-PIPELINE.md](docs/IMAGE-PIPELINE.md) | Packer and Ansible image lifecycle |
 | [docs/GOLDEN-IMAGES.md](docs/GOLDEN-IMAGES.md) | Phase 6 golden-image pipeline, build, validation, CDI import, and KubeVirt boot proof |
+| [docs/API-CONTROL-PLANE.md](docs/API-CONTROL-PLANE.md) | Phase 7 FastAPI API, PostgreSQL persistence, provisioner, KubeVirt lifecycle, and validation |
 | [docs/SSO-RBAC.md](docs/SSO-RBAC.md) | Keycloak, OIDC, roles, and authorization |
 | [docs/AUTOSCALING.md](docs/AUTOSCALING.md) | HPA, capacity, and future node autoscaling |
 | [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md) | Metrics, logs, dashboards, and audit design |
@@ -137,7 +140,7 @@ Phase 6 defines three Ubuntu 26.04 LTS golden images: `ubuntu-base`, `ubuntu-dev
 | [packer](packer/README.md) | Planned Ubuntu image build templates |
 | [kubernetes](kubernetes/README.md) | Kubernetes foundation manifests, namespace/RBAC skeletons, and KubeVirt test resources |
 | [helm/vdiforge](helm/vdiforge/README.md) | VDIForge Helm foundation chart and Phase 5 identity resources |
-| [backend](backend/README.md) | Planned FastAPI service |
+| [backend](backend/README.md) | FastAPI API and provisioner implementation |
 | [frontend](frontend/README.md) | Planned React portal |
 | [keycloak](keycloak/README.md) | Reproducible Keycloak realm configuration |
 | [monitoring](monitoring/README.md) | Planned Prometheus and Grafana assets |
@@ -155,6 +158,7 @@ Phase 6 defines three Ubuntu 26.04 LTS golden images: `ubuntu-base`, `ubuntu-dev
 - [Security](docs/SECURITY.md)
 - [Image Pipeline](docs/IMAGE-PIPELINE.md)
 - [Golden Images](docs/GOLDEN-IMAGES.md)
+- [FastAPI VDI Control Plane](docs/API-CONTROL-PLANE.md)
 - [SSO and RBAC](docs/SSO-RBAC.md)
 - [Autoscaling](docs/AUTOSCALING.md)
 - [Observability](docs/OBSERVABILITY.md)
@@ -165,9 +169,9 @@ Phase 6 defines three Ubuntu 26.04 LTS golden images: `ubuntu-base`, `ubuntu-dev
 
 ## Limitations
 
-- The current lab includes infrastructure, Kubernetes/KubeVirt, Helm, ingress, identity, and golden-image pipeline definitions. It does not yet run the VDIForge FastAPI application, React portal, remote desktop gateway, or observability stack.
+- The current lab includes infrastructure, Kubernetes/KubeVirt, Helm, ingress, identity, the golden-image pipeline, and the FastAPI API/provisioner foundation. It does not yet run the React portal, remote desktop gateway, or full observability stack.
 - Generated QCOW2 image artifacts are local build outputs and are intentionally excluded from Git.
-- The Helm chart deploys foundation and identity resources only; disabled future values are extension points, not implemented services.
+- The Helm chart deploys foundation, identity, API, provisioner, and application PostgreSQL resources. Disabled future values remain extension points, not implemented services.
 - The local three-node lab is not production HA.
 - KubeVirt performance depends on KVM availability. The current Phase 3 acceptance condition requires KubeVirt to expose and consume KVM on `vdi-worker-02`.
 - KubeVirt software emulation is a development fallback, not a realistic performance target.
@@ -179,6 +183,6 @@ Phase 6 defines three Ubuntu 26.04 LTS golden images: `ubuntu-base`, `ubuntu-dev
 
 ## Roadmap
 
-The next planned task after Phase 6 is Phase 7 - FastAPI VDI Control Plane and Provisioning. Later phases add frontend, Guacamole, observability, security hardening, CI/CD, and the final end-to-end demo.
+The next planned task after Phase 7 is Phase 8 - Guacamole Remote Desktop. Later phases add the React portal, observability, security hardening, CI/CD, and the final end-to-end demo.
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for the full roadmap.

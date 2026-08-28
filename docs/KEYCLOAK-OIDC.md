@@ -176,11 +176,11 @@ Because the public frontend client has `fullScopeAllowed` disabled, `scripts/pha
 | Web origin | `https://vdiforge.local` |
 | Post-logout redirect | `https://vdiforge.local/` |
 
-`vdiforge-api` is an audience marker for the future FastAPI resource server. Phase 5 does not deploy FastAPI.
+`vdiforge-api` is the audience marker consumed by the Phase 7 FastAPI resource server. Phase 5 created the identity configuration but did not deploy FastAPI.
 
 ## JWT Claims
 
-The future FastAPI backend must treat Keycloak as the identity source and validate access tokens before using claims.
+The FastAPI backend treats Keycloak as the identity source and validates access tokens before using claims.
 
 Required validation:
 

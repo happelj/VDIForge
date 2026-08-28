@@ -322,6 +322,56 @@ This runbook defines troubleshooting procedures for the VDIForge local lab and p
 | Remediation | Add a narrow explicit allow policy in the appropriate future phase, keep DNS egress enabled, update Helm values/templates, and validate with a targeted NetworkPolicy test. |
 | Logs/metrics | Pod connectivity errors, CoreDNS logs, Calico status, Kubernetes events. |
 
+## Phase 7 Container Image Build Failure
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | `scripts/phase7-build-load-image.sh` fails before the Helm deployment; `podman` or `buildah` is missing on `vdi-worker-01`; API pods later report `ImagePullBackOff`. |
+| Likely causes | Phase 7 build tools were not installed on the platform worker, local image was not imported into containerd, temporary importer pod was blocked, or outbound image pull failed. |
+| Diagnostics | On `vdi-worker-01`, run `command -v podman`, `podman --version`, `ctr --version`; from `vdi-control-01`, run `kubectl get pod -n vdiforge-desktops phase7-image-importer`; inspect `kubectl describe pod -n vdiforge-system -l app.kubernetes.io/component=api`. |
+| Remediation | Prefer installing a persistent builder with `sudo apt-get update && sudo apt-get install -y podman` on `vdi-worker-01`. If Podman/Buildah is unavailable, rerun `scripts/phase7-build-load-image.sh` from `vdi-control-01`; it can use a temporary BuildKit validation pod and importer pod in `vdiforge-desktops`. Confirm API/provisioner images use `localhost/vdiforge-api:0.7.0`, restart the Deployments after same-tag image import, then rerun Phase 7 live validation. |
+| Logs/metrics | Podman build output, importer pod logs, kubelet image pull events, containerd image list. |
+
+## VDIForge API Unavailable
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | `https://api.vdiforge.local/api/v1/health` fails, API ingress returns 404/502, or API pod is not Ready. |
+| Likely causes | API image not imported on `vdi-worker-01`, app PostgreSQL unavailable, migration failure, wrong TLS secret, Traefik route missing, NetworkPolicy denial, or bad Keycloak JWKS configuration. |
+| Diagnostics | `kubectl -n vdiforge-system get deploy,svc,ingress,pod`; `kubectl -n vdiforge-system logs deploy/vdiforge-api`; `kubectl -n vdiforge-system describe ingress vdiforge-api`; `curl --cacert .local/phase5/tls/vdiforge-local-ca.crt --resolve api.vdiforge.local:443:192.168.56.11 https://api.vdiforge.local/api/v1/health`. |
+| Remediation | Fix the failing dependency, rerun `scripts/phase7-create-local-secrets.sh`, rerun Helm upgrade with Phase 7 values, and validate health/readiness without using `curl -k` as final evidence. A brief 502 immediately after `kubectl rollout restart deployment/vdiforge-api` can be a normal ingress-to-pod transition; retry for a bounded period before treating it as a failure. |
+| Logs/metrics | API logs, Traefik logs, Kubernetes events, readiness probe errors. |
+
+## VDIForge App PostgreSQL Unavailable
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | `vdiforge-app-postgres-0` is not Ready; API readiness reports database failure; migration job fails to connect. |
+| Likely causes | missing `vdiforge-app-secrets`, PVC not bound, local-path storage pressure, wrong database password key, resource quota, or PostgreSQL image pull issue. |
+| Diagnostics | `kubectl -n vdiforge-system get statefulset,pod,pvc,secret vdiforge-app-secrets`; `kubectl -n vdiforge-system logs statefulset/vdiforge-app-postgres`; `kubectl -n vdiforge-system describe pod vdiforge-app-postgres-0`; `kubectl describe resourcequota -n vdiforge-system`. |
+| Remediation | Recreate runtime secrets with `scripts/phase7-create-local-secrets.sh`, restore local-path storage, fix quota or image pull issues, and rerun Helm upgrade. Do not delete the PostgreSQL PVC unless intentionally resetting application state. |
+| Logs/metrics | PostgreSQL logs, PVC events, ResourceQuota usage, local-path provisioner logs. |
+
+## VDIForge Migration Job Failure
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | Helm upgrade with `--wait-for-jobs` times out; `vdiforge-api-migrations` fails; API starts without expected tables. |
+| Likely causes | database unavailable, wrong `VDIFORGE_DATABASE_URL`, Alembic migration error, read-only filesystem issue, image mismatch, or old failed Job still present. |
+| Diagnostics | `kubectl -n vdiforge-system get job,pod -l app.kubernetes.io/component=migration`; `kubectl -n vdiforge-system logs job/vdiforge-api-migrations`; `helm status vdiforge -n vdiforge-system`; inspect `backend/alembic/versions`. |
+| Remediation | Fix the migration or database issue, delete only the old `vdiforge-api-migrations` Job if Kubernetes job immutability blocks retry, rerun Helm upgrade, and verify `/api/v1/ready`. Do not delete application PostgreSQL data unless intentionally resetting the lab. |
+| Logs/metrics | Migration job logs, PostgreSQL logs, Helm status/history. |
+
+## VDIForge Provisioner Unavailable Or Denied
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | Desktop requests remain `REQUESTED` or `PROVISIONING`; provisioner logs show Kubernetes `403` errors. |
+| Likely causes | provisioner Deployment down, ServiceAccount token not mounted, RBAC missing or too narrow, NetworkPolicy blocks Kubernetes API, source PVC unavailable, or KubeVirt/CDI failure. |
+| Diagnostics | `kubectl -n vdiforge-system logs deploy/vdiforge-provisioner`; `bash scripts/phase7-rbac-test.sh`; `kubectl auth can-i create virtualmachines.kubevirt.io -n vdiforge-desktops --as=system:serviceaccount:vdiforge-system:vdiforge-provisioner`; `kubectl get dv,vm,vmi,pvc,svc -n vdiforge-desktops`. |
+| Remediation | Restore the Helm-managed Role/RoleBinding, verify `vdiforge-system-provisioner-kubernetes-api` NetworkPolicy, restore the golden source PVC, and rerun live validation. Do not grant `cluster-admin` to bypass the failure. |
+| Logs/metrics | Provisioner logs, Kubernetes events, audit events, DataVolume conditions. |
+
 ## Keycloak Unavailable
 
 | Area | Detail |
@@ -387,9 +437,9 @@ This runbook defines troubleshooting procedures for the VDIForge local lab and p
 | Area | Detail |
 | --- | --- |
 | Symptoms | Desktop remains `PROVISIONING` beyond expected time. |
-| Likely causes | provisioner down, Kubernetes API denied request, image unavailable, PVC pending. |
-| Diagnostics | `kubectl logs deploy/vdiforge-provisioner -n vdiforge-system`; `kubectl get vm,pvc,dv -n vdiforge-desktops`; audit and operation records. |
-| Remediation | Restart provisioner, fix RBAC, restore image, fix storage, mark operation failed after timeout. |
+| Likely causes | provisioner down, Kubernetes API denied request, NetworkPolicy blocking `10.96.0.1:443` or `192.168.56.10:6443`, `vdiforge-golden-ubuntu-devops-1-0-0` source PVC unavailable, CDI clone pending, `WaitForFirstConsumer` has no schedulable VM consumer, storage quota exhausted, or image artifact import failure. |
+| Diagnostics | `kubectl logs deploy/vdiforge-provisioner -n vdiforge-system`; `kubectl get dv,vm,vmi,pvc,svc -n vdiforge-desktops`; `kubectl describe datavolume <desktop-root-dv> -n vdiforge-desktops`; inspect audit and operation records. |
+| Remediation | Restore the source PVC with `scripts/phase7-prepare-golden-source.sh`, fix CDI/storage/RBAC, verify the `vdiforge-system-provisioner-kubernetes-api` egress endpoints, make sure the VM resource is created so local-path storage can bind, rerun the provisioner validation, and delete failed desktop resources through the API where possible. |
 | Logs/metrics | Provisioner retries, KubeVirt events, DataVolume/PVC events. |
 
 ## Desktop Stuck BOOTING
@@ -437,9 +487,9 @@ This runbook defines troubleshooting procedures for the VDIForge local lab and p
 | Area | Detail |
 | --- | --- |
 | Symptoms | Services cannot resolve Keycloak, API, database, or Guacamole. |
-| Likely causes | CoreDNS down for cluster services; wrong Service name or namespace; Windows hosts file missing `auth.vdiforge.local`; future thin client lacks local DNS entry. |
-| Diagnostics | `kubectl get pods -n kube-system -l k8s-app=kube-dns`; `kubectl logs -n kube-system deployment/coredns`; run `nslookup vdiforge-keycloak.keycloak.svc.cluster.local` from a debug pod; on Windows run `Resolve-DnsName auth.vdiforge.local`. |
-| Remediation | Restore CoreDNS for cluster DNS. For browser access, map `192.168.56.11 auth.vdiforge.local vdiforge.local grafana.vdiforge.local` in the client hosts file or local DNS. Use `scripts/phase5-windows-hosts-and-trust.ps1` from an elevated PowerShell prompt on Windows. |
+| Likely causes | CoreDNS down for cluster services; wrong Service name or namespace; Windows hosts file missing `auth.vdiforge.local` or `api.vdiforge.local`; future thin client lacks local DNS entry. |
+| Diagnostics | `kubectl get pods -n kube-system -l k8s-app=kube-dns`; `kubectl logs -n kube-system deployment/coredns`; run `nslookup vdiforge-keycloak.keycloak.svc.cluster.local` or `nslookup vdiforge-api.vdiforge-system.svc.cluster.local` from a debug pod; on Windows run `Resolve-DnsName auth.vdiforge.local` and `Resolve-DnsName api.vdiforge.local`. |
+| Remediation | Restore CoreDNS for cluster DNS. For browser access, map `192.168.56.11 auth.vdiforge.local api.vdiforge.local vdiforge.local grafana.vdiforge.local` in the client hosts file or local DNS. Use `scripts/phase5-windows-hosts-and-trust.ps1` from an elevated PowerShell prompt on Windows. |
 | Logs/metrics | CoreDNS logs, Traefik logs, browser DNS errors, future API dependency failures. |
 
 ## TLS Problems
@@ -448,6 +498,6 @@ This runbook defines troubleshooting procedures for the VDIForge local lab and p
 | --- | --- |
 | Symptoms | Browser certificate warnings, OIDC redirect failure, API calls rejected. |
 | Likely causes | expired local certificate, wrong hostname/SAN, missing local CA trust, wrong Kubernetes TLS secret, Traefik ingress issue. |
-| Diagnostics | `kubectl -n keycloak describe ingress vdiforge-keycloak`; `kubectl -n keycloak get secret vdiforge-keycloak-tls`; `openssl x509 -in .local/phase5/tls/auth.vdiforge.local.crt -noout -text`; `curl --cacert .local/phase5/tls/vdiforge-local-ca.crt --resolve auth.vdiforge.local:443:192.168.56.11 https://auth.vdiforge.local/realms/vdiforge/.well-known/openid-configuration`. |
-| Remediation | Regenerate local TLS with `scripts/phase5-create-local-secrets.sh`, refresh the Kubernetes TLS Secret, trust the local CA on the browser client, and rerun Phase 5 validation. Do not use `curl -k` as final validation evidence. |
+| Diagnostics | `kubectl -n keycloak describe ingress vdiforge-keycloak`; `kubectl -n vdiforge-system describe ingress vdiforge-api`; `kubectl -n keycloak get secret vdiforge-keycloak-tls`; `kubectl -n vdiforge-system get secret vdiforge-api-tls`; `openssl x509 -in .local/phase5/tls/auth.vdiforge.local.crt -noout -text`; `openssl x509 -in .local/phase7/tls/api.vdiforge.local.crt -noout -text`; trusted `curl --resolve` checks for both hosts. |
+| Remediation | Regenerate identity TLS with `scripts/phase5-create-local-secrets.sh` and API TLS with `scripts/phase7-create-local-secrets.sh`, refresh Kubernetes TLS Secrets, trust the local CA on the browser client, and rerun Phase 5/7 validation. Do not use `curl -k` as final validation evidence. |
 | Logs/metrics | Ingress TLS errors, browser error, API request failures. |

@@ -1,6 +1,6 @@
 # Helm Platform Foundation
 
-This document records the Helm foundation for VDIForge. Phase 4 established repeatable deployment mechanics, resource ownership, platform guardrails, and extension points. Phase 5 extends the same chart with the Keycloak identity foundation. Phase 6 adds the separate Packer/Ansible image pipeline; Guacamole, FastAPI, React, Prometheus/Grafana, and self-service VDI desktops remain future work.
+This document records the Helm foundation for VDIForge. Phase 4 established repeatable deployment mechanics, resource ownership, platform guardrails, and extension points. Phase 5 extends the same chart with the Keycloak identity foundation. Phase 6 adds the separate Packer/Ansible image pipeline. Phase 7 enables the FastAPI API, asynchronous provisioner, application PostgreSQL, migration job, API ingress, and API-specific NetworkPolicies through `values-phase7-local.yaml`. Guacamole, React, Prometheus/Grafana, and browser remote desktop sessions remain future work.
 
 ## Status
 
@@ -12,11 +12,12 @@ Helm runs from the administrative environment, currently `vdi-control-01`.
 | Helm Kubernetes client | `v1.36` |
 | Kubernetes cluster | `v1.36.4` |
 | Chart | `helm/vdiforge` |
-| Chart version | `0.5.0` |
+| Chart version | `0.7.0` |
 | Release | `vdiforge` |
 | Release namespace | `vdiforge-system` |
 | Foundation values | `helm/vdiforge/values-local.yaml` |
 | Identity values | `helm/vdiforge/values-phase5-local.yaml` |
+| API/provisioner values | `helm/vdiforge/values-phase7-local.yaml` |
 | Final live validation state | Deployed; revision advances when validation is rerun |
 
 Helm v4.2.x is pinned for the Kubernetes 1.36.4 local lab.
@@ -36,6 +37,7 @@ helm/vdiforge
   +-- values.yaml
   +-- values-local.yaml
   +-- values-phase5-local.yaml
+  +-- values-phase7-local.yaml
   +-- files/keycloak/vdiforge-realm.json
   +-- templates/
       |
@@ -50,6 +52,10 @@ helm/vdiforge
       +-- keycloak.yaml
       +-- keycloak-postgres.yaml
       +-- keycloak-networkpolicies.yaml
+      +-- app-postgres.yaml
+      +-- api.yaml
+      +-- provisioner.yaml
+      +-- migrations.yaml
       +-- NOTES.txt
 ```
 
@@ -58,8 +64,9 @@ Chart-managed resources:
 | Resource | Namespace | Purpose |
 | --- | --- | --- |
 | ConfigMap `vdiforge-platform-config` | `vdiforge-system` | Non-sensitive platform conventions and validation marker. |
-| ServiceAccount `vdiforge-api` | `vdiforge-system` | Future API identity with token automount disabled. |
-| ServiceAccount `vdiforge-provisioner` | `vdiforge-system` | Future provisioner identity with token automount enabled. |
+| ServiceAccount `vdiforge-api` | `vdiforge-system` | API identity with token automount disabled. |
+| ServiceAccount `vdiforge-provisioner` | `vdiforge-system` | Provisioner identity with token automount enabled. |
+| ServiceAccount `vdiforge-app-postgres` | `vdiforge-system` | Application database identity with token automount disabled. |
 | Role and RoleBinding `vdiforge-provisioner-vdi-manager` | `vdiforge-desktops` | Narrow KubeVirt/CDI/PVC/Service/Event permissions. |
 | ResourceQuota `vdiforge-system-quota` | `vdiforge-system` | Lab-safe cap for future platform services. |
 | ResourceQuota `vdiforge-desktops-quota` | `vdiforge-desktops` | Lab-safe cap for future VM resources and storage. |
@@ -69,8 +76,12 @@ Chart-managed resources:
 | StatefulSet `vdiforge-keycloak-postgres` | `keycloak` | Persistent local Keycloak database, enabled only by Phase 5 values. |
 | Ingress `vdiforge-keycloak` | `keycloak` | HTTPS ingress for `auth.vdiforge.local`, enabled only by Phase 5 values. |
 | NetworkPolicies `keycloak-*` | `keycloak` | Identity namespace isolation and required allow paths. |
+| Deployment/Service/Ingress `vdiforge-api` | `vdiforge-system` | Phase 7 FastAPI control-plane API, enabled only by Phase 7 values. |
+| Deployment `vdiforge-provisioner` | `vdiforge-system` | Phase 7 asynchronous KubeVirt reconciler, enabled only by Phase 7 values. |
+| StatefulSet/Service `vdiforge-app-postgres` | `vdiforge-system` | Phase 7 application database, enabled only by Phase 7 values. |
+| Job `vdiforge-api-migrations` | `vdiforge-system` | Phase 7 Alembic migration job, enabled only by Phase 7 values. |
 
-With `values-local.yaml` alone, the chart still renders no application workloads. With `values-phase5-local.yaml`, the chart deploys Keycloak and PostgreSQL only. It does not deploy Guacamole, FastAPI, React, Prometheus, Grafana, HPA objects, image builds, desktop images, or VDI desktops. Phase 6 image builds remain outside Helm because they produce VM disk artifacts rather than Kubernetes application releases.
+With `values-local.yaml` alone, the chart still renders no application workloads. With `values-phase5-local.yaml`, the chart deploys Keycloak and PostgreSQL only. With `values-phase7-local.yaml`, the chart deploys the backend API/provisioner stack. It does not deploy Guacamole, React, Prometheus, Grafana, HPA objects, image builds, or browser remote desktop sessions. Phase 6 image builds remain outside Helm because they produce VM disk artifacts rather than Kubernetes application releases.
 
 ## Helm Toolchain
 
@@ -111,7 +122,7 @@ This avoids competing ownership of namespace objects. Helm owns resources inside
 
 ## RBAC Foundation
 
-The frontend receives no Kubernetes API privileges. The future API ServiceAccount disables token mounting:
+The frontend receives no Kubernetes API privileges. The Phase 7 API ServiceAccount disables token mounting:
 
 ```yaml
 serviceAccounts:
@@ -141,7 +152,7 @@ Helm-managed quotas:
 | `vdiforge-desktops` | 20 pods, 10 PVCs, 80 GiB requested storage, 4 VMs, 4 VMIs, 8 DataVolumes. |
 | `keycloak` | 8 pods, 2 PVCs, 10 GiB requested storage, 1200m requested CPU, 3 GiB requested memory. |
 
-Keycloak requests 250m CPU and 768 MiB memory. PostgreSQL requests 100m CPU and 256 MiB memory.
+Keycloak requests 250m CPU and 768 MiB memory. Each PostgreSQL instance requests 100m CPU and 256 MiB memory. The Phase 7 API and provisioner each request 100m CPU and 256 MiB memory.
 
 ## NetworkPolicy Foundation
 
@@ -151,7 +162,10 @@ Platform namespace model:
 vdiforge-system default deny
     |
     +-- DNS egress to CoreDNS
-    +-- future provisioner egress to Kubernetes API
+    +-- Traefik -> FastAPI ingress
+    +-- FastAPI -> Keycloak JWKS
+    +-- FastAPI/provisioner/migration -> app PostgreSQL
+    +-- provisioner egress to Kubernetes API
 ```
 
 Identity namespace model:
@@ -162,16 +176,16 @@ keycloak default deny
     +-- DNS egress to CoreDNS
     +-- Traefik -> Keycloak
     +-- Keycloak -> PostgreSQL
-    +-- future API -> Keycloak discovery/JWKS
+    +-- API -> Keycloak discovery/JWKS
 ```
 
-The chart does not yet impose the full VDI desktop namespace policy because Guacamole, VM services, and desktop labels are not implemented.
+The chart does not yet impose the full VDI desktop namespace policy because Guacamole connection routing and final desktop port policies are Phase 8 concerns. Phase 7 validates that an unauthorized namespace cannot reach the API ClusterIP or application PostgreSQL.
 
 ## Configuration and Secrets
 
 Non-sensitive configuration belongs in Helm values and ConfigMaps. Sensitive values are provided as Kubernetes Secrets generated outside Git.
 
-Do not place these values in `values.yaml`, `values-local.yaml`, or `values-phase5-local.yaml`:
+Do not place these values in `values.yaml`, `values-local.yaml`, `values-phase5-local.yaml`, or `values-phase7-local.yaml`:
 
 - passwords
 - OIDC client secrets
@@ -189,9 +203,17 @@ bash scripts/phase5-create-local-secrets.sh
 
 Generated files live under ignored `.local/phase5/` paths.
 
+Runtime Phase 7 app/database/API TLS secrets are generated by:
+
+```bash
+bash scripts/phase7-create-local-secrets.sh
+```
+
+Generated files live under ignored `.local/phase7/` paths.
+
 ## Node Placement Conventions
 
-Future platform workloads target:
+Platform workloads, including the Phase 7 API/provisioner stack, target:
 
 ```yaml
 vdiforge.io/node-role: platform
@@ -227,6 +249,7 @@ Local hostnames:
 ```text
 auth.vdiforge.local
 vdiforge.local
+api.vdiforge.local
 grafana.vdiforge.local
 ```
 
@@ -254,6 +277,17 @@ helm template vdiforge ./helm/vdiforge \
   --kube-version 1.36.4
 ```
 
+Render with identity and API/provisioner enabled:
+
+```bash
+helm template vdiforge ./helm/vdiforge \
+  --namespace vdiforge-system \
+  --values ./helm/vdiforge/values-local.yaml \
+  --values ./helm/vdiforge/values-phase5-local.yaml \
+  --values ./helm/vdiforge/values-phase7-local.yaml \
+  --kube-version 1.36.4
+```
+
 Install or upgrade with identity enabled:
 
 ```bash
@@ -265,6 +299,26 @@ helm upgrade --install vdiforge ./helm/vdiforge \
   --force-conflicts \
   --wait
 ```
+
+Install or upgrade with identity and API/provisioner enabled:
+
+```bash
+kubectl delete job vdiforge-api-migrations -n vdiforge-system --ignore-not-found=true --wait=true
+helm upgrade --install vdiforge ./helm/vdiforge \
+  --namespace vdiforge-system \
+  --values ./helm/vdiforge/values-local.yaml \
+  --values ./helm/vdiforge/values-phase5-local.yaml \
+  --values ./helm/vdiforge/values-phase7-local.yaml \
+  --take-ownership \
+  --force-conflicts \
+  --wait \
+  --wait-for-jobs
+kubectl rollout restart deployment/vdiforge-api deployment/vdiforge-provisioner -n vdiforge-system
+```
+
+The migration Job deletion is intentional for Phase 7 local upgrades because Kubernetes treats Job pod templates as immutable. The rollout restart is also intentional because the lab reuses the local image tag `localhost/vdiforge-api:0.7.0`; after a same-tag containerd import, restarting the Deployments ensures pods run the current image content.
+
+Phase 7 provisioner NetworkPolicy egress is configured as a list of Kubernetes API endpoints. The current kubeadm lab allows `10.96.0.1:443` and `192.168.56.10:6443`, covering the in-cluster service address and direct control-plane endpoint.
 
 Inspect:
 

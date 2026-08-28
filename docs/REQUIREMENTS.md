@@ -168,6 +168,30 @@ Requirement -> Implementation -> Test -> Evidence -> PASS / FAIL
 | IMG-016 | The `ubuntu-devops:1.0.0` KubeVirt boot test shall prove guest boot, guest networking, required DevOps tools, stop, restart, delete, and cleanup. | Guest SSH command validation and KubeVirt lifecycle test. |
 | IMG-017 | Phase 6 validation shall produce explicit static and live PASS/FAIL results. | `scripts/validate-phase6.ps1` and `scripts/validate-phase6-live.sh`. |
 
+## Application Control Plane Requirements
+
+| ID | Requirement | Verification approach |
+| --- | --- | --- |
+| APP-001 | Phase 7 shall pin FastAPI, Pydantic, SQLAlchemy, Alembic, psycopg, PyJWT, and the Kubernetes Python client. | Dependency-file review and static validation. |
+| APP-002 | The backend shall expose health, readiness, image, desktop lifecycle, audit, and metrics endpoints under the documented API contract. | Backend tests and live API validation. |
+| APP-003 | Protected API endpoints shall reject missing or invalid bearer tokens. | API negative authentication tests. |
+| APP-004 | The API shall validate Keycloak-issued JWT signature, issuer, audience, expiration, subject, username, and roles before authorization decisions. | OIDC/API integration tests. |
+| APP-005 | The API shall enforce image RBAC server-side and shall not rely on image-catalog filtering alone. | Unit tests and live RBAC validation. |
+| APP-006 | Desktop launch shall require an `Idempotency-Key` header and shall replay the original response only when inputs match. | Backend tests and live API validation. |
+| APP-007 | Desktop launch shall enforce approved resource profiles and active desktop quotas before recording desired state. | Backend tests and live quota validation. |
+| APP-008 | Desktop launch shall return `202 Accepted` after recording desired state and shall not wait for VM boot. | API contract and live E2E validation. |
+| APP-009 | Desktop records shall store ownership, desired state, observed state, image version, KubeVirt resource names, source PVC, request ID, and failure details. | Model/migration review and tests. |
+| APP-010 | The API shall enforce owner-only access for normal users and admin-only access for all-user listing and audit events. | Backend tests and live API validation. |
+| APP-011 | Phase 7 shall persist desktop records, provisioning operations, and audit events in PostgreSQL using Alembic migrations. | Migration job and persistence validation. |
+| APP-012 | The provisioner shall reconcile desired desktop state to CDI DataVolumes, KubeVirt VirtualMachines, and per-desktop Services through the Kubernetes Python client. | Reconciler tests and live KubeVirt validation. |
+| APP-013 | Provisioned desktop VMs shall target the VDI node role label rather than a hardcoded node name. | Rendered object and VMI placement validation. |
+| APP-014 | The provisioner shall use bounded retries, backoff, failure states, and cleanup logic. | Reconciler tests and live lifecycle validation. |
+| APP-015 | Desktop delete shall remove the managed VM, VMI, DataVolume/PVC, and Service resources where Kubernetes permits cleanup. | Live E2E cleanup validation. |
+| APP-016 | The API shall return stable error codes and request IDs for expected failures. | Backend tests. |
+| APP-017 | Phase 7 shall record audit events for desktop requests, lifecycle changes, failures, and admin audit access. | Backend tests and live audit validation. |
+| APP-018 | The backend shall expose only minimal Phase 7 metrics and shall not implement the full Phase 11 observability stack. | Metrics endpoint check and scope review. |
+| APP-019 | Phase 7 validation shall produce explicit static and live PASS/FAIL results. | `scripts/validate-phase7.ps1` and `scripts/validate-phase7-live.sh`. |
+
 ## Security Requirements
 
 | ID | Requirement | Verification approach |
@@ -377,3 +401,67 @@ Requirement -> Implementation -> Test -> Evidence -> PASS / FAIL
 | `IMG-015` | [scripts/phase6-cdi-kubevirt-test.sh](../scripts/phase6-cdi-kubevirt-test.sh) | virt-launcher resource assertion. | PASS | KVM is verified by `devices.kubevirt.io/kvm` request. |
 | `IMG-016` | [scripts/phase6-cdi-kubevirt-test.sh](../scripts/phase6-cdi-kubevirt-test.sh) | Guest SSH and lifecycle validation. | PASS | Guest boot, networking, DevOps tools, stop, restart, delete, and cleanup are validated. |
 | `IMG-017` | [scripts/validate-phase6.ps1](../scripts/validate-phase6.ps1), [scripts/validate-phase6-live.sh](../scripts/validate-phase6-live.sh) | Validator execution. | PASS | Static and live validators produce explicit PASS/FAIL results. |
+
+## Phase 7 Traceability
+
+| Requirement | Implementation reference | Test or evidence | Status | Notes |
+| --- | --- | --- | --- | --- |
+| `NFR-003` | [backend/requirements-runtime.txt](../backend/requirements-runtime.txt), [backend/pyproject.toml](../backend/pyproject.toml), [docs/API-CONTROL-PLANE.md](API-CONTROL-PLANE.md) | Dependency pin and version review. | PASS | Phase 7 Python dependencies are pinned. |
+| `NFR-006` | [helm/vdiforge/values-phase7-local.yaml](../helm/vdiforge/values-phase7-local.yaml), [scripts/validate-phase7-live.sh](../scripts/validate-phase7-live.sh) | Helm install/upgrade and rollout validation. | PASS | API, provisioner, app PostgreSQL, and migrations are deployed by Helm. |
+| `NFR-007` | [backend/app/provisioning/kubevirt.py](../backend/app/provisioning/kubevirt.py), [docs/ADR/0017-fastapi-control-plane-and-reconciler.md](ADR/0017-fastapi-control-plane-and-reconciler.md) | Code review and E2E validation. | PASS | Desktop launch uses Kubernetes/KubeVirt APIs, not Terraform. |
+| `NFR-008` | [docs/ADR/0017-fastapi-control-plane-and-reconciler.md](ADR/0017-fastapi-control-plane-and-reconciler.md) | Architecture review. | PASS | Phase 7 does not add Kafka, RabbitMQ, a service mesh, OpenStack, Ceph, Vault cluster, Argo CD, Crossplane, or Elasticsearch. |
+| `NFR-009` | [backend/app/api/errors.py](../backend/app/api/errors.py), [backend/tests/test_api_authorization.py](../backend/tests/test_api_authorization.py) | API error contract tests. | PASS | Expected failures include stable error codes and request IDs. |
+| `NFR-010` | [backend/app/provisioning/reconciler.py](../backend/app/provisioning/reconciler.py), [backend/tests/test_reconciler.py](../backend/tests/test_reconciler.py) | Reconciler tests. | PASS | Provisioning retries are bounded and backoff is configured. |
+| `NFR-012` | [helm/vdiforge/templates/api.yaml](../helm/vdiforge/templates/api.yaml), [helm/vdiforge/templates/provisioner.yaml](../helm/vdiforge/templates/provisioner.yaml), [helm/vdiforge/templates/app-postgres.yaml](../helm/vdiforge/templates/app-postgres.yaml) | Rendered manifest review. | PASS | API, provisioner, migration, and app PostgreSQL containers define resources. |
+| `FR-002` | [backend/app/api/dependencies.py](../backend/app/api/dependencies.py), [scripts/phase7-api-e2e-test.py](../scripts/phase7-api-e2e-test.py) | Missing-token negative test. | PASS | Protected endpoints reject requests without bearer tokens. |
+| `FR-003` | [backend/app/auth/jwt.py](../backend/app/auth/jwt.py), [scripts/phase7-api-e2e-test.py](../scripts/phase7-api-e2e-test.py) | Live Keycloak token validation. | PASS | Signature, issuer, audience, expiration, and required claims are validated. |
+| `FR-004` | [backend/app/auth/policy.py](../backend/app/auth/policy.py), [backend/app/services/desktops.py](../backend/app/services/desktops.py) | Authorization tests. | PASS | Roles and owners come from token/backend state, not client input. |
+| `FR-005` | [backend/app/services/image_catalog.py](../backend/app/services/image_catalog.py), [backend/tests/test_api_authorization.py](../backend/tests/test_api_authorization.py) | Image catalog RBAC tests. | PASS | Only authorized available images are returned. |
+| `FR-006` | [backend/app/api/routes.py](../backend/app/api/routes.py), [backend/app/schemas/api.py](../backend/app/schemas/api.py) | API contract tests. | PASS | Launch accepts image, profile, display name, and idempotency key. |
+| `FR-007` | [backend/app/services/desktops.py](../backend/app/services/desktops.py) | Authorization and quota tests. | PASS | Launch validates image authorization, profile, quota, and ownership. |
+| `FR-008` | [backend/app/services/desktops.py](../backend/app/services/desktops.py), [scripts/phase7-api-e2e-test.py](../scripts/phase7-api-e2e-test.py) | API response and live VM readiness validation. | PASS | Launch returns `202` before the VM reaches Ready. |
+| `FR-009` | [backend/app/provisioning/kubevirt.py](../backend/app/provisioning/kubevirt.py) | Live KubeVirt validation. | PASS | The provisioner creates KubeVirt `VirtualMachine` resources. |
+| `FR-010` | [backend/app/provisioning/kubevirt.py](../backend/app/provisioning/kubevirt.py) | Live DataVolume/PVC/Service assertions. | PASS | The provisioner manages related DataVolume/PVC and Service resources. |
+| `FR-011` | [backend/app/schemas/api.py](../backend/app/schemas/api.py), [backend/app/models/entities.py](../backend/app/models/entities.py) | Lifecycle tests. | PASS | Phase 7 states include requested, provisioning, booting, ready, stopping, stopped, terminating, terminated, and failed. |
+| `FR-012` | [backend/app/models/entities.py](../backend/app/models/entities.py) | Model/migration review. | PASS | Desired and observed state are separate fields. |
+| `FR-013` | [backend/app/services/desktops.py](../backend/app/services/desktops.py), [backend/tests/test_api_authorization.py](../backend/tests/test_api_authorization.py) | Ownership tests. | PASS | Normal users cannot read other users' desktops. |
+| `FR-014` | [backend/app/services/desktops.py](../backend/app/services/desktops.py), [scripts/phase7-api-e2e-test.py](../scripts/phase7-api-e2e-test.py) | Admin list-all validation. | PASS | Admins can list all desktops. |
+| `FR-020` | [backend/app/provisioning/reconciler.py](../backend/app/provisioning/reconciler.py), [scripts/phase7-api-e2e-test.py](../scripts/phase7-api-e2e-test.py) | Live cleanup validation. | PASS | Desktop delete cleans up VM/DataVolume/PVC/Service resources. |
+| `FR-021` | [backend/app/api/routes.py](../backend/app/api/routes.py) | Health endpoint test. | PASS | `/api/v1/health` is implemented. |
+| `FR-022` | [backend/app/api/routes.py](../backend/app/api/routes.py) | Readiness endpoint test. | PASS | `/api/v1/ready` checks database and image catalog. |
+| `FR-023` | [backend/app/api/routes.py](../backend/app/api/routes.py) | Metrics endpoint check. | PASS | `/metrics` emits Prometheus-compatible desktop counters. |
+| `FR-024` | [backend/app/audit/service.py](../backend/app/audit/service.py), [backend/app/models/entities.py](../backend/app/models/entities.py) | Audit endpoint and persistence validation. | PASS | Desktop lifecycle and admin audit events are persisted. |
+| `SEC-001` | [backend/app/services/desktops.py](../backend/app/services/desktops.py) | Authorization tests. | PASS | Authorization decisions are enforced in the API. |
+| `SEC-003` | [helm/vdiforge/templates/rbac.yaml](../helm/vdiforge/templates/rbac.yaml), [scripts/phase7-rbac-test.sh](../scripts/phase7-rbac-test.sh) | RBAC negative test. | PASS | No `cluster-admin` grant exists. |
+| `SEC-004` | [helm/vdiforge/templates/rbac.yaml](../helm/vdiforge/templates/rbac.yaml), [scripts/phase7-rbac-test.sh](../scripts/phase7-rbac-test.sh) | Kubernetes `can-i` validation. | PASS | Provisioner is namespace-scoped to VDI resources. |
+| `SEC-005` | [helm/vdiforge/templates/networkpolicies.yaml](../helm/vdiforge/templates/networkpolicies.yaml), [scripts/phase7-networkpolicy-test.sh](../scripts/phase7-networkpolicy-test.sh) | NetworkPolicy denial test. | PASS | Unauthorized namespaces cannot reach API ClusterIP or app PostgreSQL. |
+| `SEC-008` | [.gitignore](../.gitignore), [scripts/validate-phase7.ps1](../scripts/validate-phase7.ps1) | Secret scan and Git diff review. | PASS | Runtime passwords and TLS private keys stay under ignored `.local/phase7`. |
+| `SEC-009` | [backend/app/observability/logging.py](../backend/app/observability/logging.py) | Logging code review. | PASS | Logs are structured and do not include raw JWTs or passwords. |
+| `SEC-010` | [backend/app/audit/service.py](../backend/app/audit/service.py), [scripts/phase7-api-e2e-test.py](../scripts/phase7-api-e2e-test.py) | Audit validation. | PASS | Security-relevant lifecycle events are recorded. |
+| `SEC-011` | [helm/vdiforge/templates/api.yaml](../helm/vdiforge/templates/api.yaml), [helm/vdiforge/templates/provisioner.yaml](../helm/vdiforge/templates/provisioner.yaml), [helm/vdiforge/templates/app-postgres.yaml](../helm/vdiforge/templates/app-postgres.yaml) | Security-context review. | PASS | Phase 7 containers run non-root where practical. |
+| `SEC-014` | [backend/app/schemas/api.py](../backend/app/schemas/api.py) | Request validation tests. | PASS | Pydantic models validate API input. |
+| `SEC-015` | [helm/vdiforge/templates/api.yaml](../helm/vdiforge/templates/api.yaml), [scripts/phase7-create-local-secrets.sh](../scripts/phase7-create-local-secrets.sh) | Trusted HTTPS API health check. | PASS | `api.vdiforge.local` uses local TLS through Traefik. |
+| `OBS-009` | [backend/app/models/entities.py](../backend/app/models/entities.py), [backend/app/audit/service.py](../backend/app/audit/service.py) | Audit schema review. | PASS | Audit events include request ID, user, action, resource, result, and details. |
+| `OBS-010` | [backend/app/main.py](../backend/app/main.py), [backend/app/services/desktops.py](../backend/app/services/desktops.py) | Request-ID tests and audit review. | PASS | Request IDs are attached to responses and persisted on operations/audit events. |
+| `OPS-006` | [docs/RUNBOOK.md](RUNBOOK.md) | Runbook review. | PASS | Desktop provisioning and boot troubleshooting reflect Phase 7. |
+| `OPS-007` | [docs/RUNBOOK.md](RUNBOOK.md) | Runbook review. | PASS | VM boot, image source, and provisioning timeout troubleshooting are documented. |
+| `OPS-012` | [scripts/validate-phase7.ps1](../scripts/validate-phase7.ps1), [scripts/validate-phase7-live.sh](../scripts/validate-phase7-live.sh) | Validator execution. | PASS | Phase 7 validators emit explicit PASS/FAIL results. |
+| `APP-001` | [backend/requirements-runtime.txt](../backend/requirements-runtime.txt), [backend/pyproject.toml](../backend/pyproject.toml) | Static validation. | PASS | Dependencies are pinned. |
+| `APP-002` | [backend/app/api/routes.py](../backend/app/api/routes.py) | Backend and live API validation. | PASS | Phase 7 endpoints are implemented. |
+| `APP-003` | [backend/app/api/dependencies.py](../backend/app/api/dependencies.py) | Negative API validation. | PASS | Missing tokens are rejected. |
+| `APP-004` | [backend/app/auth/jwt.py](../backend/app/auth/jwt.py) | Live token validation. | PASS | Keycloak tokens are cryptographically validated. |
+| `APP-005` | [backend/app/services/image_catalog.py](../backend/app/services/image_catalog.py), [backend/app/services/desktops.py](../backend/app/services/desktops.py) | RBAC tests. | PASS | Image policy is enforced by the API. |
+| `APP-006` | [backend/app/services/desktops.py](../backend/app/services/desktops.py) | Idempotency tests. | PASS | Replays and conflicts are handled. |
+| `APP-007` | [backend/app/services/resource_profiles.py](../backend/app/services/resource_profiles.py), [backend/app/services/desktops.py](../backend/app/services/desktops.py) | Quota/profile tests. | PASS | Approved profiles and quotas are enforced. |
+| `APP-008` | [backend/app/api/routes.py](../backend/app/api/routes.py) | Live E2E validation. | PASS | Launch is asynchronous. |
+| `APP-009` | [backend/app/models/entities.py](../backend/app/models/entities.py), [backend/alembic/versions/0001_phase7_initial.py](../backend/alembic/versions/0001_phase7_initial.py) | Model and migration review. | PASS | Required desktop fields are persisted. |
+| `APP-010` | [backend/app/services/desktops.py](../backend/app/services/desktops.py) | Ownership/admin tests. | PASS | Owner and admin boundaries are enforced. |
+| `APP-011` | [backend/alembic](../backend/alembic), [helm/vdiforge/templates/migrations.yaml](../helm/vdiforge/templates/migrations.yaml) | Migration job and persistence validation. | PASS | Database schema is managed through Alembic. |
+| `APP-012` | [backend/app/provisioning/kubevirt.py](../backend/app/provisioning/kubevirt.py) | Live KubeVirt validation. | PASS | DataVolumes, VirtualMachines, and Services are reconciled through the Kubernetes client. |
+| `APP-013` | [backend/app/provisioning/kubevirt.py](../backend/app/provisioning/kubevirt.py), [scripts/phase7-api-e2e-test.py](../scripts/phase7-api-e2e-test.py) | VMI placement validation. | PASS | VMs target `vdiforge.io/node-role=vdi` and run on `vdi-worker-02`. |
+| `APP-014` | [backend/app/provisioning/reconciler.py](../backend/app/provisioning/reconciler.py) | Reconciler tests. | PASS | Retry, backoff, failure, and cleanup behavior exists. |
+| `APP-015` | [backend/app/provisioning/kubevirt.py](../backend/app/provisioning/kubevirt.py) | Live cleanup validation. | PASS | Delete removes managed Kubernetes resources. |
+| `APP-016` | [backend/app/api/errors.py](../backend/app/api/errors.py) | Error contract tests. | PASS | Error responses include stable codes and request IDs. |
+| `APP-017` | [backend/app/audit/service.py](../backend/app/audit/service.py) | Audit validation. | PASS | Lifecycle audit events are persisted. |
+| `APP-018` | [backend/app/api/routes.py](../backend/app/api/routes.py) | Scope review. | PASS | Minimal metrics exist; full observability is deferred. |
+| `APP-019` | [scripts/validate-phase7.ps1](../scripts/validate-phase7.ps1), [scripts/validate-phase7-live.sh](../scripts/validate-phase7-live.sh) | Validator execution. | PASS | Static and live validators are provided. |
