@@ -245,6 +245,18 @@ Optional Makefile target when Ansible is available:
 make configure
 ```
 
+## Phase 6 Build Host Use
+
+Phase 6 uses `vdi-worker-02` as the local Packer/QEMU build host because it is the only current lab node with verified `/dev/kvm` exposure and enough spare RAM/disk for the no-cost workflow. This is a local-lab compromise documented in [ADR 0014](ADR/0014-phase6-image-build-environment.md), not a production recommendation.
+
+Operational limits:
+
+- build images sequentially
+- do not run image builds concurrently with KubeVirt VM validation
+- monitor `kubectl top nodes` before and after builds
+- keep generated QCOW2 artifacts under ignored `artifacts/images/` paths
+- move to a dedicated Linux/KVM build host if the VDI worker becomes unstable
+
 ## Validation
 
 Static validation:

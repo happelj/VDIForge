@@ -1,0 +1,18 @@
+- name: Install lightweight graphical desktop and remote desktop prerequisites
+  ansible.builtin.apt:
+    name: "{{ vdiforge_image_desktop_packages }}"
+    state: present
+
+- name: Set XFCE as the default skeleton session
+  ansible.builtin.copy:
+    dest: /etc/skel/.xsession
+    content: "startxfce4\n"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Enable xrdp for future browser-gateway integration
+  ansible.builtin.systemd:
+    name: xrdp
+    enabled: true
+    state: started

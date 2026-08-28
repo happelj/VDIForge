@@ -1,6 +1,6 @@
 # VDIForge Architecture
 
-This document contains architecture views for VDIForge. The local VirtualBox infrastructure, Kubernetes/KubeVirt foundation, Helm platform foundation, and Keycloak identity foundation views reflect Phases 2 through 5. Diagrams that include the FastAPI application, React portal, remote desktop, and full observability flows remain planned until their later implementation phases.
+This document contains architecture views for VDIForge. The local VirtualBox infrastructure, Kubernetes/KubeVirt foundation, Helm platform foundation, Keycloak identity foundation, and golden-image pipeline views reflect Phases 2 through 6. Diagrams that include the FastAPI application, React portal, Guacamole remote desktop flow, and full observability flows remain planned until their later implementation phases.
 
 ## System Context
 
@@ -320,26 +320,34 @@ Remote desktop credentials and backend connection details are not exposed to fro
 ## Image Pipeline
 
 ```mermaid
-flowchart LR
-  Source[Trusted Ubuntu source]
-  Verify[Checksum and signature verification]
-  Packer[Packer build]
-  Ansible[Ansible configuration]
-  Validate[Image validation]
-  Scan[Security checks]
-  Artifact[Versioned artifact]
-  Test[Test launch]
-  Promote[Promotion to image catalog]
+flowchart TB
+  Source[Official Ubuntu 26.04 cloud image<br/>pinned SHA-256]
+  Packer[Packer 1.16.0<br/>QEMU + Ansible plugins 1.1.6]
+  Ansible[Image Ansible roles<br/>common, desktop, developer, devops]
+  Validate[In-guest validation<br/>desktop and tool checks]
+  Generalize[Offline generalization<br/>virt-sysprep]
+  Artifact[Versioned QCOW2 artifact<br/>artifacts/images]
+  Catalog[images/catalog.json<br/>role policy and version metadata]
+  HTTP[Temporary host-only HTTP source<br/>vdi-worker-02]
+  CDI[CDI DataVolume import<br/>checksum validated]
+  PVC[PVC<br/>vdiforge-local-path]
+  VM[KubeVirt VM<br/>phase6-ubuntu-devops]
+  KVM[KVM request<br/>devices.kubevirt.io/kvm]
 
-  Source --> Verify
-  Verify --> Packer
+  Source --> Packer
   Packer --> Ansible
   Ansible --> Validate
-  Validate --> Scan
-  Scan --> Artifact
-  Artifact --> Test
-  Test --> Promote
+  Validate --> Generalize
+  Generalize --> Artifact
+  Artifact --> Catalog
+  Artifact --> HTTP
+  HTTP --> CDI
+  CDI --> PVC
+  PVC --> VM
+  VM --> KVM
 ```
+
+Phase 6 builds `ubuntu-base`, `ubuntu-developer`, and `ubuntu-devops` image definitions. The required integration proof imports the generated `ubuntu-devops:1.0.0` QCOW2 through CDI, schedules a disposable VM by `vdiforge.io/node-role=vdi`, verifies it runs on `vdi-worker-02`, verifies the KVM request, validates DevOps tooling inside the guest, and cleans up the disposable VM resources.
 
 Image rollback changes the promoted version for new launches only. Running desktops are not silently modified by rollback.
 

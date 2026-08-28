@@ -1,0 +1,36 @@
+- name: Refresh apt metadata
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Install common image packages
+  ansible.builtin.apt:
+    name: "{{ vdiforge_image_common_packages }}"
+    state: present
+
+- name: Enable OpenSSH server
+  ansible.builtin.systemd:
+    name: ssh
+    enabled: true
+    state: started
+
+- name: Enable qemu guest agent for runtime
+  ansible.builtin.systemd:
+    name: qemu-guest-agent
+    enabled: true
+
+- name: Create VDIForge image metadata directory
+  ansible.builtin.file:
+    path: /etc/vdiforge
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Write VDIForge image metadata
+  ansible.builtin.template:
+    src: image-metadata.env.j2
+    dest: /etc/vdiforge/image.env
+    owner: root
+    group: root
+    mode: "0644"

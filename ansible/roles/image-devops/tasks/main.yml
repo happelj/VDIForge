@@ -1,0 +1,53 @@
+- name: Install DevOps image packages
+  ansible.builtin.apt:
+    name: "{{ vdiforge_image_devops_packages }}"
+    state: present
+
+- name: Download pinned Terraform
+  ansible.builtin.get_url:
+    url: "https://releases.hashicorp.com/terraform/{{ vdiforge_image_terraform_version }}/terraform_{{ vdiforge_image_terraform_version }}_linux_amd64.zip"
+    dest: "/tmp/terraform_{{ vdiforge_image_terraform_version }}_linux_amd64.zip"
+    checksum: "sha256:{{ vdiforge_image_terraform_checksum }}"
+    mode: "0644"
+
+- name: Install pinned Terraform
+  ansible.builtin.unarchive:
+    src: "/tmp/terraform_{{ vdiforge_image_terraform_version }}_linux_amd64.zip"
+    dest: /usr/local/bin
+    remote_src: true
+    mode: "0755"
+
+- name: Download pinned kubectl
+  ansible.builtin.get_url:
+    url: "https://dl.k8s.io/release/{{ vdiforge_image_kubectl_version }}/bin/linux/amd64/kubectl"
+    dest: /usr/local/bin/kubectl
+    checksum: "sha256:{{ vdiforge_image_kubectl_checksum }}"
+    mode: "0755"
+
+- name: Download pinned Helm
+  ansible.builtin.get_url:
+    url: "https://get.helm.sh/helm-{{ vdiforge_image_helm_version }}-linux-amd64.tar.gz"
+    dest: "/tmp/helm-{{ vdiforge_image_helm_version }}-linux-amd64.tar.gz"
+    checksum: "sha256:{{ vdiforge_image_helm_checksum }}"
+    mode: "0644"
+
+- name: Create temporary Helm extract directory
+  ansible.builtin.file:
+    path: "/tmp/helm-{{ vdiforge_image_helm_version }}"
+    state: directory
+    mode: "0755"
+
+- name: Extract pinned Helm
+  ansible.builtin.unarchive:
+    src: "/tmp/helm-{{ vdiforge_image_helm_version }}-linux-amd64.tar.gz"
+    dest: "/tmp/helm-{{ vdiforge_image_helm_version }}"
+    remote_src: true
+
+- name: Install pinned Helm
+  ansible.builtin.copy:
+    src: "/tmp/helm-{{ vdiforge_image_helm_version }}/linux-amd64/helm"
+    dest: /usr/local/bin/helm
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0755"

@@ -1,6 +1,6 @@
 # Ansible
 
-This directory contains the Phase 2 operating-system baseline foundation and the Phase 3 Kubernetes/KubeVirt bootstrap roles.
+This directory contains the Phase 2 operating-system baseline foundation, the Phase 3 Kubernetes/KubeVirt bootstrap roles, and the Phase 6 golden-image configuration roles.
 
 ## Roles
 
@@ -11,9 +11,14 @@ containerd
 kubernetes-common
 kubernetes-control-plane
 kubernetes-worker
+image-common
+image-desktop
+image-developer
+image-devops
+image-cleanup
 ```
 
-Additional image-specific roles will be added under the image pipeline work when needed.
+The image roles are intentionally separate from host and Kubernetes configuration. They run inside disposable Packer build guests and configure generated Ubuntu desktop artifacts, not the Kubernetes nodes themselves.
 
 ## Responsibilities
 
@@ -32,8 +37,12 @@ Additional image-specific roles will be added under the image pipeline work when
 - worker join with short-lived token
 - node labeling
 - Phase 3 add-on installation
+- Ubuntu golden image package installation
+- lightweight XFCE desktop configuration
+- future xrdp prerequisites for browser-based remote desktop integration
+- image cleanup and generalization support
 
-Phase 3 installs Kubernetes, Calico, Metrics Server, KubeVirt, CDI, and storage foundations. It does not install Keycloak, Guacamole, Prometheus, Grafana, Helm application resources, backend, frontend, or VDI desktop images.
+Phase 3 installs Kubernetes, Calico, Metrics Server, KubeVirt, CDI, and storage foundations. Phase 6 adds image build roles only. It does not install FastAPI, Guacamole, React, Prometheus, Grafana, or self-service VDI provisioning.
 
 Ansible playbooks should be idempotent and safe to rerun.
 
@@ -71,5 +80,23 @@ ansible/
     kubernetes-common/
     kubernetes-control-plane/
     kubernetes-worker/
+    image-common/
+    image-desktop/
+    image-developer/
+    image-devops/
+    image-cleanup/
   playbooks/
 ```
+
+## Image Playbooks
+
+Packer invokes these playbooks through its Ansible provisioner:
+
+```bash
+cd ansible
+ansible-playbook -i localhost, playbooks/image-ubuntu-base.yml --syntax-check
+ansible-playbook -i localhost, playbooks/image-ubuntu-developer.yml --syntax-check
+ansible-playbook -i localhost, playbooks/image-ubuntu-devops.yml --syntax-check
+```
+
+The image playbooks expect to run as the temporary Packer build user inside a booted image build VM. Build credentials are removed from the final QCOW2 artifact by the offline generalization step.

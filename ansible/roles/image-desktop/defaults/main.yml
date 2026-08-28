@@ -1,0 +1,14 @@
+vdiforge_image_desktop_packages:
+  - dbus-x11
+  - fonts-dejavu-core
+  - lightdm
+  - mousepad
+  - spice-vdagent
+  - thunar
+  - x11-xserver-utils
+  - xfce4
+  - xfce4-goodies
+  - xfce4-terminal
+  - xorg
+  - xorgxrdp
+  - xrdp

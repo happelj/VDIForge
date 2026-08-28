@@ -4,7 +4,7 @@ This document is the authoritative technical design for VDIForge. Later implemen
 
 ## Status
 
-Phase 2 local infrastructure foundation is documented and host-validated. Phase 3 establishes the Kubernetes and KubeVirt foundation on that lab with kubeadm, containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, namespace/RBAC foundations, NetworkPolicy validation, and a disposable KubeVirt test VM. Phase 4 establishes the Helm platform foundation with a `vdiforge` release that manages VDIForge ConfigMap conventions, ServiceAccounts, provisioner RBAC, ResourceQuotas, a LimitRange, and baseline NetworkPolicies. Phase 5 adds Keycloak, PostgreSQL persistence, Traefik ingress, local TLS, realm import, demo identities, Authorization Code Flow with PKCE validation, JWT validation, RBAC claim validation, and identity NetworkPolicies. The full VDI platform remains planned: Guacamole, FastAPI, React application code, Packer image automation, and Prometheus/Grafana are not implemented yet.
+Phase 2 local infrastructure foundation is documented and host-validated. Phase 3 establishes the Kubernetes and KubeVirt foundation on that lab with kubeadm, containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, namespace/RBAC foundations, NetworkPolicy validation, and a disposable KubeVirt test VM. Phase 4 establishes the Helm platform foundation with a `vdiforge` release that manages VDIForge ConfigMap conventions, ServiceAccounts, provisioner RBAC, ResourceQuotas, a LimitRange, and baseline NetworkPolicies. Phase 5 adds Keycloak, PostgreSQL persistence, Traefik ingress, local TLS, realm import, demo identities, Authorization Code Flow with PKCE validation, JWT validation, RBAC claim validation, and identity NetworkPolicies. Phase 6 establishes the Packer/Ansible Ubuntu golden-image pipeline, image catalog foundation, QCOW2 artifact format, CDI import path, and KubeVirt boot validation. The full VDI platform remains planned: Guacamole, FastAPI, React application code, and Prometheus/Grafana are not implemented yet.
 
 ## Goals
 
@@ -60,6 +60,8 @@ Sources reviewed during Phase 1:
 - Helm version support and installation: [Helm v4 version support policy](https://blog.helm.sh/docs/topics/version_skew/) and [Helm install documentation](https://helm.sh/docs/intro/install/)
 - Phase 5 identity implementation: [Keycloak, OIDC, and RBAC Foundation](KEYCLOAK-OIDC.md)
 - Keycloak Phase 5 references: [Keycloak database configuration](https://www.keycloak.org/server/db), [Keycloak reverse proxy configuration](https://www.keycloak.org/server/reverseproxy), [Keycloak import/export](https://www.keycloak.org/server/importExport), [Keycloak OIDC endpoints](https://www.keycloak.org/securing-apps/oidc-layers), and [Keycloak health endpoints](https://www.keycloak.org/observability/health)
+- Phase 6 image pipeline implementation: [Golden Images](GOLDEN-IMAGES.md)
+- Packer and image references: [Packer install documentation](https://developer.hashicorp.com/packer/install), [Packer QEMU plugin](https://developer.hashicorp.com/packer/integrations/hashicorp/qemu), [Packer Ansible plugin](https://developer.hashicorp.com/packer/integrations/hashicorp/ansible), [Ubuntu 26.04 cloud images](https://cloud-images.ubuntu.com/releases/resolute/release/), [CDI DataVolumes](https://github.com/kubevirt/containerized-data-importer/blob/main/doc/datavolumes.md), and [KubeVirt VM access](https://kubevirt.io/user-guide/user_workloads/accessing_virtual_machines/)
 
 ## Selected Platform Version Pins
 
@@ -78,6 +80,13 @@ These pins are Phase 3 implementation inputs as of 2026-08-27. Later phases must
 | Keycloak | 26.7.2 | Phase 5 identity provider from the official Keycloak image. |
 | PostgreSQL | 18.0-alpine | Phase 5 single-instance local persistence for Keycloak. |
 | Traefik Helm chart | 41.2.0 | Phase 5 local ingress controller for `auth.vdiforge.local`. |
+| Packer | 1.16.0 | Phase 6 image build client installed in the Linux/KVM build environment. |
+| Packer QEMU plugin | 1.1.6 | Phase 6 builder for KVM-backed QCOW2 images. |
+| Packer Ansible plugin | 1.1.6 | Phase 6 provisioner for applying Ansible image playbooks during Packer builds. |
+| Ubuntu image source | Ubuntu 26.04 LTS amd64 cloud image | Official cloud-image source with pinned SHA-256 checksum. |
+| Terraform in DevOps image | 1.16.0 | Pinned binary installed into `ubuntu-devops`. |
+| kubectl in DevOps image | v1.36.4 | Matches the local cluster minor/patch version. |
+| Helm in DevOps image | v4.2.4 | Matches the Phase 4/5 administrative Helm client. |
 | Terraform local lab | Terraform 1.15.8 with built-in `terraform_data` | Actual Phase 2 host uses VirtualBox; Terraform validates the lab specification without depending on an alpha VirtualBox provider. |
 | Apache Guacamole | 1.6.0 | Current documented Guacamole release with RDP, VNC, SSH, WebSocket, and container deployment support. |
 
@@ -264,7 +273,17 @@ kubernetes-worker
 
 The current Windows host does not provide a native Ansible control environment. Phase 2 ran syntax, lint, connectivity, and idempotency checks from `vdi-control-01` as a temporary Ubuntu VM controller. Phase 3 continues to use `vdi-control-01` as the practical Ansible controller for kubeadm and add-on bootstrap.
 
-Ansible also participates in golden image configuration by installing packages, hardening defaults, configuring the remote desktop service, and running validation tasks inside images.
+Phase 6 adds dedicated image roles:
+
+```text
+image-common
+image-desktop
+image-developer
+image-devops
+image-cleanup
+```
+
+These roles run inside disposable Packer build guests. They do not configure Kubernetes nodes.
 
 ## Helm Boundary
 
@@ -305,9 +324,11 @@ Initial image catalog:
 
 | Image | Purpose |
 | --- | --- |
-| `ubuntu-base:v1.0.0` | Minimal graphical Ubuntu desktop suitable for remote access. |
-| `ubuntu-developer:v1.0.0` | Developer desktop with Git, Python, build tools, CLI utilities, and a graphical editor or IDE. |
-| `ubuntu-devops:v1.0.0` | Infrastructure desktop with Terraform, Ansible, kubectl, Helm, Git, Python, and useful infrastructure CLIs. |
+| `ubuntu-base:1.0.0` | Minimal XFCE Ubuntu desktop suitable for future remote access. |
+| `ubuntu-developer:1.0.0` | Developer desktop with Git, Python, build tools, CLI utilities, and Geany. |
+| `ubuntu-devops:1.0.0` | Infrastructure desktop with Terraform, Ansible, kubectl, Helm, Git, Python, and useful infrastructure CLIs. |
+
+The catalog is implemented as [../images/catalog.json](../images/catalog.json). It expresses image policy and role eligibility only; Phase 7 must enforce it server-side.
 
 Image lifecycle:
 
@@ -315,7 +336,7 @@ Image lifecycle:
 Trusted Ubuntu Source
         |
         v
-      Packer
+ Packer QEMU Builder
         |
         v
       Ansible
@@ -330,14 +351,19 @@ Trusted Ubuntu Source
  Security Checks
         |
         v
- Versioned Artifact
+ Versioned QCOW2
         |
         v
-      Testing
+  CDI DataVolume
+        |
+        v
+ KubeVirt Boot Test
         |
         v
      Promotion
 ```
+
+Phase 6 uses the official Ubuntu 26.04 LTS amd64 cloud image with checksum `8196be9d7958059cb56c6c75c80fdf6cee8a8885bc149ea791d7db1c7ef93035`. Packer emits local QCOW2 artifacts under ignored `artifacts/images/` paths. CDI imports the `ubuntu-devops` artifact into a disposable DataVolume, and KubeVirt boots it on `vdi-worker-02` using the `vdiforge.io/node-role=vdi` placement label.
 
 Patching should rebuild and promote new versioned images. Rollback changes which image version is offered for new launches. Rollback does not automatically modify already-running VMs.
 
@@ -715,7 +741,7 @@ Phase 2 produced local infrastructure that can host the planned three-node clust
 7. Terraform specification and outputs under `terraform/environments/local`.
 8. Ansible baseline inventory and roles under `ansible`.
 
-Phase 3 installs Kubernetes prerequisites, kubeadm/containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, namespace/RBAC foundations, and validation scripts. Phase 4 installs the Helm deployment client on `vdi-control-01` and deploys the VDIForge foundation release. Phase 5 installs Traefik ingress, Keycloak, PostgreSQL persistence, local TLS, the `vdiforge` realm, OIDC clients, demo identities, and identity validation scripts. Phases 3-5 intentionally do not install the VDIForge FastAPI application, React portal, Guacamole, Prometheus/Grafana, Packer image pipeline, or final Ubuntu desktop images.
+Phase 3 installs Kubernetes prerequisites, kubeadm/containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, namespace/RBAC foundations, and validation scripts. Phase 4 installs the Helm deployment client on `vdi-control-01` and deploys the VDIForge foundation release. Phase 5 installs Traefik ingress, Keycloak, PostgreSQL persistence, local TLS, the `vdiforge` realm, OIDC clients, demo identities, and identity validation scripts. Phase 6 adds the Packer/Ansible golden-image pipeline and KubeVirt boot validation for the DevOps image. Phases 3-6 intentionally do not install the VDIForge FastAPI application, React portal, Guacamole, Prometheus/Grafana, or self-service VDI provisioning.
 
 ## Future Cloud or Bare-Metal Deployment
 

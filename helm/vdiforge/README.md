@@ -1,6 +1,6 @@
 # VDIForge Helm Chart
 
-This chart establishes the Helm-managed VDIForge platform foundation. Phase 4 rendered only shared foundation resources. Phase 5 enables the Keycloak identity foundation through `values-phase5-local.yaml` while leaving Guacamole, FastAPI, React, Prometheus, Grafana, Packer image builds, and VDI desktops unimplemented.
+This chart establishes the Helm-managed VDIForge platform foundation. Phase 4 rendered only shared foundation resources. Phase 5 enables the Keycloak identity foundation through `values-phase5-local.yaml`. Phase 6 adds the separate Packer/Ansible golden-image pipeline outside Helm because it produces VM disk artifacts. Guacamole, FastAPI, React, Prometheus, Grafana, and self-service VDI desktops remain unimplemented.
 
 ## Scope
 

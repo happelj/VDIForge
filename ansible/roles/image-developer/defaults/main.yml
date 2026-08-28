@@ -1,0 +1,14 @@
+vdiforge_image_developer_packages:
+  - build-essential
+  - gcc
+  - g++
+  - geany
+  - git
+  - make
+  - python3-dev
+  - python3-pip
+  - python3-venv
+  - ripgrep
+  - shellcheck
+  - tree
+  - zip

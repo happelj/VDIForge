@@ -375,3 +375,5 @@ The cluster ends Phase 3 as a Kubernetes/KubeVirt foundation only.
 Phase 4 builds on this cluster with Helm-managed VDIForge platform foundation resources. See [Helm Platform Foundation](HELM-PLATFORM.md) for chart ownership, lifecycle validation, quotas, RBAC, and NetworkPolicy conventions.
 
 Phase 5 adds Keycloak/OIDC/RBAC on top of this foundation without modifying KubeVirt. See [Keycloak, OIDC, and RBAC Foundation](KEYCLOAK-OIDC.md).
+
+Phase 6 uses the existing KubeVirt, CDI, and `vdiforge-local-path` foundation to validate a generated Ubuntu golden-image artifact. The `ubuntu-devops:1.0.0` QCOW2 is imported through CDI into a disposable DataVolume/PVC, booted as a KubeVirt VM scheduled with `vdiforge.io/node-role=vdi`, verified on `vdi-worker-02` with a `devices.kubevirt.io/kvm` launcher request, and then cleaned up. See [Golden Images](GOLDEN-IMAGES.md).

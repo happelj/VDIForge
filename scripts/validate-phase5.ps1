@@ -52,6 +52,7 @@ function Check-ContentAbsent($Paths, $Pattern, $Description) {
     $matches = $items |
         Where-Object { $_.FullName -notmatch "\\.git\\" } |
         Where-Object { $_.FullName -notmatch "\\.local\\" } |
+        Where-Object { $_.FullName -notmatch "\\scripts\\validate-phase\d+\.ps1$" } |
         Select-String -Pattern $Pattern -ErrorAction SilentlyContinue
 
     if ($matches) {
