@@ -1,0 +1,68 @@
+{
+  "schemaVersion": "vdiforge.io/image-catalog/v1alpha1",
+  "images": [
+    {
+      "id": "ubuntu-base",
+      "displayName": "Ubuntu Base",
+      "defaultVersion": "1.0.0",
+      "description": "Minimal XFCE-based Ubuntu desktop foundation for future remote access.",
+      "allowedRoles": [
+        "vdi-user",
+        "vdi-developer",
+        "vdi-devops",
+        "vdi-admin"
+      ],
+      "versions": [
+        {
+          "version": "1.0.0",
+          "ubuntuRelease": "26.04 LTS",
+          "architecture": "amd64",
+          "artifactFormat": "qcow2",
+          "lifecycle": "candidate",
+          "manifestPath": "artifacts/images/ubuntu-base/1.0.0/ubuntu-base-1.0.0.manifest.json"
+        }
+      ]
+    },
+    {
+      "id": "ubuntu-developer",
+      "displayName": "Ubuntu Developer",
+      "defaultVersion": "1.0.0",
+      "description": "Ubuntu desktop with development tools for software engineering workflows.",
+      "allowedRoles": [
+        "vdi-developer",
+        "vdi-devops",
+        "vdi-admin"
+      ],
+      "versions": [
+        {
+          "version": "1.0.0",
+          "ubuntuRelease": "26.04 LTS",
+          "architecture": "amd64",
+          "artifactFormat": "qcow2",
+          "lifecycle": "candidate",
+          "manifestPath": "artifacts/images/ubuntu-developer/1.0.0/ubuntu-developer-1.0.0.manifest.json"
+        }
+      ]
+    },
+    {
+      "id": "ubuntu-devops",
+      "displayName": "Ubuntu DevOps",
+      "defaultVersion": "1.0.0",
+      "description": "Ubuntu desktop with platform and infrastructure tools for the VDIForge demonstration.",
+      "allowedRoles": [
+        "vdi-devops",
+        "vdi-admin"
+      ],
+      "versions": [
+        {
+          "version": "1.0.0",
+          "ubuntuRelease": "26.04 LTS",
+          "architecture": "amd64",
+          "artifactFormat": "qcow2",
+          "lifecycle": "candidate",
+          "manifestPath": "artifacts/images/ubuntu-devops/1.0.0/ubuntu-devops-1.0.0.manifest.json"
+        }
+      ]
+    }
+  ]
+}

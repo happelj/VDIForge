@@ -1,0 +1,4 @@
+- name: Install developer image packages
+  ansible.builtin.apt:
+    name: "{{ vdiforge_image_developer_packages }}"
+    state: present

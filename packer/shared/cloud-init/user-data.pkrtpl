@@ -1,0 +1,21 @@
+#cloud-config
+users:
+  - default
+  - name: ${build_username}
+    gecos: VDIForge Packer Build User
+    groups:
+      - adm
+      - sudo
+    shell: /bin/bash
+    lock_passwd: true
+    sudo:
+      - ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - ${ssh_public_key}
+ssh_pwauth: false
+disable_root: true
+package_update: true
+packages:
+  - qemu-guest-agent
+runcmd:
+  - [systemctl, enable, qemu-guest-agent]

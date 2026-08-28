@@ -1,0 +1,28 @@
+vdiforge_image_name: ubuntu-base
+vdiforge_image_version: "1.0.0"
+vdiforge_image_ubuntu_release: "26.04 LTS"
+vdiforge_image_source_checksum: ""
+vdiforge_image_common_packages:
+  - ca-certificates
+  - cloud-init
+  - curl
+  - dbus
+  - dnsutils
+  - git
+  - gnupg
+  - htop
+  - iproute2
+  - jq
+  - less
+  - lsb-release
+  - net-tools
+  - openssh-client
+  - openssh-server
+  - python3
+  - qemu-guest-agent
+  - rsync
+  - software-properties-common
+  - sudo
+  - unzip
+  - vim
+  - wget

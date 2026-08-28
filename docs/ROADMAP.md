@@ -11,7 +11,7 @@ This roadmap defines planned implementation phases. Do not begin a future phase 
 | 3 | Kubernetes/KubeVirt foundation | Complete | kubeadm cluster, containerd, Calico, Metrics Server, KubeVirt, CDI, storage, NetworkPolicy, and test VM validation. |
 | 4 | Helm/platform foundation | Complete | Helm v4.2.4 client, VDIForge foundation chart, release lifecycle, RBAC, quotas, LimitRange, NetworkPolicies, and validation. |
 | 5 | Keycloak/OIDC/RBAC | Complete | Keycloak, PostgreSQL persistence, Traefik ingress, local TLS, realm import, demo users, PKCE/JWT/RBAC validation. |
-| 6 | Ubuntu/Packer image pipeline | Planned | Three versioned Ubuntu desktop images built with Packer and Ansible. |
+| 6 | Ubuntu/Packer image pipeline | Complete | Packer/QEMU image templates, Ansible image roles, image catalog, QCOW2 artifacts, CDI import, and KubeVirt boot validation. |
 | 7 | FastAPI VDI control plane | Planned | API, database models, desktop lifecycle, asynchronous provisioner. |
 | 8 | Guacamole remote desktop | Planned | Guacamole deployment, secure dynamic connection handling, RDP/VNC validation. |
 | 9 | React self-service portal | Planned | Authenticated portal, image catalog, desktop launch, lifecycle, connect/delete UI. |
@@ -93,6 +93,25 @@ Completed outcomes:
 - verified Keycloak state survives ordinary Keycloak pod recreation
 - validated identity NetworkPolicies and previous phase regression health
 
+## Phase 6 - Ubuntu / Packer Golden Image Pipeline
+
+Completed outcomes:
+
+- selected Packer `1.16.0` with the HashiCorp QEMU and Ansible plugins `1.1.6`
+- selected the official Ubuntu 26.04 LTS amd64 cloud image as the trusted source
+- pinned the Ubuntu source SHA-256 checksum in every Packer template
+- created Packer definitions for `ubuntu-base`, `ubuntu-developer`, and `ubuntu-devops`
+- created dedicated Ansible image roles separate from host/Kubernetes roles
+- selected XFCE as the lightweight desktop foundation
+- installed future remote desktop prerequisites without deploying Guacamole
+- selected QCOW2 as the local image artifact format
+- created the machine-readable image catalog at `images/catalog.json`
+- implemented build, catalog, image, CDI import, and KubeVirt validation scripts
+- documented promotion, rollback, patching, security cleanup, and artifact handling
+- kept generated QCOW2 artifacts out of Git
+
+Phase 6 validation requires the final `ubuntu-devops:1.0.0` artifact to import through CDI, boot as a KubeVirt VM on `vdi-worker-02`, request KVM, validate DevOps tools inside the guest, stop, restart, delete, and clean up.
+
 ## Future Enhancements
 
 Potential future work after the MVP:
@@ -120,7 +139,7 @@ The following are intentionally deferred:
 
 - exact Ansible controller path for routine operations after Phase 3
 - Guacamole dynamic connection implementation strategy
-- exact Ubuntu desktop flavor
+- whether future image builds should move from `vdi-worker-02` to a dedicated Linux/KVM build host
 - remote desktop clipboard/file-transfer policy
 - exact security and dependency scanning tools
 - refresh-token handling strategy for the future React portal

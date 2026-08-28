@@ -1,6 +1,6 @@
 # Helm Platform Foundation
 
-This document records the Helm foundation for VDIForge. Phase 4 established repeatable deployment mechanics, resource ownership, platform guardrails, and extension points. Phase 5 extends the same chart with the Keycloak identity foundation while Guacamole, FastAPI, React, Prometheus/Grafana, image pipelines, and VDI desktops remain future work.
+This document records the Helm foundation for VDIForge. Phase 4 established repeatable deployment mechanics, resource ownership, platform guardrails, and extension points. Phase 5 extends the same chart with the Keycloak identity foundation. Phase 6 adds the separate Packer/Ansible image pipeline; Guacamole, FastAPI, React, Prometheus/Grafana, and self-service VDI desktops remain future work.
 
 ## Status
 
@@ -70,7 +70,7 @@ Chart-managed resources:
 | Ingress `vdiforge-keycloak` | `keycloak` | HTTPS ingress for `auth.vdiforge.local`, enabled only by Phase 5 values. |
 | NetworkPolicies `keycloak-*` | `keycloak` | Identity namespace isolation and required allow paths. |
 
-With `values-local.yaml` alone, the chart still renders no application workloads. With `values-phase5-local.yaml`, the chart deploys Keycloak and PostgreSQL only. It does not deploy Guacamole, FastAPI, React, Prometheus, Grafana, HPA objects, image builds, desktop images, or VDI desktops.
+With `values-local.yaml` alone, the chart still renders no application workloads. With `values-phase5-local.yaml`, the chart deploys Keycloak and PostgreSQL only. It does not deploy Guacamole, FastAPI, React, Prometheus, Grafana, HPA objects, image builds, desktop images, or VDI desktops. Phase 6 image builds remain outside Helm because they produce VM disk artifacts rather than Kubernetes application releases.
 
 ## Helm Toolchain
 

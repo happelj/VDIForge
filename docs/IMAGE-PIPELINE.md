@@ -1,6 +1,6 @@
 # Ubuntu Golden Image Pipeline
 
-VDIForge will build desktop images with Packer and Ansible. This document defines the planned image lifecycle for later implementation phases.
+VDIForge builds desktop images with Packer and Ansible. Phase 6 establishes the source-controlled image pipeline, image catalog foundation, artifact validation, CDI import path, and KubeVirt boot proof for `ubuntu-devops:1.0.0`.
 
 ## Image Catalog
 
@@ -8,9 +8,11 @@ Initial images:
 
 | Image | Purpose | Example version |
 | --- | --- | --- |
-| `ubuntu-base` | Minimal graphical Ubuntu desktop suitable for remote access. | `ubuntu-base:v1.0.0` |
-| `ubuntu-developer` | Developer desktop with Git, Python, build tools, CLI utilities, and a graphical editor or IDE. | `ubuntu-developer:v1.0.0` |
-| `ubuntu-devops` | Infrastructure desktop with Terraform, Ansible, kubectl, Helm, Git, Python, and useful infrastructure CLIs. | `ubuntu-devops:v1.0.0` |
+| `ubuntu-base` | Minimal XFCE Ubuntu desktop suitable for future remote access. | `ubuntu-base:1.0.0` |
+| `ubuntu-developer` | Developer desktop with Git, Python, build tools, CLI utilities, and Geany. | `ubuntu-developer:1.0.0` |
+| `ubuntu-devops` | Infrastructure desktop with Terraform, Ansible, kubectl, Helm, Git, and Python. | `ubuntu-devops:1.0.0` |
+
+The machine-readable catalog is [../images/catalog.json](../images/catalog.json).
 
 ## Lifecycle
 
@@ -18,7 +20,7 @@ Initial images:
 Trusted Ubuntu Source
         |
         v
-      Packer
+ Packer QEMU Builder
         |
         v
       Ansible
@@ -33,10 +35,13 @@ Trusted Ubuntu Source
  Security Checks
         |
         v
- Versioned Artifact
+ Versioned QCOW2
         |
         v
-      Testing
+   CDI Import
+        |
+        v
+ KubeVirt Boot Test
         |
         v
      Promotion
@@ -44,15 +49,27 @@ Trusted Ubuntu Source
 
 ## Source Verification
 
-Later Packer templates must:
+The Packer templates:
 
-- use a documented Ubuntu source URL
-- pin the Ubuntu release and image variant
-- verify checksums or signatures where available
+- use the official Ubuntu 26.04 LTS amd64 cloud image
+- pin the source URL
+- verify the published SHA-256 checksum
 - fail closed if the source image cannot be verified
-- record source metadata in the image manifest
+- record source metadata in the generated image manifest
 
-The pipeline must not build from an unverified ad hoc ISO or image file.
+Source:
+
+```text
+https://cloud-images.ubuntu.com/releases/resolute/release/ubuntu-26.04-server-cloudimg-amd64.img
+```
+
+Checksum:
+
+```text
+8196be9d7958059cb56c6c75c80fdf6cee8a8885bc149ea791d7db1c7ef93035
+```
+
+The pipeline must not build from an unverified ad hoc ISO or disk file.
 
 ## Packer Responsibility
 
@@ -66,7 +83,7 @@ Packer owns image build orchestration:
 - producing image metadata
 - writing a versioned manifest
 
-Packer should not contain large shell scripts when an Ansible role can express the configuration more clearly.
+Packer uses the QEMU builder with KVM and emits QCOW2 artifacts under `artifacts/images/`. It should not contain large shell scripts when an Ansible role can express the configuration more clearly.
 
 ## Ansible Responsibility
 
@@ -81,26 +98,25 @@ Ansible owns operating-system configuration inside images:
 - cleanup of temporary build artifacts
 - validation commands
 
-Planned image roles:
+Image roles:
 
 ```text
 image-common
 image-desktop
-image-remote-access
-image-developer-tools
-image-devops-tools
-image-validation
+image-developer
+image-devops
+image-cleanup
 ```
 
 ## Image Contents
 
 ### ubuntu-base
 
-Planned contents:
+Contents:
 
-- Ubuntu graphical desktop environment
-- remote desktop service
-- basic browser and terminal
+- XFCE graphical desktop environment
+- `xrdp` and `xorgxrdp` prerequisites for future Guacamole integration
+- terminal and lightweight graphical utilities
 - guest agent where useful for KubeVirt readiness
 - minimal common CLI utilities
 - security baseline
@@ -113,8 +129,7 @@ Includes `ubuntu-base` plus:
 - Python
 - build tools
 - useful CLI utilities
-- appropriate graphical editor or IDE
-- optional language tooling approved in later phases
+- Geany graphical editor
 
 ### ubuntu-devops
 
@@ -130,13 +145,20 @@ Includes `ubuntu-base` plus:
 
 The final demo uses this image to prove that infrastructure tools execute on the remote VM, not on the thin client.
 
+Pinned binary tools:
+
+| Tool | Version |
+| --- | --- |
+| Terraform | `1.16.0` |
+| kubectl | `v1.36.4` |
+| Helm | `v4.2.4` |
+
 ## Validation
 
-Every promoted image should pass:
+Every promoted image must pass:
 
 - boots successfully under the target KubeVirt runtime
-- remote desktop service starts
-- expected ports are reachable only through approved network paths
+- remote desktop prerequisites are installed
 - expected tools are installed
 - no known default passwords remain
 - package cache and build-time secrets are removed
@@ -150,7 +172,7 @@ hostname
 terraform version
 helm version
 kubectl version --client
-python --version
+python3 --version
 git --version
 ```
 
@@ -159,9 +181,9 @@ git --version
 Use semantic image versions:
 
 ```text
-ubuntu-base:v1.0.0
-ubuntu-developer:v1.0.0
-ubuntu-devops:v1.0.0
+ubuntu-base:1.0.0
+ubuntu-developer:1.0.0
+ubuntu-devops:1.0.0
 ```
 
 Version metadata should include:
@@ -174,6 +196,8 @@ Version metadata should include:
 - Ansible role commit
 - build timestamp
 - validation result
+
+Generated manifests and QCOW2 files are local build outputs under `artifacts/images/` and are ignored by Git.
 
 ## Patching
 
@@ -205,9 +229,18 @@ Images can be marked:
 
 Deprecated images may remain available for existing desktops but should not be offered for new launches unless an admin explicitly overrides policy. Blocked images must not be used for new launches.
 
+## CDI Import and KubeVirt Test
+
+Phase 6 imports `ubuntu-devops:1.0.0` through CDI using a temporary host-only HTTP source and SHA-256 validation. The imported DataVolume backs a disposable KubeVirt VM scheduled by `vdiforge.io/node-role=vdi`. The test validates KVM use by checking the virt-launcher pod's `devices.kubevirt.io/kvm` request.
+
+The final result required for Phase 6 PASS is:
+
+```text
+KUBEVIRT_KVM_VERIFIED
+```
+
 ## Open Questions
 
-- Which exact Ubuntu Desktop flavor provides the best balance of performance and remote desktop compatibility?
-- Which image artifact format will be best for the selected KubeVirt/CDI import path?
 - Should the MVP support persistent home directories or treat desktops as disposable?
 - Which vulnerability scanner will be used in CI without requiring paid services?
+- Whether future image builds should move from `vdi-worker-02` to a dedicated Linux/KVM build host.

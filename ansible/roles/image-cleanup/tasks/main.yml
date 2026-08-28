@@ -1,0 +1,26 @@
+- name: Clean apt package cache
+  ansible.builtin.apt:
+    clean: true
+  changed_when: false
+
+- name: Remove temporary package archives
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /tmp/terraform_1.16.0_linux_amd64.zip
+    - /tmp/helm-v4.2.4-linux-amd64.tar.gz
+    - /tmp/helm-v4.2.4
+
+- name: Clear cloud-init state for clone boot
+  ansible.builtin.command: cloud-init clean --logs
+  changed_when: true
+  failed_when: false
+
+- name: Remove shell history files
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /root/.bash_history
+    - /home/packer/.bash_history

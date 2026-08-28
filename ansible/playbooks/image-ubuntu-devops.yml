@@ -1,0 +1,10 @@
+- name: Build ubuntu-devops golden image
+  hosts: all
+  become: true
+  gather_facts: true
+  roles:
+    - image-common
+    - image-desktop
+    - image-developer
+    - image-devops
+    - image-cleanup

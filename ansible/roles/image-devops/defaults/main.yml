@@ -1,0 +1,12 @@
+vdiforge_image_devops_packages:
+  - ansible
+  - ansible-lint
+  - openssh-client
+  - python3-yaml
+
+vdiforge_image_terraform_version: "1.16.0"
+vdiforge_image_terraform_checksum: "41d05b927aa174f15d1228c4eba832a323b716c68b415ef5a00179f46cc602d3"
+vdiforge_image_kubectl_version: "v1.36.4"
+vdiforge_image_kubectl_checksum: "8b8f088da2dab964f853b38464033b1be15ede2839eca751482357c45abdd05a"
+vdiforge_image_helm_version: "v4.2.4"
+vdiforge_image_helm_checksum: "c306b46f719b0a4da32d0f78ee21bf90ce8d602f15b22ab753f0674d1670a7f3"

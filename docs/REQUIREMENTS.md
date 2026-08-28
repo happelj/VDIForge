@@ -146,6 +146,28 @@ Requirement -> Implementation -> Test -> Evidence -> PASS / FAIL
 | IDP-018 | Runtime identity credentials, TLS private keys, database passwords, and tokens shall not be committed. | Static secret scan and Git diff review. |
 | IDP-019 | Phase 5 validation shall produce explicit static and live PASS/FAIL results. | `scripts/validate-phase5.ps1` and `scripts/validate-phase5-live.sh`. |
 
+## Image Pipeline Requirements
+
+| ID | Requirement | Verification approach |
+| --- | --- | --- |
+| IMG-001 | Phase 6 shall define Ubuntu golden images named `ubuntu-base`, `ubuntu-developer`, and `ubuntu-devops`. | Repository review and image catalog validation. |
+| IMG-002 | Each Phase 6 image definition shall use a pinned Ubuntu 26.04 LTS amd64 source and SHA-256 checksum. | Packer template review and Packer source validation. |
+| IMG-003 | Phase 6 Packer templates shall pin the required Packer version range plus QEMU and Ansible plugin versions. | Packer template review and `packer validate`. |
+| IMG-004 | Packer shall invoke dedicated image Ansible roles instead of embedding large shell configuration blocks. | Template and Ansible role review. |
+| IMG-005 | `ubuntu-base` shall install a lightweight graphical desktop and future remote desktop prerequisites without deploying Guacamole. | In-guest image validation. |
+| IMG-006 | `ubuntu-developer` shall include Git, Python 3, build tooling, common CLI tools, and a lightweight graphical editor. | In-guest image validation. |
+| IMG-007 | `ubuntu-devops` shall include Terraform, Ansible, kubectl, Helm, Git, and Python 3. | In-guest and KubeVirt guest validation. |
+| IMG-008 | Golden images shall remove temporary build credentials, SSH host keys, machine identity, shell history, logs, and temporary files before promotion. | Offline generalization and secret scan review. |
+| IMG-009 | Generated image artifacts shall be versioned QCOW2 files with SHA-256 checksums and build manifests. | Artifact manifest and checksum validation. |
+| IMG-010 | Large generated image artifacts, caches, ISO files, and temporary build credentials shall not be committed to Git. | `.gitignore`, Git tracked-file scan, and secret scan. |
+| IMG-011 | The machine-readable image catalog shall represent all three images, their versions, artifact format, lifecycle state, and allowed-role policy. | `scripts/validate-image-catalog.py`. |
+| IMG-012 | The image catalog shall express policy only and shall not implement application authorization. | Repository review and Phase 7 boundary review. |
+| IMG-013 | At least `ubuntu-devops:1.0.0` shall import through CDI into a DataVolume/PVC using the `vdiforge-local-path` StorageClass. | `scripts/phase6-cdi-kubevirt-test.sh`. |
+| IMG-014 | The `ubuntu-devops:1.0.0` KubeVirt boot test shall schedule through `vdiforge.io/node-role=vdi` and run on `vdi-worker-02`. | VMI and virt-launcher placement checks. |
+| IMG-015 | The `ubuntu-devops:1.0.0` KubeVirt boot test shall verify KVM use by checking the virt-launcher pod's `devices.kubevirt.io/kvm` request. | KubeVirt pod resource assertion. |
+| IMG-016 | The `ubuntu-devops:1.0.0` KubeVirt boot test shall prove guest boot, guest networking, required DevOps tools, stop, restart, delete, and cleanup. | Guest SSH command validation and KubeVirt lifecycle test. |
+| IMG-017 | Phase 6 validation shall produce explicit static and live PASS/FAIL results. | `scripts/validate-phase6.ps1` and `scripts/validate-phase6-live.sh`. |
+
 ## Security Requirements
 
 | ID | Requirement | Verification approach |
@@ -323,3 +345,35 @@ Requirement -> Implementation -> Test -> Evidence -> PASS / FAIL
 | `IDP-017` | [helm/vdiforge/templates/keycloak-networkpolicies.yaml](../helm/vdiforge/templates/keycloak-networkpolicies.yaml), [scripts/phase5-networkpolicy-test.sh](../scripts/phase5-networkpolicy-test.sh) | Deny/allow NetworkPolicy test. | PASS | Identity namespace access is restricted to documented paths. |
 | `IDP-018` | [.gitignore](../.gitignore), [scripts/validate-phase5.ps1](../scripts/validate-phase5.ps1) | Secret scan and Git diff review. | PASS | No runtime identity credentials are committed. |
 | `IDP-019` | [scripts/validate-phase5.ps1](../scripts/validate-phase5.ps1), [scripts/validate-phase5-live.sh](../scripts/validate-phase5-live.sh) | Validator execution. | PASS | Static and live validators produce explicit PASS/FAIL output. |
+
+## Phase 6 Traceability
+
+| Requirement | Implementation reference | Test or evidence | Status | Notes |
+| --- | --- | --- | --- | --- |
+| `NFR-003` | [packer/ubuntu-base](../packer/ubuntu-base), [packer/ubuntu-developer](../packer/ubuntu-developer), [packer/ubuntu-devops](../packer/ubuntu-devops), [docs/GOLDEN-IMAGES.md](GOLDEN-IMAGES.md) | Packer and version pin review. | PASS | Packer, QEMU plugin, Ansible plugin, Ubuntu source, Terraform, kubectl, and Helm pins are documented. |
+| `NFR-008` | [packer](../packer), [ansible/roles/image-common](../ansible/roles/image-common), [docs/GOLDEN-IMAGES.md](GOLDEN-IMAGES.md) | Architecture review. | PASS | Phase 6 adds no Kafka, RabbitMQ, service mesh, OpenStack, Ceph, Vault cluster, Argo CD, Crossplane, or Elasticsearch. |
+| `FR-025` | [images/catalog.json](../images/catalog.json) | Catalog validation. | PASS | Catalog includes Ubuntu Base, Ubuntu Developer, and Ubuntu DevOps. |
+| `FR-026` | [packer/ubuntu-devops](../packer/ubuntu-devops), [scripts/phase6-cdi-kubevirt-test.sh](../scripts/phase6-cdi-kubevirt-test.sh) | Guest command validation in KubeVirt VM. | PASS | Terraform, Helm, kubectl, Python, Git, and Ansible are validated inside the booted image. |
+| `SEC-012` | [packer/ubuntu-base/variables.pkr.hcl](../packer/ubuntu-base/variables.pkr.hcl), [packer/ubuntu-developer/variables.pkr.hcl](../packer/ubuntu-developer/variables.pkr.hcl), [packer/ubuntu-devops/variables.pkr.hcl](../packer/ubuntu-devops/variables.pkr.hcl) | Source checksum review and Packer build. | PASS | Uses official Ubuntu 26.04 LTS amd64 cloud image with pinned SHA-256. |
+| `SEC-013` | [images/catalog.json](../images/catalog.json), [docs/GOLDEN-IMAGES.md](GOLDEN-IMAGES.md) | Promotion model and validation gate review. | PASS | Failed builds must not become `available`; rollback affects new launches only. |
+| `SEC-008` | [.gitignore](../.gitignore), [scripts/validate-phase6.ps1](../scripts/validate-phase6.ps1) | Secret and tracked artifact scan. | PASS | Generated images, temp keys, credentials, and caches are excluded from Git. |
+| `OPS-007` | [docs/RUNBOOK.md](RUNBOOK.md), [docs/GOLDEN-IMAGES.md](GOLDEN-IMAGES.md) | Runbook review. | PASS | Image unavailable, CDI import, and KubeVirt boot failures are documented. |
+| `OPS-010` | [scripts/validate-phase6.ps1](../scripts/validate-phase6.ps1), [scripts/validate-phase6-live.sh](../scripts/validate-phase6-live.sh) | Static and live validation. | PASS | Packer, Ansible, catalog, image, and KubeVirt tests are automated. |
+| `OPS-012` | [scripts/validate-phase6.ps1](../scripts/validate-phase6.ps1), [scripts/validate-phase6-live.sh](../scripts/validate-phase6-live.sh) | Phase validation and Git workflow evidence. | PASS | Phase 6 validators emit explicit PASS/FAIL output. |
+| `IMG-001` | [packer](../packer), [images/catalog.json](../images/catalog.json) | Repository review. | PASS | All three image definitions exist. |
+| `IMG-002` | [packer/ubuntu-base/variables.pkr.hcl](../packer/ubuntu-base/variables.pkr.hcl), [packer/ubuntu-developer/variables.pkr.hcl](../packer/ubuntu-developer/variables.pkr.hcl), [packer/ubuntu-devops/variables.pkr.hcl](../packer/ubuntu-devops/variables.pkr.hcl) | Packer template review. | PASS | All templates pin Ubuntu 26.04 source and checksum. |
+| `IMG-003` | [packer/ubuntu-base/ubuntu-base.pkr.hcl](../packer/ubuntu-base/ubuntu-base.pkr.hcl), [packer/ubuntu-developer/ubuntu-developer.pkr.hcl](../packer/ubuntu-developer/ubuntu-developer.pkr.hcl), [packer/ubuntu-devops/ubuntu-devops.pkr.hcl](../packer/ubuntu-devops/ubuntu-devops.pkr.hcl) | `packer fmt -check` and `packer validate`. | PASS | Packer, QEMU plugin, and Ansible plugin versions are pinned. |
+| `IMG-004` | [ansible/roles/image-common](../ansible/roles/image-common), [ansible/roles/image-desktop](../ansible/roles/image-desktop), [ansible/roles/image-developer](../ansible/roles/image-developer), [ansible/roles/image-devops](../ansible/roles/image-devops) | Template and role review. | PASS | Packer calls Ansible playbooks for OS configuration. |
+| `IMG-005` | [ansible/roles/image-desktop](../ansible/roles/image-desktop) | In-guest validation. | PASS | XFCE and xrdp prerequisites are installed without Guacamole deployment. |
+| `IMG-006` | [ansible/roles/image-developer](../ansible/roles/image-developer) | In-guest validation. | PASS | Developer tooling is installed and checked. |
+| `IMG-007` | [ansible/roles/image-devops](../ansible/roles/image-devops), [packer/shared/scripts/validate-image.sh](../packer/shared/scripts/validate-image.sh) | Guest command validation. | PASS | Terraform, Ansible, kubectl, Helm, Python, and Git checks are required. |
+| `IMG-008` | [packer/shared/scripts/generalize-artifact.sh](../packer/shared/scripts/generalize-artifact.sh), [ansible/roles/image-cleanup](../ansible/roles/image-cleanup) | Generalization and secret scan. | PASS | Build credentials and clone-specific identity are removed from the artifact. |
+| `IMG-009` | [packer/shared/scripts/write-manifest.sh](../packer/shared/scripts/write-manifest.sh) | Artifact checksum and manifest generation. | PASS | Every build emits a QCOW2, SHA-256 file, and JSON manifest. |
+| `IMG-010` | [.gitignore](../.gitignore), [scripts/validate-phase6.ps1](../scripts/validate-phase6.ps1) | Git tracked-file scan. | PASS | Large generated artifacts remain outside Git. |
+| `IMG-011` | [images/catalog.json](../images/catalog.json), [scripts/validate-image-catalog.py](../scripts/validate-image-catalog.py) | Catalog validation. | PASS | Image role policies match the SSO/RBAC design. |
+| `IMG-012` | [images/README.md](../images/README.md), [docs/GOLDEN-IMAGES.md](GOLDEN-IMAGES.md) | Scope review. | PASS | Catalog policy is data only; application authorization remains Phase 7. |
+| `IMG-013` | [scripts/phase6-cdi-kubevirt-test.sh](../scripts/phase6-cdi-kubevirt-test.sh) | CDI DataVolume/PVC validation. | PASS | `ubuntu-devops:1.0.0` imports through CDI using `vdiforge-local-path`. |
+| `IMG-014` | [kubernetes/kubevirt/phase6-ubuntu-devops-vm.template.yaml](../kubernetes/kubevirt/phase6-ubuntu-devops-vm.template.yaml), [scripts/phase6-cdi-kubevirt-test.sh](../scripts/phase6-cdi-kubevirt-test.sh) | VMI placement validation. | PASS | The VM schedules by `vdiforge.io/node-role=vdi` onto `vdi-worker-02`. |
+| `IMG-015` | [scripts/phase6-cdi-kubevirt-test.sh](../scripts/phase6-cdi-kubevirt-test.sh) | virt-launcher resource assertion. | PASS | KVM is verified by `devices.kubevirt.io/kvm` request. |
+| `IMG-016` | [scripts/phase6-cdi-kubevirt-test.sh](../scripts/phase6-cdi-kubevirt-test.sh) | Guest SSH and lifecycle validation. | PASS | Guest boot, networking, DevOps tools, stop, restart, delete, and cleanup are validated. |
+| `IMG-017` | [scripts/validate-phase6.ps1](../scripts/validate-phase6.ps1), [scripts/validate-phase6-live.sh](../scripts/validate-phase6-live.sh) | Validator execution. | PASS | Static and live validators produce explicit PASS/FAIL results. |

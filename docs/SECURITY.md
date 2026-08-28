@@ -1,6 +1,6 @@
 # Security Model
 
-This document defines the VDIForge threat model and security controls. Phase 2 local infrastructure controls, Phase 3 Kubernetes foundation controls, Phase 4 Helm platform controls, and Phase 5 identity controls apply to the current lab. FastAPI application authorization, Guacamole, audit persistence, and image-pipeline controls remain later-phase work.
+This document defines the VDIForge threat model and security controls. Phase 2 local infrastructure controls, Phase 3 Kubernetes foundation controls, Phase 4 Helm platform controls, Phase 5 identity controls, and Phase 6 image-pipeline controls apply to the current lab. FastAPI application authorization, Guacamole, audit persistence, and application observability remain later-phase work.
 
 ## Security Objectives
 
@@ -201,7 +201,23 @@ Phase 5 adds these security-relevant controls:
 - Demo-user RBAC validation confirms unauthorized role absence.
 - Keycloak and PostgreSQL ServiceAccounts disable automatic service account token mounting.
 
-Phase 5 still does not implement FastAPI, React, Guacamole, Prometheus, Grafana, image builds, desktop authorization, or audit persistence.
+Phase 5 still does not implement FastAPI, React, Guacamole, Prometheus, Grafana, desktop authorization, or audit persistence.
+
+## Phase 6 Image Pipeline Security
+
+Phase 6 adds these security-relevant controls:
+
+- Packer `1.16.0`, QEMU plugin `1.1.6`, and Ansible plugin `1.1.6` are pinned.
+- The Ubuntu 26.04 LTS amd64 cloud image source is pinned to a published SHA-256 checksum.
+- Generated QCOW2 artifacts, checksums, Packer caches, temporary SSH keys, and manifests under `artifacts/` are excluded from Git.
+- Packer uses a temporary build SSH key generated under ignored `.local/phase6/`.
+- Offline generalization uses `virt-sysprep` to remove the temporary Packer user, temporary sudoers entries, SSH host keys, machine ID, logs, shell history, and temporary files from the final artifact.
+- The DevOps image installs Terraform, kubectl, and Helm from pinned binary downloads with SHA-256 checksums.
+- The image catalog records role policy but does not implement authorization in the client.
+- CDI import uses a temporary host-only HTTP endpoint and validates the artifact checksum.
+- The KubeVirt boot proof injects a temporary validation SSH key through cloud-init and removes the disposable VM, DataVolume, and PVC after validation.
+
+Phase 6 does not commit passwords, private SSH keys, kubeconfigs, Kubernetes tokens, OIDC tokens, cloud credentials, or generated disk artifacts.
 
 ## Secret Handling
 
@@ -236,6 +252,8 @@ Golden images must use:
 - validation after build
 - dependency and image scanning where practical
 - promotion only after tests pass
+
+Current Phase 6 image security implementation is documented in [Golden Images](GOLDEN-IMAGES.md).
 
 Image rollback affects the catalog entry used for new launches. It does not automatically change running VMs.
 

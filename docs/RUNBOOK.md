@@ -62,6 +62,56 @@ This runbook defines troubleshooting procedures for the VDIForge local lab and p
 | Remediation | Delete only intentionally removed VM folders, prune old ISOs and logs, keep Terraform state and credentials out of Git, recreate affected VMs only from the documented procedure. |
 | Logs/metrics | Windows drive properties, VirtualBox Media Manager, VM logs. |
 
+## Phase 6 Build Host Not Ready
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | `scripts/validate-phase6-live.sh` reports that the Phase 6 build host is not ready; `packer`, `qemu-system-x86_64`, `virt-sysprep`, `ansible-lint`, `/dev/kvm`, or `/boot/vmlinuz-*` checks fail. |
+| Likely causes | `scripts/phase6-install-build-tools.sh` has not been run on `vdi-worker-02`, the current SSH session has not picked up `kvm` group membership, the current kernel image is not readable by the build user for libguestfs, or nested virtualization regressed. |
+| Diagnostics | On `vdi-worker-02`, run `command -v packer`, `qemu-system-x86_64 --version`, `virt-sysprep --version`, `ansible-lint --version`, `ls -l /dev/kvm`, `ls -l /boot/vmlinuz-$(uname -r)`, `id`, and `groups`. |
+| Remediation | Copy or clone the repository to `~/vdiforge-phase6-build`, run `sudo bash scripts/phase6-install-build-tools.sh`, start a new SSH session, verify `/dev/kvm` is readable and writable by the build user and `/boot/vmlinuz-$(uname -r)` is readable, then rerun live validation. |
+| Logs/metrics | Build-host command output, `/tmp/vdiforge-phase6-*` logs, `kubectl top nodes`. |
+
+## Packer Source Checksum Failure
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | Packer fails before booting the build VM with an Ubuntu source checksum mismatch. |
+| Likely causes | The upstream Ubuntu cloud image was refreshed after the pinned checksum was recorded, the download is corrupt, or the source URL was changed without updating the checksum. |
+| Diagnostics | Compare `packer/ubuntu-*/variables.pkr.hcl` against the official Ubuntu `SHA256SUMS`; inspect Packer download logs; remove only the relevant ignored `packer_cache` entry and retry. |
+| Remediation | If Ubuntu intentionally published a new image revision, update the source checksum in all three templates and document the new source date. Do not bypass checksum validation. |
+| Logs/metrics | Packer output, official Ubuntu cloud-image release directory, local `packer_cache`. |
+
+## Packer Image Build Failure
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | `phase6-build-image.sh` or `phase6-build-all.sh` fails during SSH, Ansible provisioning, package installation, image validation, shutdown, or artifact generalization. |
+| Likely causes | Build host lacks KVM access, insufficient RAM/disk, Ubuntu package mirror issue, Packer SSH timeout, QEMU process left behind, Ansible role error, unreadable `/boot/vmlinuz-*` for libguestfs, or `virt-sysprep` failure. |
+| Diagnostics | On `vdi-worker-02`, run `df -h`, `free -h`, `ps aux | grep qemu`, `packer version`, `qemu-img info <artifact>`, `libguestfs-test-tool`, and inspect the Packer console output. |
+| Remediation | Stop stale QEMU processes only after confirming they belong to the failed Packer build, rerun `sudo bash scripts/phase6-install-build-tools.sh` after host kernel updates, free disk space, rerun the specific image build, and keep builds sequential. Do not commit partial artifacts. |
+| Logs/metrics | Packer build output, `artifacts/images/<image>/<version>/`, `/tmp`, `kubectl top nodes`. |
+
+## CDI Import Failure For Golden Image
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | Phase 6 DataVolume does not reach Ready; importer pod fails; PVC remains Pending. |
+| Likely causes | Temporary HTTP artifact endpoint unreachable, checksum mismatch, insufficient storage, local-path provisioner issue, or CDI pod failure. |
+| Diagnostics | `kubectl get datavolume,pvc -n vdiforge-desktops`; `kubectl describe datavolume <name> -n vdiforge-desktops`; `kubectl get pods -n cdi`; check `curl -I http://192.168.56.12:18080/<artifact>`. |
+| Remediation | Restart the temporary artifact HTTP server, verify the artifact checksum, confirm `vdiforge-local-path` exists, free space on `vdi-worker-02`, delete only the disposable Phase 6 DataVolume/PVC, and rerun `scripts/phase6-cdi-kubevirt-test.sh`. |
+| Logs/metrics | CDI importer pod logs, DataVolume conditions, local-path provisioner logs, `/tmp/vdiforge-phase6-image-http.log` on `vdi-worker-02`. |
+
+## Phase 6 KubeVirt Boot Validation Failure
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | `phase6-ubuntu-devops` VMI does not reach Running/Ready, schedules on the wrong node, does not request KVM, guest SSH never becomes ready, or DevOps tool checks fail. |
+| Likely causes | Node label missing, KVM resource unavailable, image did not generalize correctly, cloud-init failed, SSH key injection failed, guest networking failed, or required tools were not installed. |
+| Diagnostics | `kubectl get vmi,vm,pods -n vdiforge-desktops -o wide`; `kubectl describe vmi phase6-ubuntu-devops -n vdiforge-desktops`; inspect virt-launcher pod resources for `devices.kubevirt.io/kvm`; use `virtctl console` only when needed. |
+| Remediation | Verify `vdi-worker-02` has `vdiforge.io/node-role=vdi` and KVM allocatable, rebuild the image if tool validation fails, inspect cloud-init in the guest, and rerun cleanup with `bash scripts/phase6-cdi-kubevirt-test.sh --cleanup-only` before retrying. |
+| Logs/metrics | VMI conditions, virt-launcher pod logs, KubeVirt events, guest cloud-init logs when reachable, `kubectl top nodes`. |
+
 ## Phase 2 Rebuild Procedure
 
 | Area | Detail |

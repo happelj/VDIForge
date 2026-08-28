@@ -1,4 +1,4 @@
-.PHONY: validate-phase1 validate-phase2 validate-phase3 validate-phase3-live validate-phase4 validate-phase4-live validate-phase5 validate-phase5-live install-helm-client phase5-create-secrets phase5-configure-keycloak phase5-oidc-test phase5-networkpolicy-test infra-init infra-plan infra-apply infra-output infra-destroy-spec configure configure-phase3 remove-temp-sudo terraform-init terraform-plan terraform-output ansible-syntax ansible-syntax-phase3 helm-lint helm-template helm-template-phase5
+.PHONY: validate-phase1 validate-phase2 validate-phase3 validate-phase3-live validate-phase4 validate-phase4-live validate-phase5 validate-phase5-live validate-phase6 validate-phase6-live phase6-install-build-tools phase6-build-all phase6-build-devops phase6-kubevirt-test install-helm-client phase5-create-secrets phase5-configure-keycloak phase5-oidc-test phase5-networkpolicy-test infra-init infra-plan infra-apply infra-output infra-destroy-spec configure configure-phase3 remove-temp-sudo terraform-init terraform-plan terraform-output ansible-syntax ansible-syntax-phase3 ansible-syntax-phase6 helm-lint helm-template helm-template-phase5
 
 validate-phase1:
 	pwsh -NoProfile -File ./scripts/validate-phase1.ps1
@@ -23,6 +23,24 @@ validate-phase5:
 
 validate-phase5-live:
 	bash scripts/validate-phase5-live.sh
+
+validate-phase6:
+	pwsh -NoProfile -File ./scripts/validate-phase6.ps1
+
+validate-phase6-live:
+	bash scripts/validate-phase6-live.sh
+
+phase6-install-build-tools:
+	bash scripts/phase6-install-build-tools.sh
+
+phase6-build-all:
+	bash scripts/phase6-build-all.sh
+
+phase6-build-devops:
+	bash scripts/phase6-build-image.sh ubuntu-devops
+
+phase6-kubevirt-test:
+	bash scripts/phase6-cdi-kubevirt-test.sh
 
 install-helm-client:
 	bash scripts/install-helm-client.sh
@@ -83,3 +101,8 @@ ansible-syntax:
 
 ansible-syntax-phase3:
 	cd ansible && ansible-playbook -i inventory/local/hosts.yml playbooks/phase3.yml --syntax-check
+
+ansible-syntax-phase6:
+	cd ansible && ansible-playbook -i localhost, playbooks/image-ubuntu-base.yml --syntax-check
+	cd ansible && ansible-playbook -i localhost, playbooks/image-ubuntu-developer.yml --syntax-check
+	cd ansible && ansible-playbook -i localhost, playbooks/image-ubuntu-devops.yml --syntax-check

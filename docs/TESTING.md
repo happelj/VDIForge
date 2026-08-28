@@ -241,16 +241,50 @@ These commands become active as each area gains implementation files.
 
 ## Image Validation
 
-Every image should prove:
+Phase 6 static validation:
+
+```powershell
+.\scripts\validate-phase6.ps1
+```
+
+Phase 6 live validation from `vdi-control-01`:
+
+```bash
+cd ~/vdiforge-phase6-validation
+bash scripts/validate-phase6-live.sh
+```
+
+The Phase 6 live validator checks:
+
+- all three Kubernetes nodes remain Ready
+- Calico, CoreDNS, Metrics Server, KubeVirt, CDI, storage, Helm foundation, Keycloak, PostgreSQL, and Traefik remain healthy
+- `vdi-worker-02` still exposes the KubeVirt KVM device resource
+- image catalog policy validates
+- no generated disk artifacts are tracked by Git
+- Packer templates pin Packer, QEMU plugin, Ansible plugin, and Ubuntu source checksums
+- Ansible image playbooks pass syntax and lint checks
+- Packer templates pass `packer fmt -check` and `packer validate`
+- `ubuntu-base`, `ubuntu-developer`, and `ubuntu-devops` build sequentially
+- artifact checksums and manifests are generated
+- `ubuntu-devops:1.0.0` imports through CDI
+- the disposable KubeVirt VM schedules on `vdi-worker-02`
+- virt-launcher requests `devices.kubevirt.io/kvm`
+- guest SSH becomes ready through cloud-init key injection
+- DevOps tools execute inside the guest
+- VM stop, restart, delete, and cleanup pass
+
+Every image must prove:
 
 - it boots
 - guest agent or readiness signal works where used
-- remote desktop service starts
+- remote desktop prerequisites are present
 - expected tools exist
 - no build secrets remain
 - package cache is cleaned where appropriate
 - version metadata is available
 - image can be launched through KubeVirt
+
+Packer completion alone is not image validation. At least one versioned artifact, `ubuntu-devops:1.0.0`, must be validated as a real KubeVirt workload for Phase 6 PASS.
 
 ## Remote Desktop Integration Tests
 
