@@ -96,6 +96,8 @@ spec:
               value: {{ .Values.api.env.guacamoleRdpSecurity | quote }}
             - name: VDIFORGE_GUACAMOLE_RDP_SERVER_LAYOUT
               value: {{ .Values.api.env.guacamoleRdpServerLayout | quote }}
+            - name: VDIFORGE_CORS_ALLOWED_ORIGINS
+              value: {{ .Values.api.env.corsAllowedOrigins | quote }}
           volumeMounts:
             - name: keycloak-ca
               mountPath: /var/run/vdiforge/keycloak-ca

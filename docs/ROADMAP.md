@@ -14,7 +14,7 @@ This roadmap defines planned implementation phases. Do not begin a future phase 
 | 6 | Ubuntu/Packer image pipeline | Complete | Packer/QEMU image templates, Ansible image roles, image catalog, QCOW2 artifacts, CDI import, and KubeVirt boot validation. |
 | 7 | FastAPI VDI control plane | Complete | API, database models, desktop lifecycle, asynchronous provisioner, audit persistence, KubeVirt reconciliation. |
 | 8 | Guacamole remote desktop | Complete | Guacamole deployment, secure dynamic connection handling, RDP validation. |
-| 9 | React self-service portal | Planned | Authenticated portal, image catalog, desktop launch, lifecycle, connect/delete UI. |
+| 9 | React self-service portal | Complete | Authenticated portal, image catalog, desktop launch, lifecycle, connect/delete UI. |
 | 10 | HPA/autoscaling | Planned | API/provisioner HPA, controlled load demo, capacity failure handling. |
 | 11 | Prometheus/Grafana | Planned | Metrics, dashboards, alerts, logging correlation. |
 | 12 | Security/audit hardening | Planned | Threat-model controls, audit persistence, secret handling, RBAC hardening, network tests. |
@@ -142,12 +142,31 @@ Completed outcomes:
 - added `POST /api/v1/desktops/{id}/connect`
 - implemented short-lived encrypted Guacamole JSON-auth session brokering
 - created per-desktop generated remote credentials through Kubernetes Secrets consumed by KubeVirt cloud-init
-- promoted `ubuntu-devops:1.1.0` as the current remote-enabled launchable DevOps image version
+- promoted `ubuntu-devops:1.1.0` as the Phase 8 remote-enabled launchable DevOps image version
 - validated internal RDP reachability from the `guacd` network position
 - validated cross-user and guessed-ID connection denial
 - validated stop, restart, reconnect, delete, and Secret cleanup behavior
 - recorded connection request and denial audit events without exposing passwords
 - confirmed Phase 8 does not implement React, Prometheus/Grafana, HPA, Guacamole user self-service connection management, or final CI/CD
+
+## Phase 9 - React Self-Service Portal
+
+Completed outcomes:
+
+- implemented the React/TypeScript portal under `frontend`
+- selected React `19.2.8`, TypeScript `6.0.3`, Vite `8.2.2`, and `oidc-client-ts` `3.5.0`
+- deployed the static frontend image `localhost/vdiforge-frontend:0.9.0` through the existing VDIForge Helm chart
+- exposed the portal at `https://vdiforge.local` through Traefik and generated local TLS
+- used the existing Keycloak public client `vdiforge-frontend` with Authorization Code Flow and PKCE
+- added runtime configuration through a Helm-managed ConfigMap instead of baking local URLs into the frontend image
+- added API CORS support for `https://vdiforge.local`
+- rendered API-authorized image catalog data and desktop lifecycle state in the portal
+- implemented desktop launch with idempotency, lifecycle polling, connect, stop, start, and delete workflows
+- opened the exact API-returned Guacamole handoff URL without exposing reusable remote desktop credentials
+- promoted `ubuntu-devops:1.2.0` as the current launchable DevOps image with the permanent XFCE/xrdp session fix
+- automated the XFCE/xrdp fix in both the image role and per-desktop cloud-init path
+- added frontend unit/component/API-client tests and Phase 9 static/live validation scripts
+- confirmed Phase 9 does not implement HPA, Prometheus/Grafana, final CI/CD, or additional production hardening
 
 ## Future Enhancements
 
@@ -179,7 +198,7 @@ The following are intentionally deferred:
 - remote desktop clipboard/file-transfer policy
 - detailed Guacamole connect/disconnect telemetry beyond API-side connection request audit events
 - exact security and dependency scanning tools
-- refresh-token handling strategy for the future React portal
+- stronger browser token-session hardening beyond the Phase 9 sessionStorage and PKCE baseline
 - whether the future API needs a separate confidential admin/service client
 - whether the local API image import workflow should move to a registry before CI/CD
 

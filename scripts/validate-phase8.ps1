@@ -114,10 +114,10 @@ foreach ($pin in @(
 }
 
 $chart = Get-Content "helm/vdiforge/Chart.yaml" -Raw
-if ($chart -match "version:\s+0\.8\.0" -and $chart -match "appVersion:\s+`"0\.8\.0`"") {
-    Pass "Helm chart version advanced to 0.8.0"
+if ($chart -match "version:\s+0\.(8|9)\.0" -and $chart -match "appVersion:\s+`"0\.(8|9)\.0`"") {
+    Pass "Helm chart version remains at or above the Phase 8 baseline"
 } else {
-    Fail "Helm chart version/appVersion is not 0.8.0"
+    Fail "Helm chart version/appVersion is below the Phase 8 baseline"
 }
 
 $catalog = Get-Content "images/catalog.json" -Raw | ConvertFrom-Json

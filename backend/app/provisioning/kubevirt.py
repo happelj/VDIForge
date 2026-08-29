@@ -240,6 +240,8 @@ class KubeVirtClient:
 users:
   - name: {username}
     gecos: VDIForge Desktop User
+    homedir: /home/{username}
+    create_home: true
     groups:
       - sudo
     shell: /bin/bash
@@ -255,13 +257,21 @@ chpasswd:
 ssh_pwauth: false
 disable_root: true
 write_files:
-  - path: /home/{username}/.xsession
-    owner: {username}:{username}
+  - path: /etc/X11/Xwrapper.config
+    owner: root:root
     permissions: '0644'
     content: |
-      startxfce4
+      allowed_users=anybody
+      needs_root_rights=yes
 runcmd:
+  - [mkdir, -p, /home/{username}]
+  - [sh, -c, "printf 'startxfce4\n' > /home/{username}/.xsession"]
+  - [chown, -R, {username}:{username}, /home/{username}]
+  - [chmod, '0755', /home/{username}]
+  - [chmod, '0644', /home/{username}/.xsession]
   - [systemctl, enable, --now, xrdp]
+  - [systemctl, restart, xrdp-sesman]
+  - [systemctl, restart, xrdp]
 """
 
     def _labels(self, desktop: Desktop) -> dict[str, str]:

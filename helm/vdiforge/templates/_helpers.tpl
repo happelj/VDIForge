@@ -63,6 +63,10 @@ app.kubernetes.io/part-of: vdiforge
 {{- required "serviceAccounts.api.name is required" .Values.serviceAccounts.api.name -}}
 {{- end -}}
 
+{{- define "vdiforge.serviceAccount.frontendName" -}}
+{{- required "serviceAccounts.frontend.name is required" .Values.serviceAccounts.frontend.name -}}
+{{- end -}}
+
 {{- define "vdiforge.serviceAccount.provisionerName" -}}
 {{- required "serviceAccounts.provisioner.name is required" .Values.serviceAccounts.provisioner.name -}}
 {{- end -}}
@@ -88,6 +92,30 @@ app.kubernetes.io/name: {{ include "vdiforge.api.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 app.kubernetes.io/component: api
+app.kubernetes.io/part-of: vdiforge
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- with .Values.global.labels }}
+{{ toYaml . }}
+{{- end }}
+{{- end -}}
+
+{{- define "vdiforge.frontend.name" -}}
+{{- required "frontend.name is required" .Values.frontend.name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "vdiforge.frontend.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "vdiforge.frontend.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: frontend
+app.kubernetes.io/part-of: vdiforge
+{{- end -}}
+
+{{- define "vdiforge.frontend.labels" -}}
+helm.sh/chart: {{ include "vdiforge.chart" . }}
+app.kubernetes.io/name: {{ include "vdiforge.frontend.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+app.kubernetes.io/component: frontend
 app.kubernetes.io/part-of: vdiforge
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- with .Values.global.labels }}

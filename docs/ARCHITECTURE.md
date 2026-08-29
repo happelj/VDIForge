@@ -1,6 +1,6 @@
 # VDIForge Architecture
 
-This document contains architecture views for VDIForge. The local VirtualBox infrastructure, Kubernetes/KubeVirt foundation, Helm platform foundation, Keycloak identity foundation, golden-image pipeline, FastAPI control plane, and Guacamole remote desktop flow reflect Phases 2 through 8. Diagrams that include the React portal and full observability flows remain planned until their later implementation phases.
+This document contains architecture views for VDIForge. The local VirtualBox infrastructure, Kubernetes/KubeVirt foundation, Helm platform foundation, Keycloak identity foundation, golden-image pipeline, FastAPI control plane, Guacamole remote desktop flow, and React portal reflect Phases 2 through 9. Full observability and autoscaling flows remain planned until their later implementation phases.
 
 ## System Context
 
@@ -164,7 +164,8 @@ flowchart TB
   NP[NetworkPolicies<br/>default deny, DNS, Kubernetes API egress]
   Identity[Phase 5 identity resources<br/>Keycloak, PostgreSQL, identity policies]
   Remote[Phase 8 remote desktop<br/>Guacamole and guacd]
-  Future[Future application charts<br/>portal and monitoring]
+  Portal[Phase 9 portal<br/>React and nginx]
+  Future[Future application charts<br/>monitoring and autoscaling]
 
   Git --> Helm
   Helm --> Release
@@ -176,6 +177,7 @@ flowchart TB
   Release --> NP
   Release --> Identity
   Release --> Remote
+  Release --> Portal
   Release -. later phases .-> Future
 ```
 
@@ -212,7 +214,7 @@ flowchart TB
   W1 --> PG
 ```
 
-The identity foundation proves OIDC discovery, JWKS, Authorization Code Flow with PKCE, signed JWT validation, expected role claims, unauthorized role absence, negative security cases, and persistence after Keycloak pod recreation. Phase 7 and Phase 8 consume those Keycloak access tokens from the FastAPI API. React remains planned.
+The identity foundation proves OIDC discovery, JWKS, Authorization Code Flow with PKCE, signed JWT validation, expected role claims, unauthorized role absence, negative security cases, and persistence after Keycloak pod recreation. Phase 7 and Phase 8 consume those Keycloak access tokens from the FastAPI API, and Phase 9 uses the public `vdiforge-frontend` client from the React portal.
 
 ## API Control Plane
 
@@ -253,7 +255,7 @@ sequenceDiagram
   participant K as Keycloak
   participant A as FastAPI
 
-  B->>P: Open VDIForge
+  B->>P: Open https://vdiforge.local
   P->>K: Redirect using OIDC Authorization Code Flow with PKCE
   K->>B: Authenticate user
   K->>P: Return authorization code
@@ -326,7 +328,7 @@ stateDiagram-v2
 ```mermaid
 sequenceDiagram
   autonumber
-  participant B as Browser or validation client
+  participant B as React portal / browser
   participant A as FastAPI
   participant D as PostgreSQL
   participant K as Kubernetes API
@@ -379,7 +381,7 @@ flowchart TB
   VM --> KVM
 ```
 
-Phase 6 builds `ubuntu-base`, `ubuntu-developer`, and `ubuntu-devops` image definitions. The required integration proof imports the generated `ubuntu-devops:1.0.0` QCOW2 through CDI, schedules a disposable VM by `vdiforge.io/node-role=vdi`, verifies it runs on `vdi-worker-02`, verifies the KVM request, validates DevOps tooling inside the guest, and cleans up the disposable VM resources. Phase 8 builds/imports `ubuntu-devops:1.1.0` as the current launchable DevOps image for remote desktop validation.
+Phase 6 builds `ubuntu-base`, `ubuntu-developer`, and `ubuntu-devops` image definitions. The required integration proof imports the generated `ubuntu-devops:1.0.0` QCOW2 through CDI, schedules a disposable VM by `vdiforge.io/node-role=vdi`, verifies it runs on `vdi-worker-02`, verifies the KVM request, validates DevOps tooling inside the guest, and cleans up the disposable VM resources. Phase 8 builds/imports `ubuntu-devops:1.1.0` for remote desktop validation. Phase 9 promotes `ubuntu-devops:1.2.0` as the current launchable DevOps image with the permanent XFCE/xrdp session fix.
 
 Image rollback changes the promoted version for new launches only. Running desktops are not silently modified by rollback.
 

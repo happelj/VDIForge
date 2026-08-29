@@ -1,6 +1,6 @@
 # VDIForge Helm Chart
 
-This chart establishes the Helm-managed VDIForge platform foundation. Phase 4 rendered only shared foundation resources. Phase 5 enables the Keycloak identity foundation through `values-phase5-local.yaml`. Phase 6 adds the separate Packer/Ansible golden-image pipeline outside Helm because it produces VM disk artifacts. Phase 7 enables the FastAPI API, asynchronous provisioner, application PostgreSQL, migrations, API ingress, and API-specific NetworkPolicies through `values-phase7-local.yaml`. Phase 8 enables Apache Guacamole, `guacd`, remote desktop ingress/TLS, API remote-session RBAC, and Guacamole NetworkPolicies through `values-phase8-local.yaml`. React, Prometheus, Grafana, and the browser portal remain unimplemented.
+This chart establishes the Helm-managed VDIForge platform foundation. Phase 4 rendered only shared foundation resources. Phase 5 enables the Keycloak identity foundation through `values-phase5-local.yaml`. Phase 6 adds the separate Packer/Ansible golden-image pipeline outside Helm because it produces VM disk artifacts. Phase 7 enables the FastAPI API, asynchronous provisioner, application PostgreSQL, migrations, API ingress, and API-specific NetworkPolicies through `values-phase7-local.yaml`. Phase 8 enables Apache Guacamole, `guacd`, remote desktop ingress/TLS, API remote-session RBAC, and Guacamole NetworkPolicies through `values-phase8-local.yaml`. Phase 9 enables the React portal through `values-phase9-local.yaml`. Prometheus, Grafana, HPA, and final production hardening remain unimplemented.
 
 ## Scope
 
@@ -16,6 +16,7 @@ Chart-managed resources:
 - optional Phase 5 Keycloak, PostgreSQL, identity ingress, identity ResourceQuota, and identity NetworkPolicies
 - optional Phase 7 FastAPI API, provisioner, app PostgreSQL, migration Job, API ingress, and API NetworkPolicies
 - optional Phase 8 Guacamole, `guacd`, remote desktop ingress, API remote-session RBAC, Guacamole ResourceQuota/LimitRange, and Guacamole NetworkPolicies
+- optional Phase 9 React frontend Deployment, Service, Ingress, runtime ConfigMap, ServiceAccount, and frontend NetworkPolicy
 
 Cluster add-ons from Phase 3 remain outside this chart:
 
@@ -138,6 +139,43 @@ The Windows hosts-file helper includes this hostname:
 .\scripts\phase5-windows-hosts-and-trust.ps1
 ```
 
+## Install Phase 9 React Portal
+
+Create runtime-only portal TLS material, build/load the frontend image, and prepare the current remote-enabled DevOps source PVC:
+
+```bash
+bash scripts/phase9-create-local-secrets.sh
+bash scripts/phase9-build-load-frontend-image.sh
+PHASE7_IMAGE=localhost/vdiforge-api:0.9.0 \
+  PHASE7_IMAGE_TAR=/tmp/vdiforge-api-0.9.0.tar \
+  bash scripts/phase7-build-load-image.sh
+VDIFORGE_IMAGE_VERSION=1.2.0 bash scripts/phase8-build-remote-image.sh
+VDIFORGE_IMAGE_VERSION=1.2.0 bash scripts/phase8-prepare-remote-source.sh
+```
+
+Install or upgrade with Phase 5, Phase 7, Phase 8, and Phase 9 values:
+
+```bash
+kubectl delete job vdiforge-api-migrations -n vdiforge-system --ignore-not-found=true --wait=true
+helm upgrade --install vdiforge ./helm/vdiforge \
+  --namespace vdiforge-system \
+  --values ./helm/vdiforge/values-local.yaml \
+  --values ./helm/vdiforge/values-phase5-local.yaml \
+  --values ./helm/vdiforge/values-phase7-local.yaml \
+  --values ./helm/vdiforge/values-phase8-local.yaml \
+  --values ./helm/vdiforge/values-phase9-local.yaml \
+  --take-ownership \
+  --force-conflicts \
+  --wait \
+  --wait-for-jobs
+```
+
+Phase 9 exposes the portal at:
+
+```text
+https://vdiforge.local
+```
+
 ## Validate
 
 ```bash
@@ -181,6 +219,19 @@ helm template vdiforge ./helm/vdiforge \
   --kube-version 1.36.4
 ```
 
+Render with the React portal enabled:
+
+```bash
+helm template vdiforge ./helm/vdiforge \
+  --namespace vdiforge-system \
+  --values ./helm/vdiforge/values-local.yaml \
+  --values ./helm/vdiforge/values-phase5-local.yaml \
+  --values ./helm/vdiforge/values-phase7-local.yaml \
+  --values ./helm/vdiforge/values-phase8-local.yaml \
+  --values ./helm/vdiforge/values-phase9-local.yaml \
+  --kube-version 1.36.4
+```
+
 For live validation:
 
 ```bash
@@ -188,6 +239,7 @@ bash scripts/validate-phase4-live.sh
 bash scripts/validate-phase5-live.sh
 bash scripts/validate-phase7-live.sh
 bash scripts/validate-phase8-live.sh
+bash scripts/validate-phase9-live.sh
 ```
 
 ## Values
@@ -204,11 +256,12 @@ The values file includes disabled future sections for:
 - Guacamole
 - monitoring
 
-These values are extension points unless enabled by a phase-specific values file. Phase 7 enables the API/provisioner values, and Phase 8 enables Guacamole values. Frontend, monitoring, and HPA remain future work.
+These values are extension points unless enabled by a phase-specific values file. Phase 7 enables the API/provisioner values, Phase 8 enables Guacamole values, and Phase 9 enables frontend values. Monitoring and HPA remain future work.
 
 `keycloak.enabled` remains `false` in `values.yaml`. Phase 5 enables it only through `values-phase5-local.yaml`.
 `api.enabled`, `provisioner.enabled`, `applicationDatabase.enabled`, and `migrations.enabled` remain `false` in `values.yaml`. Phase 7 enables them only through `values-phase7-local.yaml`.
 `guacamole.enabled` remains `false` in `values.yaml`. Phase 8 enables it only through `values-phase8-local.yaml`.
+`frontend.enabled` remains `false` in `values.yaml`. Phase 9 enables it only through `values-phase9-local.yaml`.
 
 ## Ownership
 

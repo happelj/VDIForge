@@ -14,7 +14,7 @@ VDIForge will use requirements-driven testing. Later phases should trace tests b
 
 ## Backend Tests
 
-Phase 7 and Phase 8 Python tests cover:
+Phase 7, Phase 8, and Phase 9 Python tests cover:
 
 - model validation
 - API request validation
@@ -30,16 +30,21 @@ Phase 7 and Phase 8 Python tests cover:
 - Guacamole JSON-auth token generation
 - remote connection authorization and state denial
 - remote credential non-disclosure in API responses
+- trusted portal HTTPS access
+- portal runtime configuration secrecy
+- portal/API CORS validation
+- OIDC-backed portal-equivalent launch/connect/delete workflows
+- role-specific image visibility through real API responses
 
 Run the current backend checks through the repository validator:
 
 ```powershell
-.\scripts\validate-phase8.ps1
+.\scripts\validate-phase9.ps1
 ```
 
 ## Frontend Tests
 
-Planned React tests:
+Implemented Phase 9 React tests:
 
 - OIDC login redirect behavior
 - authenticated/unauthenticated route states
@@ -49,6 +54,8 @@ Planned React tests:
 - disabled or hidden controls for usability
 - connect button state
 - error states
+- logout handler behavior
+- API client request shape, bearer-token headers, request IDs, and idempotency keys
 
 Frontend tests must not be treated as authorization proof. Backend authorization tests are required.
 
@@ -296,6 +303,21 @@ bash scripts/validate-phase8-live.sh
 
 The Phase 8 live validator checks cluster regression health, Helm lint/render/server dry-run, runtime-only Guacamole secrets, `ubuntu-devops:1.1.0` source PVC, API image `localhost/vdiforge-api:0.8.0`, Guacamole/`guacd` rollout, trusted HTTPS access to `remote.vdiforge.local`, Guacamole restart persistence, Guacamole NetworkPolicy allow/deny behavior, OIDC-backed connect authorization, internal RDP reachability from the `guacd` network position, provisioner RDP reachability before `READY`, Guacamole JSON-auth token exchange, stop/restart/reconnect/delete lifecycle, cleanup of the per-desktop remote Secret, and connection audit events.
 
+Phase 9 static validation:
+
+```powershell
+.\scripts\validate-phase9.ps1
+```
+
+Phase 9 live validation from `vdi-control-01`:
+
+```bash
+cd ~/vdiforge-phase9-validation
+bash scripts/validate-phase9-live.sh
+```
+
+The Phase 9 live validator checks cluster regression health, Helm lint/render/server dry-run, portal TLS, frontend image rollout, runtime configuration, CORS, OIDC/PKCE, role-specific image visibility, `ubuntu-devops:1.2.0` launch, Guacamole handoff, audit events, cleanup, and KubeVirt/KVM regression health.
+
 ## Image Validation
 
 Phase 6 static validation:
@@ -360,8 +382,26 @@ Implemented Phase 8 checks:
 Still planned:
 
 - clipboard policy behavior
-- browser UX tests for a React Connect button
 - detailed connect/disconnect session telemetry
+
+## Web Portal Integration Tests
+
+Phase 9 portal tests:
+
+- frontend linting, unit/component tests, and production build
+- Helm rendering of frontend Deployment, Service, Ingress, ConfigMap, ServiceAccount, and NetworkPolicy
+- trusted HTTPS access to `https://vdiforge.local`
+- runtime-config inspection for public values only
+- CORS preflight from `https://vdiforge.local` to `https://api.vdiforge.local`
+- OIDC Authorization Code Flow with PKCE using the existing Keycloak public client
+- role-specific image visibility for demo identities
+- portal-equivalent launch of `ubuntu-devops:1.2.0`
+- lifecycle polling until `READY`
+- Connect URL validation without plaintext remote credentials
+- audit-event validation for connection requests
+- desktop deletion and Kubernetes cleanup
+
+The optional browser proof opens the portal, signs in as `demo-devops`, launches a desktop, waits for Ready, opens Guacamole, and verifies the XFCE desktop works without manual guest remediation.
 
 ## End-to-End Test
 

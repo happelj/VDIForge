@@ -5,6 +5,7 @@ from uuid import uuid4
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app import __version__
@@ -21,8 +22,18 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="VDIForge API",
         version=__version__,
-        description="FastAPI VDI control plane and Guacamole session broker for VDIForge Phase 8.",
+        description="FastAPI VDI control plane and Guacamole session broker for VDIForge.",
     )
+
+    if settings.cors_allowed_origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=settings.cors_allowed_origins,
+            allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+            allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "X-Request-ID"],
+            expose_headers=["X-Request-ID"],
+            allow_credentials=False,
+        )
 
     @app.middleware("http")
     async def request_id_middleware(request: Request, call_next):

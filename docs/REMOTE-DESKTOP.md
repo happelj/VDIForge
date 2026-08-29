@@ -1,8 +1,8 @@
 # Remote Desktop Delivery
 
-Phase 8 implements the browser-based remote desktop delivery foundation for VDIForge. It deploys Apache Guacamole and `guacd`, adds a server-side FastAPI connect endpoint, brokers short-lived Guacamole JSON auth sessions, and validates RDP reachability to KubeVirt desktops.
+Phase 8 implements the browser-based remote desktop delivery foundation for VDIForge. It deploys Apache Guacamole and `guacd`, adds a server-side FastAPI connect endpoint, brokers short-lived Guacamole JSON auth sessions, and validates RDP reachability to KubeVirt desktops. Phase 9 connects this flow to the React portal.
 
-This phase does not implement the React portal. The Phase 8 validation client calls the API directly and uses the returned Guacamole URL as the browser handoff artifact.
+Phase 9 uses the same server-side broker from the portal: the frontend requests `POST /api/v1/desktops/{id}/connect` only for a READY or CONNECTED desktop, then opens the exact returned Guacamole URL without seeing reusable RDP credentials.
 
 ## Status
 
@@ -13,11 +13,11 @@ This phase does not implement the React portal. The Phase 8 validation client ca
 | Namespace | `guacamole` |
 | Public hostname | `remote.vdiforge.local` |
 | Protocol | RDP through `xrdp` |
-| API version | `0.8.0` |
+| API version | `0.9.0` |
 | Session TTL | 300 seconds |
 | Runtime secret | `vdiforge-guacamole-json-secret` |
 | TLS secret | `vdiforge-guacamole-tls` |
-| Remote-enabled image | `ubuntu-devops:1.1.0` |
+| Remote-enabled image | `ubuntu-devops:1.2.0` |
 
 Authoritative references:
 
@@ -173,9 +173,9 @@ Phase 8 deploys:
 
 The Guacamole namespace quota permits the steady-state Guacamole and `guacd` pods plus one rolling replacement of each service. Temporary validation probes use explicit tiny resource limits so they do not consume the namespace defaults.
 
-The Phase 8 local values also raise the `vdiforge-desktops` storage quota to `180Gi` and `16` PVCs. This is declared quota, not a claim that the VirtualBox lab has physically independent 180 GiB storage capacity. The higher cap is needed because Phase 8 can temporarily hold the Phase 7 source image, the Phase 8 remote-enabled source image, CDI scratch space, and one cloned disposable desktop root volume at the same time.
+The Phase 8 and Phase 9 local values raise the `vdiforge-desktops` storage quota to `180Gi` and `16` PVCs. This is declared quota, not a claim that the VirtualBox lab has physically independent 180 GiB storage capacity. The higher cap is needed because validation can temporarily hold historical source images, the current remote-enabled source image, CDI scratch space, and one cloned disposable desktop root volume at the same time.
 
-The Phase 8 remote-enabled validation image overrides the general Phase 6 Packer default with a `15G` virtual disk and imports it into a `20Gi` source DataVolume. This keeps the no-cost VirtualBox lab reproducible on the current 60 GiB VDI worker disk while still proving the Guacamole/RDP session path. Larger production images remain a later deployment-sizing decision.
+The Phase 9 remote-enabled validation image overrides the general Phase 6 Packer default with a `15G` virtual disk and imports it into a `20Gi` source DataVolume. This keeps the no-cost VirtualBox lab reproducible on the current 60 GiB VDI worker disk while still proving the Guacamole/RDP session path. Larger production images remain a later deployment-sizing decision.
 
 ## NetworkPolicy
 
@@ -218,8 +218,8 @@ The live validator checks:
 - trusted HTTPS access to `remote.vdiforge.local`
 - Guacamole restart persistence
 - NetworkPolicy allow/deny behavior
-- `ubuntu-devops:1.1.0` source PVC preparation
-- API image `localhost/vdiforge-api:0.8.0`
+- `ubuntu-devops:1.2.0` source PVC preparation
+- API image `localhost/vdiforge-api:0.9.0`
 - desktop launch to `READY`
 - VM placement on `vdi-worker-02`
 - KVM request on the virt-launcher pod
@@ -233,12 +233,12 @@ For a manual browser proof, run the E2E helper with `--keep-desktop`, open the g
 
 ## Limitations
 
-- The React portal is not implemented until Phase 9.
-- Phase 8 proves the Guacamole handoff and RDP path with automation; a polished user-facing Connect button is deferred.
+- Detailed browser disconnect/session telemetry remains deferred.
+- Phase 9 proves the user-facing Connect button against the same Guacamole handoff path.
 - Guacamole uses JSON auth for dynamic connection handoff and does not persist user-managed connections.
 - The API can read per-desktop remote credential Secrets in `vdiforge-desktops`; application authorization gates this access. Kubernetes RBAC cannot restrict those reads by dynamic Secret name prefix.
 - Actual connect/disconnect telemetry is limited. The API records connection requests and denials, not every browser disconnect.
 - Clipboard and file-transfer policy remain conservative and should be revisited during the final demo hardening phase.
 - Local TLS still depends on the generated development CA being trusted on the browser client.
 - CDI may require scratch space when importing the remote-enabled qcow2 source image. Phase 8 configures CDI `scratchSpaceStorageClass` to `vdiforge-local-path` during source PVC preparation so the conversion path is reproducible in the local lab.
-- The Phase 8 validation image is sized for the current local lab, not for long-lived user profile storage.
+- The Phase 9 validation image is sized for the current local lab, not for long-lived user profile storage.

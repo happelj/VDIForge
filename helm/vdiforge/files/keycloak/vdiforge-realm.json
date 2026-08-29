@@ -63,7 +63,7 @@
     {
       "clientId": "vdiforge-frontend",
       "name": "VDIForge Frontend",
-      "description": "Public browser client for the future React portal.",
+      "description": "Public browser client for the React portal.",
       "enabled": true,
       "protocol": "openid-connect",
       "publicClient": true,

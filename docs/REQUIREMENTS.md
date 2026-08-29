@@ -214,6 +214,28 @@ Requirement -> Implementation -> Test -> Evidence -> PASS / FAIL
 | RDP-016 | Phase 8 validation shall produce explicit static and live PASS/FAIL results. | `scripts/validate-phase8.ps1` and `scripts/validate-phase8-live.sh`. |
 | RDP-017 | The provisioner shall not mark a desktop `READY` until the KubeVirt VMI is ready and the internal remote desktop TCP port is reachable. | Reconciler test and live RDP reachability validation. |
 
+## Web Portal Requirements
+
+| ID | Requirement | Verification approach |
+| --- | --- | --- |
+| WEB-001 | Phase 9 shall implement a React and TypeScript self-service portal deployed at `https://vdiforge.local` through Helm. | Frontend build, Helm render, rollout, and trusted HTTPS validation. |
+| WEB-002 | The portal shall authenticate users with Keycloak client `vdiforge-frontend` using Authorization Code Flow with PKCE. | OIDC browser/client configuration review and live PKCE validation. |
+| WEB-003 | The browser bundle and runtime configuration shall not contain client secrets, reusable remote desktop credentials, Kubernetes credentials, raw JWTs, refresh tokens, or database credentials. | Static secret scan and runtime-config inspection. |
+| WEB-004 | The portal shall call the FastAPI API with bearer tokens, request IDs, and configured runtime API base URL. | API client unit tests and live API validation. |
+| WEB-005 | The image catalog view shall render only images returned by `GET /api/v1/images` for the authenticated user. | Component tests and live role-visibility validation. |
+| WEB-006 | The launch workflow shall submit only API-supported image ID, resource profile, display name, and idempotency key fields. | API client tests and live desktop launch validation. |
+| WEB-007 | The desktop views shall poll lifecycle state and render user-safe labels for API states. | Component tests and live provisioning validation. |
+| WEB-008 | The Connect action shall be enabled only for `READY` or `CONNECTED` desktops and shall open the API-returned Guacamole URL exactly as returned. | Component tests and live connection URL validation. |
+| WEB-009 | Stop, start, and delete controls shall call the documented API endpoints and rely on API-side authorization/state enforcement. | Component tests and live lifecycle validation. |
+| WEB-010 | The portal shall provide loading, empty, and expected-error states without exposing implementation secrets. | Component tests and static review. |
+| WEB-011 | The frontend container shall run as a non-root, static nginx workload with no mounted Kubernetes ServiceAccount token. | Helm template review and live pod spec validation. |
+| WEB-012 | The frontend workload shall target the platform node role label and shall not hardcode node names. | Helm template/static validation and live pod scheduling check. |
+| WEB-013 | The Helm chart shall provide a frontend NetworkPolicy path from Traefik to the frontend Service without giving the frontend pod direct access to platform control services. | Rendered NetworkPolicy review and live validation. |
+| WEB-014 | Phase 9 shall promote `ubuntu-devops:1.2.0` as the current launchable DevOps image for new portal-launched desktops. | Image catalog validation and live desktop launch evidence. |
+| WEB-015 | Phase 9 shall permanently automate the xrdp/XFCE session fix in the image role and launch-time cloud-init path. | Ansible role review, cloud-init test, and browser/remote desktop validation. |
+| WEB-016 | Phase 9 validation shall produce explicit static and live PASS/FAIL results. | `scripts/validate-phase9.ps1` and `scripts/validate-phase9-live.sh`. |
+| WEB-017 | Phase 9 shall not implement Prometheus/Grafana, application HPA, final CI/CD, or new VDI golden-image families beyond the required DevOps session fix. | Scope review. |
+
 ## Security Requirements
 
 | ID | Requirement | Verification approach |
@@ -518,3 +540,38 @@ Requirement -> Implementation -> Test -> Evidence -> PASS / FAIL
 | `RDP-015` | [backend/app/services/desktops.py](../backend/app/services/desktops.py), [backend/app/audit/service.py](../backend/app/audit/service.py) | Audit API and secret-pattern validation. | PASS | Audit events contain metadata but not credentials. |
 | `RDP-016` | [scripts/validate-phase8.ps1](../scripts/validate-phase8.ps1), [scripts/validate-phase8-live.sh](../scripts/validate-phase8-live.sh) | Validator execution. | PASS | Phase 8 validators emit explicit PASS/FAIL output. |
 | `RDP-017` | [backend/app/provisioning/reconciler.py](../backend/app/provisioning/reconciler.py), [backend/app/provisioning/kubevirt.py](../backend/app/provisioning/kubevirt.py), [helm/vdiforge/templates/networkpolicies.yaml](../helm/vdiforge/templates/networkpolicies.yaml) | Reconciler unit test and live E2E validation. | PASS | `READY` requires both VMI readiness and provisioner access to the configured remote desktop port. |
+
+## Phase 9 Traceability
+
+| Requirement | Implementation reference | Test or evidence | Status | Notes |
+| --- | --- | --- | --- | --- |
+| `NFR-003` | [frontend/package.json](../frontend/package.json), [frontend/package-lock.json](../frontend/package-lock.json), [helm/vdiforge/values.yaml](../helm/vdiforge/values.yaml), [docs/WEB-PORTAL.md](WEB-PORTAL.md) | Dependency pin and chart value review. | PASS | React, Vite, TypeScript, `oidc-client-ts`, Playwright, and portal image tags are pinned. |
+| `NFR-006` | [helm/vdiforge/templates/frontend.yaml](../helm/vdiforge/templates/frontend.yaml), [helm/vdiforge/values-phase9-local.yaml](../helm/vdiforge/values-phase9-local.yaml), [scripts/validate-phase9-live.sh](../scripts/validate-phase9-live.sh) | Helm install/render/live rollout validation. | PASS | Phase 9 extends the existing `vdiforge` release with frontend resources. |
+| `FR-001` | [frontend/src/auth/oidc.ts](../frontend/src/auth/oidc.ts), [frontend/src/auth/AuthProvider.tsx](../frontend/src/auth/AuthProvider.tsx), [scripts/phase9-portal-e2e-test.py](../scripts/phase9-portal-e2e-test.py) | OIDC PKCE token acquisition. | PASS | The portal uses the existing public Keycloak client and Authorization Code Flow with PKCE. |
+| `FR-005` | [frontend/src/components/PortalApp.tsx](../frontend/src/components/PortalApp.tsx), [scripts/phase9-portal-e2e-test.py](../scripts/phase9-portal-e2e-test.py) | Component and live role-visibility validation. | PASS | The portal renders the API-filtered catalog rather than embedding authorization rules. |
+| `FR-006` | [frontend/src/api/client.ts](../frontend/src/api/client.ts), [frontend/src/components/PortalApp.tsx](../frontend/src/components/PortalApp.tsx) | API client and component tests. | PASS | Launch requests use the documented API fields and an idempotency key. |
+| `FR-017` | [frontend/src/components/PortalApp.tsx](../frontend/src/components/PortalApp.tsx), [frontend/tests/portal.test.tsx](../frontend/tests/portal.test.tsx) | Component tests and live connect validation. | PASS | Connect is only enabled for connectable desktop states. |
+| `FR-019` | [frontend/src/api/client.ts](../frontend/src/api/client.ts), [scripts/phase9-portal-e2e-test.py](../scripts/phase9-portal-e2e-test.py) | API response and runtime-config inspection. | PASS | The portal receives an opaque Guacamole URL only, not reusable RDP credentials. |
+| `FR-024` | [backend/app/audit/service.py](../backend/app/audit/service.py), [scripts/phase9-portal-e2e-test.py](../scripts/phase9-portal-e2e-test.py) | Audit endpoint validation. | PASS | Portal-driven connection requests are visible as audit events. |
+| `SEC-001` | [backend/app/services/desktops.py](../backend/app/services/desktops.py), [frontend/src/components/PortalApp.tsx](../frontend/src/components/PortalApp.tsx) | Backend authorization and portal review. | PASS | The frontend improves usability; authorization stays server-side. |
+| `SEC-002` | [frontend/src/components/PortalApp.tsx](../frontend/src/components/PortalApp.tsx), [backend/tests/test_api_authorization.py](../backend/tests/test_api_authorization.py) | Frontend UX test and backend denial tests. | PASS | Hidden or disabled buttons are not treated as security controls. |
+| `SEC-008` | [.gitignore](../.gitignore), [scripts/validate-phase9.ps1](../scripts/validate-phase9.ps1), [scripts/phase9-create-local-secrets.sh](../scripts/phase9-create-local-secrets.sh) | Secret scan and runtime secret generation review. | PASS | Portal TLS material and OIDC runtime state stay outside Git. |
+| `SEC-011` | [helm/vdiforge/templates/frontend.yaml](../helm/vdiforge/templates/frontend.yaml) | Helm template and live pod spec validation. | PASS | The frontend runs non-root with a read-only root filesystem. |
+| `SEC-015` | [scripts/phase9-create-local-secrets.sh](../scripts/phase9-create-local-secrets.sh), [helm/vdiforge/templates/frontend.yaml](../helm/vdiforge/templates/frontend.yaml) | Trusted HTTPS portal check. | PASS | `vdiforge.local` is served through Traefik with local TLS. |
+| `WEB-001` | [frontend](../frontend), [helm/vdiforge/templates/frontend.yaml](../helm/vdiforge/templates/frontend.yaml) | Frontend build and Helm rollout. | PASS | The React portal is deployed at `https://vdiforge.local`. |
+| `WEB-002` | [frontend/src/auth/oidc.ts](../frontend/src/auth/oidc.ts), [helm/vdiforge/files/keycloak/vdiforge-realm.json](../helm/vdiforge/files/keycloak/vdiforge-realm.json) | OIDC PKCE validation. | PASS | The existing `vdiforge-frontend` public client is used. |
+| `WEB-003` | [frontend/public/runtime-config.js](../frontend/public/runtime-config.js), [helm/vdiforge/templates/frontend.yaml](../helm/vdiforge/templates/frontend.yaml), [scripts/validate-phase9.ps1](../scripts/validate-phase9.ps1) | Static and live secret scans. | PASS | Runtime configuration contains public endpoint values only. |
+| `WEB-004` | [frontend/src/api/client.ts](../frontend/src/api/client.ts) | Unit tests and live API checks. | PASS | API calls use bearer tokens, request IDs, and runtime base URL. |
+| `WEB-005` | [frontend/src/components/PortalApp.tsx](../frontend/src/components/PortalApp.tsx), [frontend/tests/portal.test.tsx](../frontend/tests/portal.test.tsx) | Component and live role-visibility validation. | PASS | Catalog cards are derived from API responses. |
+| `WEB-006` | [frontend/src/api/client.ts](../frontend/src/api/client.ts), [frontend/tests/api-client.test.ts](../frontend/tests/api-client.test.ts) | API client tests and live launch. | PASS | Launch request shape matches the Phase 7 API. |
+| `WEB-007` | [frontend/src/utils/status.ts](../frontend/src/utils/status.ts), [frontend/src/components/PortalApp.tsx](../frontend/src/components/PortalApp.tsx) | Component tests and live polling. | PASS | API states are rendered as user-safe labels. |
+| `WEB-008` | [frontend/src/components/PortalApp.tsx](../frontend/src/components/PortalApp.tsx), [scripts/phase9-portal-e2e-test.py](../scripts/phase9-portal-e2e-test.py) | Component and live connection URL validation. | PASS | The exact API-returned Guacamole URL is opened. |
+| `WEB-009` | [frontend/src/components/PortalApp.tsx](../frontend/src/components/PortalApp.tsx) | Component tests and live lifecycle checks. | PASS | Stop, start, and delete use documented endpoints. |
+| `WEB-010` | [frontend/tests/portal.test.tsx](../frontend/tests/portal.test.tsx) | Component tests. | PASS | Loading, empty, and expected-error states are covered. |
+| `WEB-011` | [frontend/Dockerfile](../frontend/Dockerfile), [helm/vdiforge/templates/frontend.yaml](../helm/vdiforge/templates/frontend.yaml) | Helm and live pod spec validation. | PASS | Static nginx container runs without a Kubernetes API token. |
+| `WEB-012` | [helm/vdiforge/templates/frontend.yaml](../helm/vdiforge/templates/frontend.yaml), [helm/vdiforge/values.yaml](../helm/vdiforge/values.yaml) | Static and live scheduling validation. | PASS | Portal placement uses `vdiforge.io/node-role=platform`. |
+| `WEB-013` | [helm/vdiforge/templates/networkpolicies.yaml](../helm/vdiforge/templates/networkpolicies.yaml) | Render and live validation. | PASS | Traefik can reach the portal while the frontend has no privileged egress. |
+| `WEB-014` | [images/catalog.json](../images/catalog.json), [images/README.md](../images/README.md) | Catalog validation and live launch. | PASS | `ubuntu-devops:1.2.0` is the default launchable DevOps image. |
+| `WEB-015` | [ansible/roles/image-desktop/tasks/main.yml](../ansible/roles/image-desktop/tasks/main.yml), [backend/app/provisioning/kubevirt.py](../backend/app/provisioning/kubevirt.py), [backend/tests/test_remote_access.py](../backend/tests/test_remote_access.py) | Role/cloud-init review and test. | PASS | New launches include `.xsession` and Xwrapper configuration for XFCE/xrdp. |
+| `WEB-016` | [scripts/validate-phase9.ps1](../scripts/validate-phase9.ps1), [scripts/validate-phase9-live.sh](../scripts/validate-phase9-live.sh) | Validator execution. | PASS | Static and live validators emit explicit PASS/FAIL results. |
+| `WEB-017` | [docs/ROADMAP.md](ROADMAP.md), [docs/WEB-PORTAL.md](WEB-PORTAL.md) | Scope review. | PASS | HPA, Prometheus/Grafana, final CI/CD, and further hardening remain later phases. |

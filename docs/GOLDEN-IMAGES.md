@@ -1,6 +1,6 @@
 # Golden Images
 
-This document records the Phase 6 Ubuntu golden-image pipeline for VDIForge. It covers image definitions, build environment, artifact format, validation, CDI import, and KubeVirt boot proof. Phase 8 reuses the image pipeline to produce a remote-enabled DevOps image version for Guacamole/RDP validation.
+This document records the Phase 6 Ubuntu golden-image pipeline for VDIForge. It covers image definitions, build environment, artifact format, validation, CDI import, and KubeVirt boot proof. Phase 8 reused the image pipeline to produce a remote-enabled DevOps image version for Guacamole/RDP validation, and Phase 9 promotes `ubuntu-devops:1.2.0` with the permanent XFCE/xrdp session fix for portal-launched desktops.
 
 ## Status
 
@@ -12,6 +12,7 @@ Phase 6 adds source-controlled image definitions and validation automation for:
 | `ubuntu-developer` | `1.0.0` | Developer desktop with Git, Python, build tools, and Geany. |
 | `ubuntu-devops` | `1.0.0` | Platform desktop with Terraform, Ansible, kubectl, Helm, Git, and Python. |
 | `ubuntu-devops` | `1.1.0` | Phase 8 remote-enabled DevOps desktop source for Guacamole/RDP validation. |
+| `ubuntu-devops` | `1.2.0` | Phase 9 current launchable DevOps desktop source with permanent XFCE/xrdp session configuration. |
 
 Generated QCOW2 artifacts and runtime manifests are produced under `artifacts/images/` and are not committed to Git.
 
@@ -147,7 +148,7 @@ Includes:
 - `qemu-guest-agent`
 - common CLI utilities
 
-Phase 6 did not connect this image to Guacamole. Phase 8 validates Guacamole/RDP against the DevOps image path.
+Phase 6 did not connect this image to Guacamole. Phase 8 validates Guacamole/RDP against the DevOps image path, and Phase 9 connects that path to the React portal.
 
 ### ubuntu-developer
 
@@ -241,13 +242,13 @@ It records:
 
 The catalog expresses image policy only. Phase 7 consumes the catalog and enforces server-side authorization.
 
-Phase 8 preserves the `ubuntu-devops:1.0.0` catalog record and adds `ubuntu-devops:1.1.0` as the current default launchable DevOps version for Guacamole/RDP validation. The Phase 8 source PVC is:
+Phase 8 preserves the `ubuntu-devops:1.0.0` catalog record and adds `ubuntu-devops:1.1.0` for Guacamole/RDP validation. Phase 9 adds `ubuntu-devops:1.2.0` as the current default launchable DevOps version for portal-driven browser sessions. The current Phase 9 source PVC is:
 
 ```text
-vdiforge-golden-ubuntu-devops-1-1-0
+vdiforge-golden-ubuntu-devops-1-2-0
 ```
 
-The Phase 8 build wrapper sets `VDIFORGE_IMAGE_DISK_SIZE=15G` by default for `ubuntu-devops:1.1.0` and imports that artifact into a `20Gi` CDI source DataVolume. The smaller virtual disk is a local-lab accommodation for the current 60 GiB VDI worker and the temporary scratch/clone storage CDI needs during validation. The earlier Phase 6 Packer templates still default to `24G`.
+The Phase 8/9 build wrapper sets `VDIFORGE_IMAGE_DISK_SIZE=15G` by default for remote-enabled `ubuntu-devops` images and imports that artifact into a `20Gi` CDI source DataVolume. The smaller virtual disk is a local-lab accommodation for the current 60 GiB VDI worker and the temporary scratch/clone storage CDI needs during validation. The earlier Phase 6 Packer templates still default to `24G`.
 
 ## CDI Import
 
@@ -268,7 +269,7 @@ PVC using vdiforge-local-path
 
 The HTTP endpoint is bound to `192.168.56.12` and stopped after validation. It is not exposed publicly.
 
-CDI may allocate a scratch PVC when importing qcow2 images for conversion. The Phase 8 import path configures CDI `scratchSpaceStorageClass` to `vdiforge-local-path` before preparing the remote-enabled `ubuntu-devops:1.1.0` source PVC.
+CDI may allocate a scratch PVC when importing qcow2 images for conversion. The Phase 8/9 import path configures CDI `scratchSpaceStorageClass` to `vdiforge-local-path` before preparing the remote-enabled `ubuntu-devops` source PVC.
 
 ## KubeVirt Boot Proof
 
@@ -383,5 +384,5 @@ The live validator checks:
 - Building on `vdi-worker-02` competes with the VDI worker's cluster duties.
 - `vdiforge-local-path` is not high availability storage.
 - The catalog starts as a policy foundation; the API consumes it for server-side authorization.
-- Phase 8 implements Guacamole integration for the DevOps image path; base and developer images remain candidates.
+- Phase 9 implements browser-portal integration for the DevOps image path; base and developer images remain candidates.
 - Generated artifacts are local; rebuilding from source is the portable recovery path.

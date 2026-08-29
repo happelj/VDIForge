@@ -6,6 +6,7 @@ vdiforge_image_desktop_packages:
   - spice-vdagent
   - thunar
   - x11-xserver-utils
+  - xserver-xorg-legacy
   - xfce4
   - xfce4-goodies
   - xfce4-terminal

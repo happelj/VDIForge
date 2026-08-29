@@ -4,7 +4,7 @@ This document records the Phase 2 local infrastructure implementation for VDIFor
 
 ## Status
 
-Phase 2 local infrastructure is host-validated on the current Windows workstation with VirtualBox. Phase 3 builds Kubernetes and KubeVirt on top of this foundation; see [Kubernetes and KubeVirt Foundation](KUBERNETES-KUBEVIRT.md). Phase 4 adds the Helm platform foundation; see [Helm Platform Foundation](HELM-PLATFORM.md). Phase 5 adds Keycloak/OIDC/RBAC; see [Keycloak, OIDC, and RBAC Foundation](KEYCLOAK-OIDC.md). Phase 6 adds the image pipeline; see [Golden Images](GOLDEN-IMAGES.md). Phase 7 adds the FastAPI API/provisioner foundation; see [FastAPI VDI Control Plane](API-CONTROL-PLANE.md). Phase 8 adds Guacamole remote desktop delivery; see [Remote Desktop Delivery](REMOTE-DESKTOP.md). React, Prometheus, and Grafana remain later-phase work.
+Phase 2 local infrastructure is host-validated on the current Windows workstation with VirtualBox. Phase 3 builds Kubernetes and KubeVirt on top of this foundation; see [Kubernetes and KubeVirt Foundation](KUBERNETES-KUBEVIRT.md). Phase 4 adds the Helm platform foundation; see [Helm Platform Foundation](HELM-PLATFORM.md). Phase 5 adds Keycloak/OIDC/RBAC; see [Keycloak, OIDC, and RBAC Foundation](KEYCLOAK-OIDC.md). Phase 6 adds the image pipeline; see [Golden Images](GOLDEN-IMAGES.md). Phase 7 adds the FastAPI API/provisioner foundation; see [FastAPI VDI Control Plane](API-CONTROL-PLANE.md). Phase 8 adds Guacamole remote desktop delivery; see [Remote Desktop Delivery](REMOTE-DESKTOP.md). Phase 9 adds the React self-service portal; see [React Self-Service Portal](WEB-PORTAL.md). Prometheus and Grafana remain later-phase work.
 
 ## Host Findings
 

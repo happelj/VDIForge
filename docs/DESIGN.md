@@ -4,7 +4,7 @@ This document is the authoritative technical design for VDIForge. Later implemen
 
 ## Status
 
-Phase 2 local infrastructure foundation is documented and host-validated. Phase 3 establishes the Kubernetes and KubeVirt foundation on that lab with kubeadm, containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, namespace/RBAC foundations, NetworkPolicy validation, and a disposable KubeVirt test VM. Phase 4 establishes the Helm platform foundation with a `vdiforge` release that manages VDIForge ConfigMap conventions, ServiceAccounts, provisioner RBAC, ResourceQuotas, a LimitRange, and baseline NetworkPolicies. Phase 5 adds Keycloak, PostgreSQL persistence, Traefik ingress, local TLS, realm import, demo identities, Authorization Code Flow with PKCE validation, JWT validation, RBAC claim validation, and identity NetworkPolicies. Phase 6 establishes the Packer/Ansible Ubuntu golden-image pipeline, image catalog foundation, QCOW2 artifact format, CDI import path, and KubeVirt boot validation. Phase 7 adds the FastAPI VDI control plane, application PostgreSQL, Alembic migrations, API/provisioner Helm resources, server-side authorization, audit persistence, and KubeVirt desktop lifecycle reconciliation. Phase 8 adds Apache Guacamole, `guacd`, RDP/xrdp session delivery, short-lived JSON-auth connection brokering, per-desktop remote credentials, and remote-session validation. React application code, full Prometheus/Grafana observability, and the polished browser portal remain planned.
+Phase 2 local infrastructure foundation is documented and host-validated. Phase 3 establishes the Kubernetes and KubeVirt foundation on that lab with kubeadm, containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, namespace/RBAC foundations, NetworkPolicy validation, and a disposable KubeVirt test VM. Phase 4 establishes the Helm platform foundation with a `vdiforge` release that manages VDIForge ConfigMap conventions, ServiceAccounts, provisioner RBAC, ResourceQuotas, a LimitRange, and baseline NetworkPolicies. Phase 5 adds Keycloak, PostgreSQL persistence, Traefik ingress, local TLS, realm import, demo identities, Authorization Code Flow with PKCE validation, JWT validation, RBAC claim validation, and identity NetworkPolicies. Phase 6 establishes the Packer/Ansible Ubuntu golden-image pipeline, image catalog foundation, QCOW2 artifact format, CDI import path, and KubeVirt boot validation. Phase 7 adds the FastAPI VDI control plane, application PostgreSQL, Alembic migrations, API/provisioner Helm resources, server-side authorization, audit persistence, and KubeVirt desktop lifecycle reconciliation. Phase 8 adds Apache Guacamole, `guacd`, RDP/xrdp session delivery, short-lived JSON-auth connection brokering, per-desktop remote credentials, and remote-session validation. Phase 9 adds the React/TypeScript self-service portal at `https://vdiforge.local`. Full Prometheus/Grafana observability and HPA/autoscaling remain planned.
 
 ## Goals
 
@@ -65,6 +65,7 @@ Sources reviewed during Phase 1:
 - Phase 7 control plane implementation: [FastAPI VDI Control Plane](API-CONTROL-PLANE.md)
 - Phase 8 remote desktop implementation: [Remote Desktop Delivery](REMOTE-DESKTOP.md)
 - Apache Guacamole JSON authentication: [Guacamole JSON authentication](https://guacamole.apache.org/doc/gug/json-auth.html)
+- Phase 9 portal implementation: [React Self-Service Portal](WEB-PORTAL.md)
 
 ## Selected Platform Version Pins
 
@@ -93,6 +94,10 @@ These pins are Phase 3 implementation inputs as of 2026-08-27. Later phases must
 | Terraform local lab | Terraform 1.15.8 with built-in `terraform_data` | Actual Phase 2 host uses VirtualBox; Terraform validates the lab specification without depending on an alpha VirtualBox provider. |
 | Apache Guacamole | 1.6.0 | Phase 8 browser remote desktop gateway with JSON authentication enabled. |
 | guacd | 1.6.0 | Phase 8 protocol proxy between Guacamole web and desktop RDP services. |
+| React | 19.2.8 | Phase 9 browser portal. |
+| TypeScript | 6.0.3 | Phase 9 frontend language and static checks. |
+| Vite | 8.2.2 | Phase 9 frontend build tool. |
+| oidc-client-ts | 3.5.0 | Phase 9 browser OIDC Authorization Code Flow with PKCE. |
 | Remote desktop protocol | RDP through xrdp | MVP remote protocol for Ubuntu/XFCE desktops; VNC remains fallback. |
 | Python runtime | 3.14.4 slim | API/provisioner container runtime. |
 | FastAPI | 0.141.1 | Phase 7 API framework. |
@@ -320,14 +325,14 @@ Phase 4 chart resources:
 - LimitRange for future small platform containers
 - NetworkPolicies for `vdiforge-system` default deny, DNS egress, and future provisioner Kubernetes API egress
 
-With `values-local.yaml` alone, the Helm chart does not create application Deployments, Services, Ingress, HPA, Keycloak, Guacamole, Prometheus, Grafana, or VDI desktops. Phase 5 enables only the identity stack through `values-phase5-local.yaml`, Phase 7 enables the API/provisioner stack through `values-phase7-local.yaml`, and Phase 8 enables Guacamole through `values-phase8-local.yaml`.
+With `values-local.yaml` alone, the Helm chart does not create application Deployments, Services, Ingress, HPA, Keycloak, Guacamole, Prometheus, Grafana, or VDI desktops. Phase 5 enables only the identity stack through `values-phase5-local.yaml`, Phase 7 enables the API/provisioner stack through `values-phase7-local.yaml`, Phase 8 enables Guacamole through `values-phase8-local.yaml`, and Phase 9 enables the frontend through `values-phase9-local.yaml`.
 
-Planned later chart resources:
+Phase-enabled chart resources:
 
 - frontend Deployment, Service, Ingress
 - FastAPI Deployment, Service, Ingress
 - provisioning worker Deployment
-- HPA definitions
+- HPA definitions remain Phase 10
 
 Third-party systems should use established upstream charts or images when that is simpler and safer than maintaining custom manifests. Phase 5 uses the official Keycloak and PostgreSQL images directly in the VDIForge chart, and installs Traefik with its upstream Helm chart as shared ingress infrastructure.
 
@@ -341,6 +346,7 @@ Initial image catalog:
 | `ubuntu-developer:1.0.0` | Developer desktop with Git, Python, build tools, CLI utilities, and Geany. |
 | `ubuntu-devops:1.0.0` | Infrastructure desktop with Terraform, Ansible, kubectl, Helm, Git, Python, and useful infrastructure CLIs. |
 | `ubuntu-devops:1.1.0` | Phase 8 remote-enabled DevOps desktop source PVC used for Guacamole/RDP validation. |
+| `ubuntu-devops:1.2.0` | Phase 9 current launchable DevOps desktop with permanent XFCE/xrdp session configuration. |
 
 The catalog is implemented as [../images/catalog.json](../images/catalog.json). It expresses image policy and role eligibility as data; Phase 7 enforces that policy server-side in the FastAPI control plane.
 
@@ -392,7 +398,7 @@ Primary Phase 7 entities:
 - `ProvisioningOperation`
 - `AuditEvent`
 
-Implemented API surface after Phase 8:
+Implemented API surface after Phase 9:
 
 ```text
 POST   /api/v1/desktops
@@ -428,7 +434,7 @@ Phase 7 deploys the backend through Helm as:
 - `vdiforge-app-postgres`
 - `vdiforge-api-migrations`
 
-Only `ubuntu-devops` is launchable in the current lab. Phase 8 promotes `ubuntu-devops:1.1.0` as the default version for new launches so remote desktop prerequisites are validated without replacing the earlier `1.0.0` artifact record. `ubuntu-base` and `ubuntu-developer` remain catalog candidates until later promotion.
+Only `ubuntu-devops` is launchable in the current lab. Phase 9 promotes `ubuntu-devops:1.2.0` as the default version for new launches so browser-initiated remote desktop sessions use the permanent XFCE/xrdp configuration without replacing the earlier `1.0.0` and `1.1.0` artifact records. `ubuntu-base` and `ubuntu-developer` remain catalog candidates until later promotion.
 
 Authoritative sources of truth:
 
@@ -460,7 +466,7 @@ Phase 5 OIDC clients:
 
 | Client | Type | Purpose |
 | --- | --- | --- |
-| `vdiforge-frontend` | public | Future browser portal using Authorization Code Flow with PKCE S256. |
+| `vdiforge-frontend` | public | Browser portal using Authorization Code Flow with PKCE S256. |
 | `vdiforge-api` | audience marker | FastAPI JWT audience validation. |
 
 Roles:
@@ -489,6 +495,49 @@ The frontend client uses Authorization Code Flow with PKCE. The backend validate
 The backend must not merely Base64-decode JWT payloads.
 
 Authorization is application-level and happens in FastAPI. Kubernetes RBAC is separate and limits what the provisioner can do to Kubernetes resources. Hidden buttons in the React UI are only user experience controls and must not be treated as authorization.
+
+## Web Portal Design
+
+Phase 9 implements the self-service browser portal as a React and TypeScript single-page application served by nginx. The portal is deployed by the VDIForge Helm chart when `frontend.enabled=true` and exposed locally at:
+
+```text
+https://vdiforge.local
+```
+
+Runtime configuration is injected by the Helm-managed `vdiforge-frontend-runtime-config` ConfigMap as `/runtime-config.js`. The file contains only public configuration: API base URL, Keycloak authority, public OIDC client ID, redirect URIs, and lifecycle polling interval. It must not contain client secrets, bearer tokens, refresh tokens, Kubernetes credentials, Guacamole credentials, remote desktop passwords, or database credentials.
+
+The portal workflow is:
+
+```mermaid
+sequenceDiagram
+  participant B as Browser
+  participant P as React portal
+  participant KC as Keycloak
+  participant API as FastAPI
+  participant G as Guacamole
+
+  B->>P: Open https://vdiforge.local
+  P->>KC: Authorization Code Flow + PKCE
+  KC-->>P: Authorization code and tokens
+  P->>API: Bearer-token API calls
+  API-->>P: Authorized images and desktops
+  P->>API: Launch desktop with Idempotency-Key
+  P->>API: Poll desktop lifecycle
+  P->>API: Request connect URL when READY
+  API-->>P: Opaque Guacamole handoff URL
+  P->>G: Open exact returned URL
+```
+
+The frontend renders only data returned by the API. Role-based image visibility, desktop ownership, quotas, state transitions, and connect authorization remain server-side controls in FastAPI. The frontend may disable or hide buttons for usability, but those UI choices are not security controls.
+
+The frontend workload uses the existing platform placement convention:
+
+```yaml
+nodeSelector:
+  vdiforge.io/node-role: platform
+```
+
+The frontend ServiceAccount does not mount a Kubernetes API token. NetworkPolicy allows Traefik to reach the frontend service, but the frontend pod does not need direct egress to Keycloak, the API, Guacamole, the database, or the Kubernetes API because browsers make those HTTPS requests from outside the cluster through ingress.
 
 ## RBAC Summary
 
@@ -787,7 +836,7 @@ Phase 2 produced local infrastructure that can host the planned three-node clust
 7. Terraform specification and outputs under `terraform/environments/local`.
 8. Ansible baseline inventory and roles under `ansible`.
 
-Phase 3 installs Kubernetes prerequisites, kubeadm/containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, namespace/RBAC foundations, and validation scripts. Phase 4 installs the Helm deployment client on `vdi-control-01` and deploys the VDIForge foundation release. Phase 5 installs Traefik ingress, Keycloak, PostgreSQL persistence, local TLS, the `vdiforge` realm, OIDC clients, demo identities, and identity validation scripts. Phase 6 adds the Packer/Ansible golden-image pipeline and KubeVirt boot validation for the DevOps image. Phase 7 installs the FastAPI API, provisioner, application PostgreSQL, migrations, and validates KubeVirt desktop launch/stop/restart/delete for the DevOps image. Phase 8 installs Guacamole/guacd, adds API session brokering, and validates RDP access to a remote-enabled DevOps desktop. React, Prometheus/Grafana, and application autoscaling remain later phases.
+Phase 3 installs Kubernetes prerequisites, kubeadm/containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, namespace/RBAC foundations, and validation scripts. Phase 4 installs the Helm deployment client on `vdi-control-01` and deploys the VDIForge foundation release. Phase 5 installs Traefik ingress, Keycloak, PostgreSQL persistence, local TLS, the `vdiforge` realm, OIDC clients, demo identities, and identity validation scripts. Phase 6 adds the Packer/Ansible golden-image pipeline and KubeVirt boot validation for the DevOps image. Phase 7 installs the FastAPI API, provisioner, application PostgreSQL, migrations, and validates KubeVirt desktop launch/stop/restart/delete for the DevOps image. Phase 8 installs Guacamole/guacd, adds API session brokering, and validates RDP access to a remote-enabled DevOps desktop. Phase 9 installs the React portal and validates the browser-facing launch/connect workflow. Prometheus/Grafana and application autoscaling remain later phases.
 
 ## Future Cloud or Bare-Metal Deployment
 
@@ -822,7 +871,7 @@ These are not required for the MVP.
 - `auth.vdiforge.local` requires a local hosts-file entry, equivalent local DNS, or explicit resolver mapping for automated tests.
 - The control plane needed 4 vCPU and 6 GiB RAM for reliable Phase 3 validation on this host; lower sizing caused API-server pressure during add-on reconciliation.
 - Remote desktop performance will not match commercial proprietary protocols.
-- Phase 8 validates Guacamole/RDP connectivity and token handoff, but the user-facing React Connect workflow remains Phase 9.
+- Phase 9 validates the user-facing React Connect workflow, but detailed Guacamole disconnect/session telemetry remains future work.
 - The API needs namespace-scoped read access to per-desktop remote credential Secrets; application authorization and audit logging are compensating controls until a narrower credential broker exists.
 - Windows desktops are excluded from the free MVP.
 - Version pins must be revalidated during implementation.
@@ -832,6 +881,6 @@ These are not required for the MVP.
 
 - Should routine Ansible operations remain on `vdi-control-01`, move to WSL, or use another Linux controller?
 - What exact resource profiles should be exposed first?
-- How should the future React portal handle refresh tokens while minimizing browser token exposure?
+- Should Phase 12 replace the Phase 9 browser token-session baseline with a stronger backend-for-frontend or token exchange pattern?
 - Does the future API need a separate confidential service/admin client beyond the current `vdiforge-api` audience marker?
 - Should Phase 12 replace per-desktop static passwords with one-time or frequently rotated remote-session credentials?

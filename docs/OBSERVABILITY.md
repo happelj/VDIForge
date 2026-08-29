@@ -2,7 +2,7 @@
 
 VDIForge observability covers metrics, structured logs, audit events, dashboards, and correlation IDs.
 
-Phase 3 implements the Kubernetes resource-metrics foundation through Metrics Server. Phase 7 adds structured backend logs, request IDs, persistent audit events, and a minimal Prometheus-compatible `/metrics` endpoint for desktop counters. Phase 8 adds audit events for remote connection requests and denials. Prometheus, Grafana, full API latency/rate instrumentation, active-session metrics, and dashboards remain later-phase work.
+Phase 3 implements the Kubernetes resource-metrics foundation through Metrics Server. Phase 7 adds structured backend logs, request IDs, persistent audit events, and a minimal Prometheus-compatible `/metrics` endpoint for desktop counters. Phase 8 adds audit events for remote connection requests and denials. Phase 9 propagates request IDs from browser API calls and validates portal-driven audit events. Prometheus, Grafana, full API latency/rate instrumentation, active-session metrics, and dashboards remain later-phase work.
 
 ## Observability Goals
 

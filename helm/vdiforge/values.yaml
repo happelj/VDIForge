@@ -25,6 +25,10 @@ serviceAccounts:
     create: true
     name: vdiforge-api
     automountServiceAccountToken: false
+  frontend:
+    create: true
+    name: vdiforge-frontend
+    automountServiceAccountToken: false
   provisioner:
     create: true
     name: vdiforge-provisioner
@@ -160,6 +164,13 @@ networkPolicy:
       podSelector:
         app.kubernetes.io/name: traefik
       port: 8000
+    allowIngressToFrontend:
+      enabled: false
+      name: vdiforge-system-allow-frontend-ingress
+      namespace: ingress-traefik
+      podSelector:
+        app.kubernetes.io/name: traefik
+      port: 8080
     allowApiToKeycloak:
       enabled: false
       name: vdiforge-system-api-to-keycloak
@@ -199,10 +210,33 @@ ingress:
 
 frontend:
   enabled: false
+  name: vdiforge-frontend
   image:
-    repository: ""
-    tag: ""
-  resources: {}
+    repository: localhost/vdiforge-frontend
+    tag: "0.9.0"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  service:
+    port: 8080
+  config:
+    apiBaseUrl: https://api.vdiforge.local
+    oidcAuthority: https://auth.vdiforge.local/realms/vdiforge
+    oidcClientId: vdiforge-frontend
+    oidcRedirectUri: https://vdiforge.local/oidc/callback
+    oidcPostLogoutRedirectUri: https://vdiforge.local/
+    sessionPollIntervalMs: 5000
+  ingress:
+    enabled: false
+    className: traefik
+    host: vdiforge.local
+    tlsSecretName: vdiforge-portal-tls
+  resources:
+    requests:
+      cpu: 50m
+      memory: 96Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
   autoscaling:
     enabled: false
 
@@ -210,7 +244,7 @@ api:
   enabled: false
   image:
     repository: localhost/vdiforge-api
-    tag: "0.8.0"
+    tag: "0.9.0"
     pullPolicy: IfNotPresent
   replicas: 1
   service:
@@ -231,6 +265,7 @@ api:
     guacamoleBaseUrl: https://remote.vdiforge.local
     guacamoleJsonSecretName: vdiforge-guacamole-json-secret
     guacamoleJsonSecretKey: JSON_SECRET_KEY
+    corsAllowedOrigins: '["https://vdiforge.local"]'
     remoteSessionTtlSeconds: "300"
     remoteDesktopProtocol: rdp
     remoteDesktopPort: "3389"
@@ -255,7 +290,7 @@ provisioner:
   enabled: false
   image:
     repository: localhost/vdiforge-api
-    tag: "0.8.0"
+    tag: "0.9.0"
     pullPolicy: IfNotPresent
   replicas: 1
   env:
