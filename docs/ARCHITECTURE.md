@@ -1,6 +1,6 @@
 # VDIForge Architecture
 
-This document contains architecture views for VDIForge. The local VirtualBox infrastructure, Kubernetes/KubeVirt foundation, Helm platform foundation, Keycloak identity foundation, golden-image pipeline, FastAPI control plane, Guacamole remote desktop flow, and React portal reflect Phases 2 through 9. Full observability and autoscaling flows remain planned until their later implementation phases.
+This document contains architecture views for VDIForge. The local VirtualBox infrastructure, Kubernetes/KubeVirt foundation, Helm platform foundation, Keycloak identity foundation, golden-image pipeline, FastAPI control plane, Guacamole remote desktop flow, React portal, and API HPA autoscaling reflect Phases 2 through 10. Full Prometheus/Grafana observability remains planned until Phase 11.
 
 ## System Context
 
@@ -107,9 +107,9 @@ Actual Phase 2 network:
 
 | Node | NAT | Host-only IP | Purpose |
 | --- | --- | --- | --- |
-| `vdi-control-01` | DHCP | `192.168.56.10` | future Kubernetes control plane |
-| `vdi-worker-01` | DHCP | `192.168.56.11` | future platform worker |
-| `vdi-worker-02` | DHCP | `192.168.56.12` | future KubeVirt/VDI worker |
+| `vdi-control-01` | DHCP | `192.168.56.10` | Kubernetes control-plane node |
+| `vdi-worker-01` | DHCP | `192.168.56.11` | platform worker |
+| `vdi-worker-02` | DHCP | `192.168.56.12` | KubeVirt/VDI worker |
 
 The host-only adapter address is `192.168.56.1`. DHCP is disabled on the host-only network; static addresses are assigned inside each Ubuntu guest. NAT supplies outbound Internet access.
 
@@ -165,7 +165,8 @@ flowchart TB
   Identity[Phase 5 identity resources<br/>Keycloak, PostgreSQL, identity policies]
   Remote[Phase 8 remote desktop<br/>Guacamole and guacd]
   Portal[Phase 9 portal<br/>React and nginx]
-  Future[Future application charts<br/>monitoring and autoscaling]
+  HPA[Phase 10 API HPA<br/>vdiforge-api]
+  Future[Future application charts<br/>Prometheus and Grafana]
 
   Git --> Helm
   Helm --> Release
@@ -178,6 +179,7 @@ flowchart TB
   Release --> Identity
   Release --> Remote
   Release --> Portal
+  Release --> HPA
   Release -. later phases .-> Future
 ```
 
@@ -244,6 +246,42 @@ flowchart LR
 ```
 
 The API validates the external issuer claim `https://auth.vdiforge.local/realms/vdiforge` while using an internal Keycloak Service URL for JWKS retrieval from inside the cluster. This avoids relying on workstation hosts-file DNS from pods.
+
+## API Autoscaling
+
+```mermaid
+flowchart TB
+  Load[Safe authenticated API load<br/>GET /api/v1/health/load-test]
+  Ingress[Traefik ingress<br/>api.vdiforge.local]
+  SVC[Service<br/>vdiforge-api]
+  HPA[HorizontalPodAutoscaler<br/>autoscaling/v2]
+  Metrics[Metrics Server<br/>resource metrics API]
+  Deploy[Deployment<br/>vdiforge-api]
+  API1[API pod 1]
+  API2[API pod 2]
+  API3[API pod 3]
+  DB[(Application PostgreSQL)]
+  Keycloak[Keycloak JWKS]
+
+  Load --> Ingress
+  Ingress --> SVC
+  SVC --> API1
+  SVC --> API2
+  SVC --> API3
+  Metrics --> HPA
+  HPA --> Deploy
+  Deploy --> API1
+  Deploy --> API2
+  Deploy --> API3
+  API1 --> DB
+  API2 --> DB
+  API3 --> DB
+  API1 --> Keycloak
+  API2 --> Keycloak
+  API3 --> Keycloak
+```
+
+Phase 10 uses Kubernetes `autoscaling/v2` to scale only the stateless FastAPI Deployment. The HPA changes API pod replicas; it does not create KubeVirt desktops, scale the provisioner, or add Kubernetes worker nodes. Provisioner horizontal scaling remains deferred until reconciliation has explicit work coordination such as leader election or database-backed row claiming.
 
 ## Authentication Flow
 

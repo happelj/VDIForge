@@ -244,7 +244,7 @@ api:
   enabled: false
   image:
     repository: localhost/vdiforge-api
-    tag: "0.9.0"
+    tag: "0.10.0"
     pullPolicy: IfNotPresent
   replicas: 1
   service:
@@ -271,6 +271,10 @@ api:
     remoteDesktopPort: "3389"
     guacamoleRdpSecurity: any
     guacamoleRdpServerLayout: en-us-qwerty
+  loadTest:
+    enabled: false
+    defaultIterations: "125000"
+    maxIterations: "1500000"
   resources:
     requests:
       cpu: 100m
@@ -280,6 +284,10 @@ api:
       memory: 512Mi
   autoscaling:
     enabled: false
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 50
+    behavior: {}
   ingress:
     enabled: false
     className: traefik
@@ -290,7 +298,7 @@ provisioner:
   enabled: false
   image:
     repository: localhost/vdiforge-api
-    tag: "0.9.0"
+    tag: "0.10.0"
     pullPolicy: IfNotPresent
   replicas: 1
   env:
@@ -317,6 +325,9 @@ provisioner:
       memory: 512Mi
   autoscaling:
     enabled: false
+    minReplicas: 1
+    maxReplicas: 1
+    targetCPUUtilizationPercentage: 70
 
 applicationDatabase:
   enabled: false

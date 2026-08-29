@@ -14,7 +14,7 @@ Phase 9 implements the user-facing VDIForge portal. It provides authenticated br
 | Test runner | `Vitest 4.1.10` |
 | Browser E2E | `Playwright 1.62.1` |
 | Container image | `localhost/vdiforge-frontend:0.9.0` |
-| Helm chart | `helm/vdiforge` version `0.9.0` |
+| Helm chart | `helm/vdiforge` version `0.10.0` |
 | Runtime config | ConfigMap-mounted `/runtime-config.js` |
 
 ## Architecture
@@ -279,6 +279,6 @@ Manual browser proof:
 ## Limitations
 
 - The dashboard is a user-facing summary only. Prometheus/Grafana observability remains Phase 11.
-- Application HPA and autoscaling remain Phase 10.
+- API HPA autoscaling is implemented in Phase 10; the portal itself remains a single static frontend Deployment in the local lab.
 - Browser disconnect telemetry is still limited to API connection requests; detailed Guacamole session telemetry is deferred.
 - The portal uses local lab hostnames and a local development CA, not public DNS or production certificate automation.

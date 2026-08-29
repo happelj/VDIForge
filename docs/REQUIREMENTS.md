@@ -236,6 +236,26 @@ Requirement -> Implementation -> Test -> Evidence -> PASS / FAIL
 | WEB-016 | Phase 9 validation shall produce explicit static and live PASS/FAIL results. | `scripts/validate-phase9.ps1` and `scripts/validate-phase9-live.sh`. |
 | WEB-017 | Phase 9 shall not implement Prometheus/Grafana, application HPA, final CI/CD, or new VDI golden-image families beyond the required DevOps session fix. | Scope review. |
 
+## Autoscaling Requirements
+
+| ID | Requirement | Verification approach |
+| --- | --- | --- |
+| HPA-001 | Phase 10 shall deploy a Helm-managed `autoscaling/v2` HorizontalPodAutoscaler for `vdiforge-api`. | Helm render, live HPA inspection, and live validation. |
+| HPA-002 | The API HPA shall target the `vdiforge-api` Deployment and shall not scale unrelated Deployments. | Rendered HPA and live scaleTargetRef review. |
+| HPA-003 | API autoscaling shall expose configurable `minReplicas`, `maxReplicas`, CPU target, and scale behavior through Helm values. | Values and rendered manifest review. |
+| HPA-004 | The API Deployment shall define CPU and memory requests so HPA metrics can resolve. | Rendered Deployment and live HPA metric validation. |
+| HPA-005 | The local Phase 10 load-test endpoint shall be disabled by default and enabled only through explicit local/test values. | Default values, Phase 10 values, and backend tests. |
+| HPA-006 | The load-test endpoint shall require a valid bearer token and shall reject unauthenticated callers. | Backend tests and live OIDC/API validation. |
+| HPA-007 | The load-test endpoint shall perform bounded read-only CPU work and shall not create desktops, audit events, or KubeVirt resources. | Code review, backend tests, and live desktop-count check. |
+| HPA-008 | The load generator shall use safe authenticated requests and shall not call `POST /api/v1/desktops`. | Script review and static validation. |
+| HPA-009 | Live validation shall prove HPA CPU metrics resolve and cross the configured target under controlled API load. | `scripts/validate-phase10-live.sh` output. |
+| HPA-010 | Live validation shall prove the HPA automatically increases ready API replicas without manual scaling. | `scripts/validate-phase10-live.sh` output. |
+| HPA-011 | Live validation shall prove authenticated image and desktop reads remain successful while multiple API replicas are Ready. | `scripts/validate-phase10-live.sh` output. |
+| HPA-012 | Live validation shall prove the HPA automatically scales the API back down after load ends. | `scripts/validate-phase10-live.sh` output. |
+| HPA-013 | Provisioner HPA shall remain disabled unless the reconciler has safe work coordination for multiple replicas. | ADR and rendered manifest review. |
+| HPA-014 | Documentation shall distinguish application pod autoscaling from provisioning throughput scaling and Kubernetes node autoscaling. | Documentation review. |
+| HPA-015 | Phase 10 validation shall produce explicit static and live PASS/FAIL results. | `scripts/validate-phase10.ps1` and `scripts/validate-phase10-live.sh`. |
+
 ## Security Requirements
 
 | ID | Requirement | Verification approach |
@@ -574,4 +594,32 @@ Requirement -> Implementation -> Test -> Evidence -> PASS / FAIL
 | `WEB-014` | [images/catalog.json](../images/catalog.json), [images/README.md](../images/README.md) | Catalog validation and live launch. | PASS | `ubuntu-devops:1.2.0` is the default launchable DevOps image. |
 | `WEB-015` | [ansible/roles/image-desktop/tasks/main.yml](../ansible/roles/image-desktop/tasks/main.yml), [backend/app/provisioning/kubevirt.py](../backend/app/provisioning/kubevirt.py), [backend/tests/test_remote_access.py](../backend/tests/test_remote_access.py) | Role/cloud-init review and test. | PASS | New launches include `.xsession` and Xwrapper configuration for XFCE/xrdp. |
 | `WEB-016` | [scripts/validate-phase9.ps1](../scripts/validate-phase9.ps1), [scripts/validate-phase9-live.sh](../scripts/validate-phase9-live.sh) | Validator execution. | PASS | Static and live validators emit explicit PASS/FAIL results. |
-| `WEB-017` | [docs/ROADMAP.md](ROADMAP.md), [docs/WEB-PORTAL.md](WEB-PORTAL.md) | Scope review. | PASS | HPA, Prometheus/Grafana, final CI/CD, and further hardening remain later phases. |
+| `WEB-017` | [docs/ROADMAP.md](ROADMAP.md), [docs/WEB-PORTAL.md](WEB-PORTAL.md) | Scope review. | PASS | Phase 9 intentionally stopped before HPA; Phase 10 implements API autoscaling separately. Prometheus/Grafana, final CI/CD, and further hardening remain later phases. |
+
+## Phase 10 Traceability
+
+| Requirement | Implementation reference | Test or evidence | Status | Notes |
+| --- | --- | --- | --- | --- |
+| `NFR-003` | [helm/vdiforge/Chart.yaml](../helm/vdiforge/Chart.yaml), [helm/vdiforge/values.yaml](../helm/vdiforge/values.yaml), [helm/vdiforge/values-phase10-local.yaml](../helm/vdiforge/values-phase10-local.yaml) | Static validation and Helm render. | PASS | Chart/app version is `0.10.0`; autoscaling settings are explicit values, not floating defaults. |
+| `NFR-006` | [helm/vdiforge/templates/hpa.yaml](../helm/vdiforge/templates/hpa.yaml), [helm/vdiforge/values-phase10-local.yaml](../helm/vdiforge/values-phase10-local.yaml) | Helm install/upgrade/live validation. | PASS | Phase 10 extends the existing Helm release with API HPA instead of manual `kubectl scale`. |
+| `NFR-012` | [helm/vdiforge/templates/api.yaml](../helm/vdiforge/templates/api.yaml), [helm/vdiforge/values.yaml](../helm/vdiforge/values.yaml) | Rendered Deployment and HPA metric validation. | PASS | The API keeps CPU/memory requests and limits required by resource-metric autoscaling. |
+| `FR-002` | [backend/app/api/routes.py](../backend/app/api/routes.py), [backend/tests/test_api_authorization.py](../backend/tests/test_api_authorization.py) | Backend missing-token and live load tests. | PASS | The load-test endpoint requires the same bearer-token path as other protected API endpoints. |
+| `FR-005` | [backend/app/services/image_catalog.py](../backend/app/services/image_catalog.py), [scripts/validate-phase10-live.sh](../scripts/validate-phase10-live.sh) | Authenticated read consistency under scale-out. | PASS | Image visibility remains API-enforced while multiple API replicas are Ready. |
+| `FR-013` | [backend/app/services/desktops.py](../backend/app/services/desktops.py), [scripts/validate-phase10-live.sh](../scripts/validate-phase10-live.sh) | Authenticated desktop-list consistency under scale-out. | PASS | Desktop ownership behavior remains backed by PostgreSQL, not pod-local memory. |
+| `HPA-001` | [helm/vdiforge/templates/hpa.yaml](../helm/vdiforge/templates/hpa.yaml) | Helm render and live HPA inspection. | PASS | `vdiforge-api` HPA uses `autoscaling/v2`. |
+| `HPA-002` | [helm/vdiforge/templates/hpa.yaml](../helm/vdiforge/templates/hpa.yaml) | Rendered `scaleTargetRef` review. | PASS | The HPA targets the `vdiforge-api` Deployment only. |
+| `HPA-003` | [helm/vdiforge/values.yaml](../helm/vdiforge/values.yaml), [helm/vdiforge/values-phase10-local.yaml](../helm/vdiforge/values-phase10-local.yaml) | Values and rendered manifest review. | PASS | `minReplicas`, `maxReplicas`, CPU target, and behavior are configurable. |
+| `HPA-004` | [helm/vdiforge/templates/api.yaml](../helm/vdiforge/templates/api.yaml) | Rendered Deployment and live HPA metrics. | PASS | API resource requests allow Metrics Server to produce utilization. |
+| `HPA-005` | [backend/app/config/settings.py](../backend/app/config/settings.py), [helm/vdiforge/values.yaml](../helm/vdiforge/values.yaml), [helm/vdiforge/values-phase10-local.yaml](../helm/vdiforge/values-phase10-local.yaml) | Backend tests and values review. | PASS | Load testing is disabled by default and enabled only by Phase 10 local values. |
+| `HPA-006` | [backend/app/api/routes.py](../backend/app/api/routes.py), [backend/tests/test_api_authorization.py](../backend/tests/test_api_authorization.py) | Backend and live OIDC validation. | PASS | Unauthenticated requests are rejected. |
+| `HPA-007` | [backend/app/api/routes.py](../backend/app/api/routes.py), [scripts/validate-phase10-live.sh](../scripts/validate-phase10-live.sh) | Desktop count before/after load. | PASS | The load endpoint is bounded and does not mutate desktop/KubeVirt state. |
+| `HPA-008` | [scripts/load-test-api.py](../scripts/load-test-api.py), [scripts/validate-phase10.ps1](../scripts/validate-phase10.ps1) | Static script scan. | PASS | The load generator uses authenticated GET requests and does not call desktop creation. |
+| `HPA-009` | [scripts/validate-phase10-live.sh](../scripts/validate-phase10-live.sh) | Live HPA metric output. | PASS | Live validation checks metric resolution and target threshold crossing. |
+| `HPA-010` | [scripts/validate-phase10-live.sh](../scripts/validate-phase10-live.sh) | Live HPA scale-up output. | PASS | Ready API replica count must increase automatically. |
+| `HPA-011` | [scripts/validate-phase10-live.sh](../scripts/validate-phase10-live.sh) | Authenticated image and desktop reads during scale-out. | PASS | OIDC/JWKS validation and database-backed state remain healthy with multiple API pods. |
+| `HPA-012` | [scripts/validate-phase10-live.sh](../scripts/validate-phase10-live.sh) | Live HPA scale-down output. | PASS | Ready API replica count must return to the configured baseline after load stops. |
+| `HPA-013` | [docs/ADR/0020-api-hpa-and-provisioner-scaling-boundary.md](ADR/0020-api-hpa-and-provisioner-scaling-boundary.md), [helm/vdiforge/values.yaml](../helm/vdiforge/values.yaml) | ADR and rendered manifest review. | PASS | Provisioner HPA is deferred until reconciliation has safe concurrency controls. |
+| `HPA-014` | [docs/AUTOSCALING.md](AUTOSCALING.md), [docs/DESIGN.md](DESIGN.md), [docs/ARCHITECTURE.md](ARCHITECTURE.md) | Documentation review. | PASS | Application pod autoscaling, provisioning throughput scaling, and node autoscaling are separate. |
+| `HPA-015` | [scripts/validate-phase10.ps1](../scripts/validate-phase10.ps1), [scripts/validate-phase10-live.sh](../scripts/validate-phase10-live.sh) | Static and live validator execution. | PASS | Validators emit explicit PASS/FAIL and fail closed on missing HPA evidence. |
+| `SEC-008` | [.gitignore](../.gitignore), [scripts/validate-phase10.ps1](../scripts/validate-phase10.ps1) | Secret scan and tracked artifact scan. | PASS | No generated load-test credentials, kubeconfigs, tokens, or TLS keys are committed. |
+| `OPS-012` | [scripts/validate-phase10.ps1](../scripts/validate-phase10.ps1), [scripts/validate-phase10-live.sh](../scripts/validate-phase10-live.sh) | Phase completion validation. | PASS | Phase 10 requires validation before merge to `main`. |

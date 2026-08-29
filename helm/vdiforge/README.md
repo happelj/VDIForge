@@ -1,6 +1,6 @@
 # VDIForge Helm Chart
 
-This chart establishes the Helm-managed VDIForge platform foundation. Phase 4 rendered only shared foundation resources. Phase 5 enables the Keycloak identity foundation through `values-phase5-local.yaml`. Phase 6 adds the separate Packer/Ansible golden-image pipeline outside Helm because it produces VM disk artifacts. Phase 7 enables the FastAPI API, asynchronous provisioner, application PostgreSQL, migrations, API ingress, and API-specific NetworkPolicies through `values-phase7-local.yaml`. Phase 8 enables Apache Guacamole, `guacd`, remote desktop ingress/TLS, API remote-session RBAC, and Guacamole NetworkPolicies through `values-phase8-local.yaml`. Phase 9 enables the React portal through `values-phase9-local.yaml`. Prometheus, Grafana, HPA, and final production hardening remain unimplemented.
+This chart establishes the Helm-managed VDIForge platform foundation. Phase 4 rendered only shared foundation resources. Phase 5 enables the Keycloak identity foundation through `values-phase5-local.yaml`. Phase 6 adds the separate Packer/Ansible golden-image pipeline outside Helm because it produces VM disk artifacts. Phase 7 enables the FastAPI API, asynchronous provisioner, application PostgreSQL, migrations, API ingress, and API-specific NetworkPolicies through `values-phase7-local.yaml`. Phase 8 enables Apache Guacamole, `guacd`, remote desktop ingress/TLS, API remote-session RBAC, and Guacamole NetworkPolicies through `values-phase8-local.yaml`. Phase 9 enables the React portal through `values-phase9-local.yaml`. Phase 10 enables API HPA autoscaling through `values-phase10-local.yaml`. Prometheus, Grafana, node autoscaling, and final production hardening remain unimplemented.
 
 ## Scope
 
@@ -17,6 +17,7 @@ Chart-managed resources:
 - optional Phase 7 FastAPI API, provisioner, app PostgreSQL, migration Job, API ingress, and API NetworkPolicies
 - optional Phase 8 Guacamole, `guacd`, remote desktop ingress, API remote-session RBAC, Guacamole ResourceQuota/LimitRange, and Guacamole NetworkPolicies
 - optional Phase 9 React frontend Deployment, Service, Ingress, runtime ConfigMap, ServiceAccount, and frontend NetworkPolicy
+- optional Phase 10 API HorizontalPodAutoscaler and protected local load-test endpoint settings
 
 Cluster add-ons from Phase 3 remain outside this chart:
 
@@ -176,6 +177,31 @@ Phase 9 exposes the portal at:
 https://vdiforge.local
 ```
 
+## Install Phase 10 API Autoscaling
+
+Load the Phase 10 API image and install or upgrade with all prior phase values plus the autoscaling values:
+
+```bash
+PHASE7_IMAGE=localhost/vdiforge-api:0.10.0 \
+  PHASE7_IMAGE_TAR=/tmp/vdiforge-api-0.10.0.tar \
+  bash scripts/phase7-build-load-image.sh
+kubectl delete job vdiforge-api-migrations -n vdiforge-system --ignore-not-found=true --wait=true
+helm upgrade --install vdiforge ./helm/vdiforge \
+  --namespace vdiforge-system \
+  --values ./helm/vdiforge/values-local.yaml \
+  --values ./helm/vdiforge/values-phase5-local.yaml \
+  --values ./helm/vdiforge/values-phase7-local.yaml \
+  --values ./helm/vdiforge/values-phase8-local.yaml \
+  --values ./helm/vdiforge/values-phase9-local.yaml \
+  --values ./helm/vdiforge/values-phase10-local.yaml \
+  --take-ownership \
+  --force-conflicts \
+  --wait \
+  --wait-for-jobs
+```
+
+Phase 10 creates an `autoscaling/v2` HPA for `vdiforge-api` only. Provisioner HPA is intentionally disabled until reconciliation has safe multi-worker coordination.
+
 ## Validate
 
 ```bash
@@ -232,6 +258,20 @@ helm template vdiforge ./helm/vdiforge \
   --kube-version 1.36.4
 ```
 
+Render with API autoscaling enabled:
+
+```bash
+helm template vdiforge ./helm/vdiforge \
+  --namespace vdiforge-system \
+  --values ./helm/vdiforge/values-local.yaml \
+  --values ./helm/vdiforge/values-phase5-local.yaml \
+  --values ./helm/vdiforge/values-phase7-local.yaml \
+  --values ./helm/vdiforge/values-phase8-local.yaml \
+  --values ./helm/vdiforge/values-phase9-local.yaml \
+  --values ./helm/vdiforge/values-phase10-local.yaml \
+  --kube-version 1.36.4
+```
+
 For live validation:
 
 ```bash
@@ -240,6 +280,7 @@ bash scripts/validate-phase5-live.sh
 bash scripts/validate-phase7-live.sh
 bash scripts/validate-phase8-live.sh
 bash scripts/validate-phase9-live.sh
+bash scripts/validate-phase10-live.sh
 ```
 
 ## Values
@@ -252,16 +293,16 @@ The values file includes disabled future sections for:
 - API
 - provisioner
 - ingress
-- autoscaling
 - Guacamole
 - monitoring
 
-These values are extension points unless enabled by a phase-specific values file. Phase 7 enables the API/provisioner values, Phase 8 enables Guacamole values, and Phase 9 enables frontend values. Monitoring and HPA remain future work.
+These values are extension points unless enabled by a phase-specific values file. Phase 7 enables the API/provisioner values, Phase 8 enables Guacamole values, Phase 9 enables frontend values, and Phase 10 enables API autoscaling values. Monitoring remains future work.
 
 `keycloak.enabled` remains `false` in `values.yaml`. Phase 5 enables it only through `values-phase5-local.yaml`.
 `api.enabled`, `provisioner.enabled`, `applicationDatabase.enabled`, and `migrations.enabled` remain `false` in `values.yaml`. Phase 7 enables them only through `values-phase7-local.yaml`.
 `guacamole.enabled` remains `false` in `values.yaml`. Phase 8 enables it only through `values-phase8-local.yaml`.
 `frontend.enabled` remains `false` in `values.yaml`. Phase 9 enables it only through `values-phase9-local.yaml`.
+`api.autoscaling.enabled` and `api.loadTest.enabled` remain `false` in `values.yaml`. Phase 10 enables them only through `values-phase10-local.yaml`.
 
 ## Ownership
 

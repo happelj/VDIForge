@@ -462,6 +462,46 @@ This runbook defines troubleshooting procedures for the VDIForge local lab and p
 | Remediation | Confirm the desktop uses `ubuntu-devops:1.2.0`, rebuild/import the source PVC if needed, restore the per-desktop Secret through provisioner reconciliation, fix the Service or the Helm-managed `guacd`/provisioner NetworkPolicies, stop/start the desktop through the API, and delete/relaunch failed test desktops through the API. |
 | Logs/metrics | `guacd` logs, VMI conditions, VM boot logs, service endpoints, NetworkPolicy test results, API audit events. |
 
+## API HPA Metrics Unknown
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | `kubectl -n vdiforge-system get hpa vdiforge-api` shows `<unknown>` for CPU, or Phase 10 validation fails before load starts. |
+| Likely causes | Metrics Server unavailable, API pods missing CPU requests, HPA rendered against the wrong target, API pods not Ready long enough for metrics collection, or APIService aggregation issue. |
+| Diagnostics | `kubectl top nodes`; `kubectl top pods -n vdiforge-system`; `kubectl describe hpa vdiforge-api -n vdiforge-system`; `kubectl describe apiservice v1beta1.metrics.k8s.io`; `kubectl -n kube-system logs deploy/metrics-server`; `kubectl -n vdiforge-system get deploy vdiforge-api -o yaml | grep -A8 resources`. |
+| Remediation | Restore Metrics Server, keep API CPU requests in Helm values, reapply Phase 10 values, wait for new API pods to become Ready, and rerun `scripts/validate-phase10-live.sh`. Do not disable metrics validation or manually scale the Deployment as final evidence. |
+| Logs/metrics | HPA conditions/events, Metrics Server logs, API pod resource specs, `kubectl top` output. |
+
+## API Does Not Scale Up
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | The Phase 10 load generator is running but `vdiforge-api` remains at one replica and HPA desired replicas do not increase. |
+| Likely causes | Load-test endpoint disabled, request authentication failing, load too light, CPU target too high for observed work, Metrics Server delay, or HPA not installed with Phase 10 values. |
+| Diagnostics | `helm get values vdiforge -n vdiforge-system`; `kubectl -n vdiforge-system describe hpa vdiforge-api`; `kubectl -n vdiforge-system logs deploy/vdiforge-api`; inspect `/tmp/vdiforge-phase10-load.log`; run `kubectl top pods -n vdiforge-system -l app.kubernetes.io/component=api`. |
+| Remediation | Confirm `values-phase10-local.yaml` is applied, verify bearer-token acquisition through the Phase 5 env file, rerun the load generator with documented duration/concurrency/iterations, and keep max replicas within platform-worker capacity. |
+| Logs/metrics | Load-test output, HPA events, API logs, pod CPU metrics. |
+
+## API Pods Pending During Scale-Out
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | HPA desired replicas increases but new `vdiforge-api` pods remain Pending. |
+| Likely causes | `vdiforge-system` ResourceQuota pressure, insufficient CPU/memory on `vdi-worker-01`, missing `vdiforge.io/node-role=platform` label, image not loaded on the platform worker, or node pressure. |
+| Diagnostics | `kubectl -n vdiforge-system get pods -l app.kubernetes.io/component=api -o wide`; `kubectl -n vdiforge-system describe pod <pending-api-pod>`; `kubectl describe resourcequota -n vdiforge-system`; `kubectl describe node vdi-worker-01`; `kubectl top node vdi-worker-01`. |
+| Remediation | Free platform-worker capacity, restore the platform node label, load the `localhost/vdiforge-api:0.10.0` image on `vdi-worker-01`, tune max replicas conservatively, or add worker capacity in a future node-scaling architecture. HPA does not add worker nodes in the local lab. |
+| Logs/metrics | Scheduler events, ResourceQuota usage, node CPU/memory, image pull errors. |
+
+## API Scale-Down Slow
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | Load has stopped but `vdiforge-api` remains above the minimum replica count for several minutes. |
+| Likely causes | HPA scale-down stabilization window, recent CPU samples still above target, continuing browser/API traffic, or failed load generator cleanup. |
+| Diagnostics | `kubectl -n vdiforge-system describe hpa vdiforge-api`; `kubectl top pods -n vdiforge-system -l app.kubernetes.io/component=api`; `ps aux | grep load-test-api`; inspect `/tmp/vdiforge-phase10-load.log`. |
+| Remediation | Wait for the configured stabilization window, stop stray load generators, verify CPU drops below target, and rerun validation. Do not manually scale down during final Phase 10 evidence capture. |
+| Logs/metrics | HPA history/events, pod CPU metrics, load-test log. |
+
 ## Guacamole JSON Token Rejected
 
 | Area | Detail |

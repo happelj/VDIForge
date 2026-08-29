@@ -4,7 +4,7 @@ This document is the authoritative technical design for VDIForge. Later implemen
 
 ## Status
 
-Phase 2 local infrastructure foundation is documented and host-validated. Phase 3 establishes the Kubernetes and KubeVirt foundation on that lab with kubeadm, containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, namespace/RBAC foundations, NetworkPolicy validation, and a disposable KubeVirt test VM. Phase 4 establishes the Helm platform foundation with a `vdiforge` release that manages VDIForge ConfigMap conventions, ServiceAccounts, provisioner RBAC, ResourceQuotas, a LimitRange, and baseline NetworkPolicies. Phase 5 adds Keycloak, PostgreSQL persistence, Traefik ingress, local TLS, realm import, demo identities, Authorization Code Flow with PKCE validation, JWT validation, RBAC claim validation, and identity NetworkPolicies. Phase 6 establishes the Packer/Ansible Ubuntu golden-image pipeline, image catalog foundation, QCOW2 artifact format, CDI import path, and KubeVirt boot validation. Phase 7 adds the FastAPI VDI control plane, application PostgreSQL, Alembic migrations, API/provisioner Helm resources, server-side authorization, audit persistence, and KubeVirt desktop lifecycle reconciliation. Phase 8 adds Apache Guacamole, `guacd`, RDP/xrdp session delivery, short-lived JSON-auth connection brokering, per-desktop remote credentials, and remote-session validation. Phase 9 adds the React/TypeScript self-service portal at `https://vdiforge.local`. Full Prometheus/Grafana observability and HPA/autoscaling remain planned.
+Phase 2 local infrastructure foundation is documented and host-validated. Phase 3 establishes the Kubernetes and KubeVirt foundation on that lab with kubeadm, containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, namespace/RBAC foundations, NetworkPolicy validation, and a disposable KubeVirt test VM. Phase 4 establishes the Helm platform foundation with a `vdiforge` release that manages VDIForge ConfigMap conventions, ServiceAccounts, provisioner RBAC, ResourceQuotas, a LimitRange, and baseline NetworkPolicies. Phase 5 adds Keycloak, PostgreSQL persistence, Traefik ingress, local TLS, realm import, demo identities, Authorization Code Flow with PKCE validation, JWT validation, RBAC claim validation, and identity NetworkPolicies. Phase 6 establishes the Packer/Ansible Ubuntu golden-image pipeline, image catalog foundation, QCOW2 artifact format, CDI import path, and KubeVirt boot validation. Phase 7 adds the FastAPI VDI control plane, application PostgreSQL, Alembic migrations, API/provisioner Helm resources, server-side authorization, audit persistence, and KubeVirt desktop lifecycle reconciliation. Phase 8 adds Apache Guacamole, `guacd`, RDP/xrdp session delivery, short-lived JSON-auth connection brokering, per-desktop remote credentials, and remote-session validation. Phase 9 adds the React/TypeScript self-service portal at `https://vdiforge.local`. Phase 10 adds Kubernetes HPA autoscaling for `vdiforge-api`. Full Prometheus/Grafana observability remains planned.
 
 ## Goals
 
@@ -325,14 +325,14 @@ Phase 4 chart resources:
 - LimitRange for future small platform containers
 - NetworkPolicies for `vdiforge-system` default deny, DNS egress, and future provisioner Kubernetes API egress
 
-With `values-local.yaml` alone, the Helm chart does not create application Deployments, Services, Ingress, HPA, Keycloak, Guacamole, Prometheus, Grafana, or VDI desktops. Phase 5 enables only the identity stack through `values-phase5-local.yaml`, Phase 7 enables the API/provisioner stack through `values-phase7-local.yaml`, Phase 8 enables Guacamole through `values-phase8-local.yaml`, and Phase 9 enables the frontend through `values-phase9-local.yaml`.
+With `values-local.yaml` alone, the Helm chart does not create application Deployments, Services, Ingress, HPA, Keycloak, Guacamole, Prometheus, Grafana, or VDI desktops. Phase 5 enables only the identity stack through `values-phase5-local.yaml`, Phase 7 enables the API/provisioner stack through `values-phase7-local.yaml`, Phase 8 enables Guacamole through `values-phase8-local.yaml`, Phase 9 enables the frontend through `values-phase9-local.yaml`, and Phase 10 enables API autoscaling through `values-phase10-local.yaml`.
 
 Phase-enabled chart resources:
 
 - frontend Deployment, Service, Ingress
 - FastAPI Deployment, Service, Ingress
 - provisioning worker Deployment
-- HPA definitions remain Phase 10
+- API HPA definition for `vdiforge-api`
 
 Third-party systems should use established upstream charts or images when that is simpler and safer than maintaining custom manifests. Phase 5 uses the official Keycloak and PostgreSQL images directly in the VDIForge chart, and installs Traefik with its upstream Helm chart as shared ingress infrastructure.
 
@@ -692,10 +692,13 @@ git --version
 
 ## Autoscaling Design
 
-Platform autoscaling uses Kubernetes HPA for stateless components such as:
+Platform autoscaling uses Kubernetes HPA for eligible stateless components. Phase 10 implements API HPA for:
 
 - FastAPI API replicas
-- provisioning workers
+
+The API HPA uses `autoscaling/v2`, `minReplicas: 1`, `maxReplicas: 3`, and a CPU target of `50%` against a `100m` CPU request. It is enabled only by `values-phase10-local.yaml`.
+
+Provisioner HPA is deferred. The current reconciler is idempotent for one active worker but does not yet include leader election, database row claiming, or row-lock based work partitioning. Scaling the provisioner before adding that coordination could create duplicate reconciliation attempts or unnecessary Kubernetes API pressure.
 
 Initial metrics may be CPU and memory. Future custom metrics may include queue depth or reconciliation lag.
 
@@ -836,7 +839,7 @@ Phase 2 produced local infrastructure that can host the planned three-node clust
 7. Terraform specification and outputs under `terraform/environments/local`.
 8. Ansible baseline inventory and roles under `ansible`.
 
-Phase 3 installs Kubernetes prerequisites, kubeadm/containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, namespace/RBAC foundations, and validation scripts. Phase 4 installs the Helm deployment client on `vdi-control-01` and deploys the VDIForge foundation release. Phase 5 installs Traefik ingress, Keycloak, PostgreSQL persistence, local TLS, the `vdiforge` realm, OIDC clients, demo identities, and identity validation scripts. Phase 6 adds the Packer/Ansible golden-image pipeline and KubeVirt boot validation for the DevOps image. Phase 7 installs the FastAPI API, provisioner, application PostgreSQL, migrations, and validates KubeVirt desktop launch/stop/restart/delete for the DevOps image. Phase 8 installs Guacamole/guacd, adds API session brokering, and validates RDP access to a remote-enabled DevOps desktop. Phase 9 installs the React portal and validates the browser-facing launch/connect workflow. Prometheus/Grafana and application autoscaling remain later phases.
+Phase 3 installs Kubernetes prerequisites, kubeadm/containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, namespace/RBAC foundations, and validation scripts. Phase 4 installs the Helm deployment client on `vdi-control-01` and deploys the VDIForge foundation release. Phase 5 installs Traefik ingress, Keycloak, PostgreSQL persistence, local TLS, the `vdiforge` realm, OIDC clients, demo identities, and identity validation scripts. Phase 6 adds the Packer/Ansible golden-image pipeline and KubeVirt boot validation for the DevOps image. Phase 7 installs the FastAPI API, provisioner, application PostgreSQL, migrations, and validates KubeVirt desktop launch/stop/restart/delete for the DevOps image. Phase 8 installs Guacamole/guacd, adds API session brokering, and validates RDP access to a remote-enabled DevOps desktop. Phase 9 installs the React portal and validates the browser-facing launch/connect workflow. Phase 10 installs and validates API HPA autoscaling through a safe authenticated load test. Prometheus/Grafana remain later phases.
 
 ## Future Cloud or Bare-Metal Deployment
 

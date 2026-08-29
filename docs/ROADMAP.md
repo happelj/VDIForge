@@ -15,7 +15,7 @@ This roadmap defines planned implementation phases. Do not begin a future phase 
 | 7 | FastAPI VDI control plane | Complete | API, database models, desktop lifecycle, asynchronous provisioner, audit persistence, KubeVirt reconciliation. |
 | 8 | Guacamole remote desktop | Complete | Guacamole deployment, secure dynamic connection handling, RDP validation. |
 | 9 | React self-service portal | Complete | Authenticated portal, image catalog, desktop launch, lifecycle, connect/delete UI. |
-| 10 | HPA/autoscaling | Planned | API/provisioner HPA, controlled load demo, capacity failure handling. |
+| 10 | HPA/autoscaling | Complete | API HPA, safe authenticated load test, capacity evidence, and provisioner scaling decision. |
 | 11 | Prometheus/Grafana | Planned | Metrics, dashboards, alerts, logging correlation. |
 | 12 | Security/audit hardening | Planned | Threat-model controls, audit persistence, secret handling, RBAC hardening, network tests. |
 | 13 | CI/CD | Planned | GitHub Actions workflows for code, IaC, images, charts, security scans. |
@@ -50,7 +50,7 @@ Completed outcomes:
 - install pinned Kubernetes 1.36.4 with kubeadm and containerd
 - install Calico v3.32.1 for pod networking and NetworkPolicy support
 - label `vdi-worker-01` as the platform worker and `vdi-worker-02` as the VDI worker
-- install Metrics Server v0.8.1 for future HPA metrics
+- install Metrics Server v0.8.1 for Kubernetes resource metrics later used by the Phase 10 API HPA
 - install KubeVirt v1.9.0 and CDI v1.66.0
 - install local-path provisioner v0.0.32 with StorageClass `vdiforge-local-path`
 - create namespace and least-privilege RBAC foundations without deploying applications
@@ -168,6 +168,22 @@ Completed outcomes:
 - added frontend unit/component/API-client tests and Phase 9 static/live validation scripts
 - confirmed Phase 9 does not implement HPA, Prometheus/Grafana, final CI/CD, or additional production hardening
 
+## Phase 10 - Kubernetes HPA / Autoscaling
+
+Completed outcomes:
+
+- upgraded the VDIForge chart and backend package to `0.10.0`
+- implemented a Helm-managed `autoscaling/v2` HPA for `vdiforge-api`
+- selected local-lab API autoscaling defaults of `minReplicas: 1`, `maxReplicas: 3`, and CPU target `50%`
+- kept API CPU/memory requests and limits in place so HPA metrics can resolve through Metrics Server
+- added a protected `GET /api/v1/health/load-test` endpoint that is disabled by default and enabled only through Phase 10 local values
+- added `scripts/load-test-api.py` for safe authenticated GET load without desktop creation
+- validated authenticated image and desktop reads while multiple API replicas are Ready
+- validated automatic scale-up and scale-down behavior through `scripts/validate-phase10-live.sh`
+- documented that HPA changes API pods only and does not create Kubernetes worker nodes or VDI desktops
+- deferred provisioner HPA because the current reconciler does not yet include leader election, database row claiming, or another safe multi-worker coordination mechanism
+- confirmed Phase 10 does not deploy Prometheus/Grafana, node autoscaling, final CI/CD, or Phase 12 hardening
+
 ## Future Enhancements
 
 Potential future work after the MVP:
@@ -201,6 +217,7 @@ The following are intentionally deferred:
 - stronger browser token-session hardening beyond the Phase 9 sessionStorage and PKCE baseline
 - whether the future API needs a separate confidential admin/service client
 - whether the local API image import workflow should move to a registry before CI/CD
+- provisioner horizontal scaling design: leader election, row claiming, or queue-backed reconciliation
 
 ## Roadmap Rules
 

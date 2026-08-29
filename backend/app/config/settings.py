@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     guacamole_json_secret_key: str | None = None
     guacamole_rdp_security: str = "any"
     guacamole_rdp_server_layout: str = "en-us-qwerty"
+    load_test_enabled: bool = False
+    load_test_default_iterations: int = 125_000
+    load_test_max_iterations: int = 1_500_000
     default_ssh_public_key: str = Field(
         default=(
             "ssh-ed25519 "

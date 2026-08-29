@@ -174,7 +174,35 @@ def test_app_factory_exposes_health() -> None:
     with TestClient(app) as client:
         response = client.get("/api/v1/health")
     assert response.status_code == 200
-    assert response.json()["version"] == "0.9.0"
+    assert response.json()["version"] == "0.10.0"
+
+
+def test_load_test_endpoint_is_disabled_by_default(client: TestClient) -> None:
+    response = client.get("/api/v1/health/load-test")
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "LOAD_TEST_DISABLED"
+
+
+def test_load_test_endpoint_runs_bounded_work(client: TestClient, settings) -> None:
+    settings.load_test_enabled = True
+    settings.load_test_default_iterations = 1_000
+    settings.load_test_max_iterations = 2_000
+
+    response = client.get("/api/v1/health/load-test")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert payload["iterations"] == 1_000
+    assert isinstance(payload["checksum"], int)
+    assert payload["request_id"]
+
+    response = client.get("/api/v1/health/load-test?iterations=1500")
+    assert response.status_code == 200
+    assert response.json()["iterations"] == 1_500
+
+    response = client.get("/api/v1/health/load-test?iterations=2500")
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "LOAD_TEST_LIMIT_EXCEEDED"
 
 
 def test_app_factory_allows_portal_cors_origin() -> None:

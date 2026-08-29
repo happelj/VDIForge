@@ -4,9 +4,9 @@ VDIForge is a portfolio platform project for a small, open-source, self-service 
 
 ## Project Status
 
-Phase 1 established the architecture, requirements, roadmap, standards, and documentation structure. Phase 2 added the local VirtualBox infrastructure foundation. Phase 3 established the Kubernetes and KubeVirt foundation. Phase 4 added the Helm deployment foundation. Phase 5 established the Keycloak/OIDC/RBAC identity foundation. Phase 6 established the Ubuntu/Packer golden-image pipeline. Phase 7 established the FastAPI VDI control plane, PostgreSQL application persistence, and asynchronous KubeVirt provisioning. Phase 8 established Apache Guacamole remote desktop delivery through server-brokered RDP sessions. Phase 9 adds the React self-service portal.
+Phase 1 established the architecture, requirements, roadmap, standards, and documentation structure. Phase 2 added the local VirtualBox infrastructure foundation. Phase 3 established the Kubernetes and KubeVirt foundation. Phase 4 added the Helm deployment foundation. Phase 5 established the Keycloak/OIDC/RBAC identity foundation. Phase 6 established the Ubuntu/Packer golden-image pipeline. Phase 7 established the FastAPI VDI control plane, PostgreSQL application persistence, and asynchronous KubeVirt provisioning. Phase 8 established Apache Guacamole remote desktop delivery through server-brokered RDP sessions. Phase 9 added the React self-service portal. Phase 10 adds Kubernetes HPA autoscaling for the API.
 
-The current local lab is three manually created Ubuntu Server VirtualBox VMs with Terraform infrastructure specifications, Ansible host configuration, kubeadm/containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, a Helm v4.2.4 foundation chart, Traefik ingress, Keycloak, PostgreSQL persistence, source-controlled realm configuration, Packer/Ansible golden-image definitions, image catalog policy, FastAPI API/provisioner services, application PostgreSQL persistence, Apache Guacamole, `guacd`, RDP/xrdp session brokering, a React/TypeScript browser portal, validation scripts, and verified `/dev/kvm` exposure on the VDI worker. Prometheus and Grafana dashboards are not implemented yet.
+The current local lab is three manually created Ubuntu Server VirtualBox VMs with Terraform infrastructure specifications, Ansible host configuration, kubeadm/containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, a Helm v4.2.4 foundation chart, Traefik ingress, Keycloak, PostgreSQL persistence, source-controlled realm configuration, Packer/Ansible golden-image definitions, image catalog policy, FastAPI API/provisioner services, application PostgreSQL persistence, Apache Guacamole, `guacd`, RDP/xrdp session brokering, a React/TypeScript browser portal, API HPA autoscaling, validation scripts, and verified `/dev/kvm` exposure on the VDI worker. Prometheus and Grafana dashboards are not implemented yet.
 
 ## Goals
 
@@ -80,7 +80,8 @@ The client does not download or boot Ubuntu locally. Applications run on the rem
 | Identity | Keycloak, OIDC, OAuth 2.0, JWT validation |
 | Remote desktop | Apache Guacamole, MVP protocol RDP via xrdp, VNC as fallback |
 | Deployment | Helm v4.2.4 foundation chart and future application charts |
-| Observability | Prometheus, Grafana, structured logs, audit events |
+| Autoscaling | Kubernetes HPA for `vdiforge-api`; node autoscaling deferred |
+| Observability | Metrics Server, minimal API metrics, planned Prometheus/Grafana dashboards, structured logs, audit events |
 | CI/CD | GitHub Actions |
 
 ## Local Development Concept
@@ -90,8 +91,8 @@ The initial lab is designed around three Ubuntu Server Kubernetes nodes:
 | Node | Role | Host-only IP | CPU | RAM | Disk |
 | --- | --- | --- | ---: | ---: | ---: |
 | `vdi-control-01` | control-plane node | `192.168.56.10` | 4 vCPU | 6144 MiB | 40 GiB |
-| `vdi-worker-01` | future platform worker | `192.168.56.11` | 2 vCPU | 6144 MiB | 50 GiB |
-| `vdi-worker-02` | future VDI worker | `192.168.56.12` | 4 vCPU | 8192 MiB | 60 GiB |
+| `vdi-worker-01` | platform worker | `192.168.56.11` | 2 vCPU | 6144 MiB | 50 GiB |
+| `vdi-worker-02` | VDI/KubeVirt worker | `192.168.56.12` | 4 vCPU | 8192 MiB | 60 GiB |
 
 Suggested labels:
 
@@ -115,6 +116,8 @@ Phase 7 deploys the FastAPI API and provisioner backed by PostgreSQL. The API va
 Phase 8 deploys Apache Guacamole `1.6.0` and `guacd` `1.6.0`. The API adds `POST /api/v1/desktops/{id}/connect`, verifies desktop ownership and READY state, creates a short-lived encrypted Guacamole JSON handoff URL, and records connection audit events without exposing reusable RDP credentials to the frontend. See [Remote Desktop Delivery](docs/REMOTE-DESKTOP.md).
 
 Phase 9 deploys `localhost/vdiforge-frontend:0.9.0` at `https://vdiforge.local` and upgrades the API/provisioner image to `localhost/vdiforge-api:0.9.0`. The portal uses the existing Keycloak public client with Authorization Code Flow and PKCE, renders API-authorized images/desktops, launches the current `ubuntu-devops:1.2.0` image, polls lifecycle state, opens the exact brokered Guacamole URL, and never receives reusable remote desktop credentials. See [React Self-Service Portal](docs/WEB-PORTAL.md).
+
+Phase 10 upgrades the API/provisioner image tag to `localhost/vdiforge-api:0.10.0` and adds a Helm-managed `autoscaling/v2` HPA for `vdiforge-api`. The autoscaling demo uses a protected, local/test-gated `GET /api/v1/health/load-test` endpoint and does not create desktop VMs. Provisioner HPA remains deferred until reconciliation has explicit work coordination. See [Autoscaling](docs/AUTOSCALING.md).
 
 ## Repository Organization
 
@@ -188,11 +191,12 @@ Phase 9 deploys `localhost/vdiforge-frontend:0.9.0` at `https://vdiforge.local` 
 - Local `.local` TLS requires a generated development CA to be trusted by each browser client.
 - `vdiforge.local` and `remote.vdiforge.local` require the same local hosts-file or DNS convention as `auth.vdiforge.local` and `api.vdiforge.local`.
 - Phase 9 records portal-driven connection requests and authorization denials through the API, but detailed browser disconnect/session telemetry remains future work.
+- Phase 10 autoscaling applies only to API pods. It does not autoscale KubeVirt desktops, the provisioner, or Kubernetes worker nodes.
 - True Kubernetes node autoscaling is future cloud or bare-metal functionality, not part of the fixed local lab.
 - Windows desktops are out of scope for the free MVP because they require licensing.
 
 ## Roadmap
 
-The next planned task after Phase 9 is Phase 10 - HPA / Autoscaling. Later phases add observability, security hardening, CI/CD, and the final end-to-end demo.
+The next planned task after Phase 10 is Phase 11 - Prometheus / Grafana Observability. Later phases add security hardening, CI/CD, and the final end-to-end demo.
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for the full roadmap.
