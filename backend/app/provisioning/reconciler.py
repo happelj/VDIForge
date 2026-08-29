@@ -12,6 +12,17 @@ from app.auth.claims import AuthenticatedUser
 from app.config.settings import Settings, get_settings
 from app.db.session import SessionLocal
 from app.models.entities import Desktop, ProvisioningOperation
+from app.observability.metrics import (
+    elapsed_since,
+    monotonic_time,
+    observe_desktop_provision_duration,
+    observe_reconcile,
+    record_desktop_provision_failure,
+    record_reconcile_failure,
+    refresh_desktop_gauges,
+    seconds_between,
+    start_provisioner_metrics_server,
+)
 from app.provisioning.kubevirt import KubeVirtClient
 from app.services.resource_profiles import get_resource_profile
 
@@ -29,22 +40,38 @@ class Reconciler:
 
     def run_forever(self) -> None:
         LOGGER.info("Starting VDIForge provisioner.", extra={"operation": "provisioner_start"})
+        if self.settings.metrics_enabled:
+            start_provisioner_metrics_server(self.settings.metrics_port)
         while True:
             with SessionLocal() as db:
                 self.reconcile_once(db)
             time.sleep(self.settings.provisioner_poll_seconds)
 
     def reconcile_once(self, db: Session) -> int:
+        started_at = monotonic_time()
         statement = select(Desktop).where(Desktop.observed_state.not_in(["TERMINATED"]))
         desktops = list(db.scalars(statement))
         changed = 0
-        for desktop in desktops:
-            if desktop.next_reconcile_at and desktop.next_reconcile_at > now_utc():
-                continue
-            self._reconcile_desktop(db, desktop)
-            changed += 1
-        db.commit()
-        return changed
+        result = "success"
+        try:
+            for desktop in desktops:
+                if desktop.next_reconcile_at and desktop.next_reconcile_at > now_utc():
+                    continue
+                self._reconcile_desktop(db, desktop)
+                changed += 1
+            refresh_desktop_gauges(
+                db,
+                remote_session_ttl_seconds=self.settings.remote_session_ttl_seconds,
+                remote_desktop_protocol=self.settings.remote_desktop_protocol,
+            )
+            db.commit()
+            return changed
+        except Exception:
+            result = "failure"
+            record_reconcile_failure("unhandled_exception")
+            raise
+        finally:
+            observe_reconcile(result, elapsed_since(started_at))
 
     def _reconcile_desktop(self, db: Session, desktop: Desktop) -> None:
         try:
@@ -93,8 +120,9 @@ class Reconciler:
                 else "BOOTING"
             )
             if desktop.observed_state == "READY":
-                self._complete_latest_operation(db, desktop, "SUCCESS", "Desktop is ready.")
-                self._audit_system(db, desktop, "DESKTOP_CREATED", "SUCCESS", {})
+                completed = self._complete_latest_operation(db, desktop, "SUCCESS", "Desktop is ready.")
+                if completed:
+                    self._audit_system(db, desktop, "DESKTOP_CREATED", "SUCCESS", {})
             desktop.last_observed_at = now_utc()
             desktop.failure_code = None
             desktop.failure_message = None
@@ -125,6 +153,7 @@ class Reconciler:
         desktop.failure_message = message[:2048]
         desktop.last_observed_at = now_utc()
         self._complete_latest_operation(db, desktop, "FAILED", message)
+        record_desktop_provision_failure(desktop.image_id, code)
         self._audit_system(db, desktop, "DESKTOP_FAILED", "FAILURE", {"failure_code": code})
 
     def _transition(self, db: Session, desktop: Desktop, state: str, audit_action: str) -> None:
@@ -135,7 +164,7 @@ class Reconciler:
         self._complete_latest_operation(db, desktop, "SUCCESS", f"{previous} -> {state}")
         self._audit_system(db, desktop, audit_action, "SUCCESS", {"previous_state": previous, "state": state})
 
-    def _complete_latest_operation(self, db: Session, desktop: Desktop, status: str, message: str) -> None:
+    def _complete_latest_operation(self, db: Session, desktop: Desktop, status: str, message: str) -> bool:
         statement = (
             select(ProvisioningOperation)
             .where(ProvisioningOperation.desktop_id == desktop.id, ProvisioningOperation.status == "PENDING")
@@ -144,9 +173,18 @@ class Reconciler:
         )
         operation = db.scalar(statement)
         if operation:
+            completed_at = now_utc()
             operation.status = status
             operation.message = message[:2048]
-            operation.updated_at = now_utc()
+            operation.updated_at = completed_at
+            if operation.operation == "DESKTOP_REQUESTED":
+                observe_desktop_provision_duration(
+                    desktop.image_id,
+                    status.lower(),
+                    seconds_between(operation.created_at, completed_at),
+                )
+            return True
+        return False
 
     def _audit_system(self, db: Session, desktop: Desktop, action: str, result: str, details: dict) -> None:
         user = AuthenticatedUser(subject=desktop.owner_subject, username=desktop.owner_username, roles=frozenset())
@@ -168,6 +206,8 @@ def main() -> int:
 
     settings = get_settings()
     configure_logging(settings.log_level)
+    if settings.metrics_enabled:
+        start_provisioner_metrics_server(settings.metrics_port)
     Reconciler(settings).run_forever()
     return 0
 

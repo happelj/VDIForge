@@ -1,6 +1,6 @@
 # VDIForge Requirements
 
-This document defines formal Phase 1 requirements for later implementation phases. Each requirement is intended to support traceability:
+This document defines formal VDIForge requirements for implementation phases. Each requirement is intended to support traceability:
 
 ```text
 Requirement -> Implementation -> Test -> Evidence -> PASS / FAIL
@@ -189,7 +189,7 @@ Requirement -> Implementation -> Test -> Evidence -> PASS / FAIL
 | APP-015 | Desktop delete shall remove the managed VM, VMI, DataVolume/PVC, and Service resources where Kubernetes permits cleanup. | Live E2E cleanup validation. |
 | APP-016 | The API shall return stable error codes and request IDs for expected failures. | Backend tests. |
 | APP-017 | Phase 7 shall record audit events for desktop requests, lifecycle changes, failures, and admin audit access. | Backend tests and live audit validation. |
-| APP-018 | The backend shall expose only minimal Phase 7 metrics and shall not implement the full Phase 11 observability stack. | Metrics endpoint check and scope review. |
+| APP-018 | Phase 7 shall expose only minimal backend metrics and shall not implement the full Phase 11 observability stack during Phase 7. | Metrics endpoint check and scope review. |
 | APP-019 | Phase 7 validation shall produce explicit static and live PASS/FAIL results. | `scripts/validate-phase7.ps1` and `scripts/validate-phase7-live.sh`. |
 
 ## Remote Desktop Delivery Requirements
@@ -291,6 +291,27 @@ Requirement -> Implementation -> Test -> Evidence -> PASS / FAIL
 | OBS-008 | Application logs shall include timestamp, level, service, request ID, user ID where known, operation, resource ID where relevant, and message. | Log schema test. |
 | OBS-009 | Audit events shall include timestamp, event ID, request ID, user ID, action, resource type, resource ID, source IP, result, and details. | Audit schema test. |
 | OBS-010 | Request IDs shall propagate from browser/API requests through provisioning and audit records. | Correlation integration test. |
+
+## Monitoring Stack Requirements
+
+| ID | Requirement | Verification approach |
+| --- | --- | --- |
+| MON-001 | Phase 11 shall deploy a pinned, maintained Prometheus/Grafana stack into the existing `monitoring` namespace. | Helm release and values validation. |
+| MON-002 | Phase 11 shall retain Metrics Server as the Kubernetes HPA resource-metrics provider and shall not replace it with Prometheus. | Documentation and live HPA regression validation. |
+| MON-003 | The API shall expose `vdiforge_api_requests_total` with labels limited to method, normalized route, and status code. | Backend tests and metrics scrape validation. |
+| MON-004 | The API shall expose `vdiforge_api_request_duration_seconds` for request latency. | Backend tests and Prometheus query validation. |
+| MON-005 | The backend shall expose desktop provisioning request, failure, and duration metrics. | Backend tests, live desktop lifecycle validation, and Prometheus query validation. |
+| MON-006 | The backend shall expose active desktop and desktop-by-state gauges. | Backend tests and Prometheus query validation. |
+| MON-007 | The backend shall expose active remote-session metrics only with low-cardinality labels. | Backend tests and label review. |
+| MON-008 | The provisioner shall expose reconcile totals, reconcile failures, reconcile duration, and pending-operation metrics. | Backend tests and provisioner ServiceMonitor validation. |
+| MON-009 | Application metrics shall not label by desktop ID, request ID, username, token subject, Guacamole connection ID, raw URL, or JWT content. | Static validation and code review. |
+| MON-010 | The Helm chart shall create ServiceMonitors for the API and provisioner when Phase 11 monitoring is enabled. | Helm template and live ServiceMonitor validation. |
+| MON-011 | KubeVirt metrics shall be integrated through the supported Prometheus Operator monitoring path. | KubeVirt CR review and Prometheus query validation. |
+| MON-012 | Grafana dashboard configuration shall be stored as code and installed through Helm. | Dashboard JSON validation and live Grafana search. |
+| MON-013 | Phase 11 shall define alert rules for API down, high API error rate, high provisioning failure rate, Kubernetes node NotReady, and VDI worker memory pressure. | PrometheusRule render and live alert validation. |
+| MON-014 | Grafana admin credentials and TLS private keys shall be generated outside Git and supplied through Kubernetes Secrets. | Secret scan and live Secret validation. |
+| MON-015 | Phase 11 validation shall prove Prometheus scraping, Grafana dashboard availability, alerting, safe HPA load observability, and desktop lifecycle metrics. | `scripts/validate-phase11-live.sh`. |
+| MON-016 | Phase 11 shall not deploy SIEM forwarding, log aggregation, Grafana Keycloak OIDC, final CI/CD, or additional security hardening. | Scope review. |
 
 ## Operations Requirements
 
@@ -623,3 +644,36 @@ Requirement -> Implementation -> Test -> Evidence -> PASS / FAIL
 | `HPA-015` | [scripts/validate-phase10.ps1](../scripts/validate-phase10.ps1), [scripts/validate-phase10-live.sh](../scripts/validate-phase10-live.sh) | Static and live validator execution. | PASS | Validators emit explicit PASS/FAIL and fail closed on missing HPA evidence. |
 | `SEC-008` | [.gitignore](../.gitignore), [scripts/validate-phase10.ps1](../scripts/validate-phase10.ps1) | Secret scan and tracked artifact scan. | PASS | No generated load-test credentials, kubeconfigs, tokens, or TLS keys are committed. |
 | `OPS-012` | [scripts/validate-phase10.ps1](../scripts/validate-phase10.ps1), [scripts/validate-phase10-live.sh](../scripts/validate-phase10-live.sh) | Phase completion validation. | PASS | Phase 10 requires validation before merge to `main`. |
+
+## Phase 11 Traceability
+
+| Requirement | Implementation reference | Test or evidence | Status | Notes |
+| --- | --- | --- | --- | --- |
+| `NFR-003` | [monitoring/kube-prometheus-stack-values-local.yaml](../monitoring/kube-prometheus-stack-values-local.yaml), [helm/vdiforge/values.yaml](../helm/vdiforge/values.yaml), [backend/pyproject.toml](../backend/pyproject.toml) | Static validation and Helm render. | PASS | kube-prometheus-stack, Prometheus Operator, backend package, and chart versions are pinned. |
+| `NFR-006` | [helm/vdiforge/templates/servicemonitors.yaml](../helm/vdiforge/templates/servicemonitors.yaml), [helm/vdiforge/templates/prometheusrules.yaml](../helm/vdiforge/templates/prometheusrules.yaml), [helm/vdiforge/templates/grafana-dashboard.yaml](../helm/vdiforge/templates/grafana-dashboard.yaml) | Helm install/upgrade/live validation. | PASS | Phase 11 extends the existing Helm release with observability resources. |
+| `FR-023` | [backend/app/api/routes.py](../backend/app/api/routes.py), [backend/app/observability/metrics.py](../backend/app/observability/metrics.py) | Backend metrics tests and scrape validation. | PASS | `/metrics` uses the Prometheus Python client. |
+| `OBS-001` | [backend/app/main.py](../backend/app/main.py), [backend/app/observability/metrics.py](../backend/app/observability/metrics.py) | Backend tests and Prometheus query validation. | PASS | API request rate, error rate, and latency are exported with normalized route labels. |
+| `OBS-002` | [backend/app/observability/metrics.py](../backend/app/observability/metrics.py) | Backend tests and live desktop lifecycle validation. | PASS | Active, by-state, provisioning, and failure metrics are exported. |
+| `OBS-003` | [backend/app/provisioning/reconciler.py](../backend/app/provisioning/reconciler.py), [backend/app/observability/metrics.py](../backend/app/observability/metrics.py) | Backend tests and live lifecycle validation. | PASS | Provisioning success/failure and duration metrics are recorded by request and reconciliation paths. |
+| `OBS-004` | [monitoring/grafana/vdiforge-overview.json](../monitoring/grafana/vdiforge-overview.json) | Dashboard JSON review and live Grafana search. | PASS | Dashboard includes P50/P95 provisioning latency queries. |
+| `OBS-005` | [monitoring/grafana/vdiforge-overview.json](../monitoring/grafana/vdiforge-overview.json) | Dashboard JSON review. | PASS | Dashboard includes API replicas and HPA desired/current panels. |
+| `OBS-006` | [monitoring/grafana/vdiforge-overview.json](../monitoring/grafana/vdiforge-overview.json) | Dashboard JSON review. | PASS | Dashboard includes pod and node CPU/memory panels. |
+| `OBS-007` | [monitoring/grafana/vdiforge-overview.json](../monitoring/grafana/vdiforge-overview.json) | Dashboard JSON review. | PASS | Dashboard includes Kubernetes node health and active remote-session panels. |
+| `MON-001` | [scripts/phase11-install-monitoring.sh](../scripts/phase11-install-monitoring.sh), [monitoring/kube-prometheus-stack-values-local.yaml](../monitoring/kube-prometheus-stack-values-local.yaml) | Live Helm release validation. | PASS | Monitoring stack is installed into `monitoring`. |
+| `MON-002` | [docs/PROMETHEUS-GRAFANA.md](PROMETHEUS-GRAFANA.md), [docs/AUTOSCALING.md](AUTOSCALING.md) | Documentation and HPA regression validation. | PASS | Metrics Server remains the HPA provider; Prometheus observes HPA state. |
+| `MON-003` | [backend/app/main.py](../backend/app/main.py), [backend/app/observability/metrics.py](../backend/app/observability/metrics.py) | `backend/tests/test_metrics.py`. | PASS | API request counter labels are method, normalized route, and status code. |
+| `MON-004` | [backend/app/observability/metrics.py](../backend/app/observability/metrics.py) | `backend/tests/test_metrics.py`. | PASS | API latency histogram is exported. |
+| `MON-005` | [backend/app/services/desktops.py](../backend/app/services/desktops.py), [backend/app/provisioning/reconciler.py](../backend/app/provisioning/reconciler.py) | Backend tests and live desktop lifecycle validation. | PASS | Provision request, failure, and duration metrics are recorded. |
+| `MON-006` | [backend/app/observability/metrics.py](../backend/app/observability/metrics.py) | Backend tests and Prometheus query validation. | PASS | Active and by-state gauges are refreshed from PostgreSQL state. |
+| `MON-007` | [backend/app/observability/metrics.py](../backend/app/observability/metrics.py) | Static label scan. | PASS | Remote-session gauge is labeled only by protocol. |
+| `MON-008` | [backend/app/provisioning/reconciler.py](../backend/app/provisioning/reconciler.py), [helm/vdiforge/templates/provisioner.yaml](../helm/vdiforge/templates/provisioner.yaml) | ServiceMonitor and scrape validation. | PASS | Provisioner metrics are served on port `9102`. |
+| `MON-009` | [backend/app/observability/metrics.py](../backend/app/observability/metrics.py), [scripts/validate-phase11.ps1](../scripts/validate-phase11.ps1) | Static validation. | PASS | Metrics avoid desktop ID, request ID, username, token subject, Guacamole ID, raw URL, and JWT labels. |
+| `MON-010` | [helm/vdiforge/templates/servicemonitors.yaml](../helm/vdiforge/templates/servicemonitors.yaml) | Helm template and live ServiceMonitor validation. | PASS | API and provisioner ServiceMonitors are enabled by Phase 11 values. |
+| `MON-011` | [scripts/phase11-install-monitoring.sh](../scripts/phase11-install-monitoring.sh) | KubeVirt CR patch and Prometheus query validation. | PASS | KubeVirt metrics are discovered through Prometheus Operator integration. |
+| `MON-012` | [monitoring/grafana/vdiforge-overview.json](../monitoring/grafana/vdiforge-overview.json), [helm/vdiforge/templates/grafana-dashboard.yaml](../helm/vdiforge/templates/grafana-dashboard.yaml) | Dashboard JSON validation and live Grafana search. | PASS | `VDIForge Overview` is stored as code and packaged with the chart. |
+| `MON-013` | [helm/vdiforge/templates/prometheusrules.yaml](../helm/vdiforge/templates/prometheusrules.yaml) | PrometheusRule render and temporary alert validation. | PASS | Required API, provisioning, node, and VDI worker memory alerts are defined. |
+| `MON-014` | [scripts/phase11-create-local-secrets.sh](../scripts/phase11-create-local-secrets.sh), [.gitignore](../.gitignore) | Secret scan and live Secret validation. | PASS | Grafana credentials and TLS private key are generated under ignored `.local/phase11`. |
+| `MON-015` | [scripts/validate-phase11.ps1](../scripts/validate-phase11.ps1), [scripts/validate-phase11-live.sh](../scripts/validate-phase11-live.sh) | Static and live validator execution. | PASS | Validation covers scraping, dashboard, alert, HPA load, desktop lifecycle, and regression checks. |
+| `MON-016` | [docs/PROMETHEUS-GRAFANA.md](PROMETHEUS-GRAFANA.md), [docs/ROADMAP.md](ROADMAP.md) | Scope review. | PASS | Phase 11 stops before SIEM, log aggregation, Grafana OIDC, final CI/CD, and extra hardening. |
+| `SEC-008` | [.gitignore](../.gitignore), [scripts/validate-phase11.ps1](../scripts/validate-phase11.ps1) | Secret scan and tracked artifact scan. | PASS | No Grafana passwords, TLS keys, kubeconfigs, tokens, or generated artifacts are committed. |
+| `OPS-012` | [scripts/validate-phase11.ps1](../scripts/validate-phase11.ps1), [scripts/validate-phase11-live.sh](../scripts/validate-phase11-live.sh) | Phase completion validation. | PASS | Phase 11 requires explicit static and live PASS before merge. |

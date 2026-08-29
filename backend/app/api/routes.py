@@ -3,7 +3,8 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, Query, Request, Response
-from sqlalchemy import func, select, text
+from prometheus_client import CONTENT_TYPE_LATEST
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app import __version__
@@ -13,6 +14,11 @@ from app.auth.claims import AuthenticatedUser
 from app.config.settings import Settings
 from app.db.session import get_db
 from app.models.entities import Desktop
+from app.observability.metrics import (
+    generate_prometheus_metrics,
+    record_desktop_provision_request,
+    refresh_desktop_gauges,
+)
 from app.schemas.api import (
     AuditEventListResponse,
     AuditEventResponse,
@@ -122,13 +128,17 @@ def create_desktop(
     db: Annotated[Session, Depends(get_db)],
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> Desktop:
-    return DesktopService(db, settings).create_desktop(
-        request=body,
-        user=user,
-        idempotency_key=idempotency_key,
-        request_id=request.state.request_id,
-        source_ip=source_ip(request),
-    )
+    try:
+        return DesktopService(db, settings).create_desktop(
+            request=body,
+            user=user,
+            idempotency_key=idempotency_key,
+            request_id=request.state.request_id,
+            source_ip=source_ip(request),
+        )
+    except ApiError:
+        record_desktop_provision_request(body.image_id, "rejected")
+        raise
 
 
 @router.get("/desktops", response_model=DesktopListResponse, tags=["desktops"])
@@ -230,16 +240,13 @@ def audit_events(
 
 
 @router.get("/metrics", tags=["system"])
-def metrics(db: Annotated[Session, Depends(get_db)]) -> Response:
-    counts = dict(db.execute(select(Desktop.observed_state, func.count()).group_by(Desktop.observed_state)).all())
-    total = sum(int(value) for value in counts.values())
-    lines = [
-        "# HELP vdiforge_desktops_total Number of VDIForge desktop records by observed state.",
-        "# TYPE vdiforge_desktops_total gauge",
-    ]
-    for state, count in sorted(counts.items()):
-        lines.append(f'vdiforge_desktops_total{{state="{state}"}} {count}')
-    lines.append("# HELP vdiforge_desktops_all_total Total number of VDIForge desktop records.")
-    lines.append("# TYPE vdiforge_desktops_all_total gauge")
-    lines.append(f"vdiforge_desktops_all_total {total}")
-    return Response("\n".join(lines) + "\n", media_type="text/plain; version=0.0.4")
+def metrics(
+    settings: Annotated[Settings, Depends(current_settings)],
+    db: Annotated[Session, Depends(get_db)],
+) -> Response:
+    refresh_desktop_gauges(
+        db,
+        remote_session_ttl_seconds=settings.remote_session_ttl_seconds,
+        remote_desktop_protocol=settings.remote_desktop_protocol,
+    )
+    return Response(generate_prometheus_metrics(), media_type=CONTENT_TYPE_LATEST)

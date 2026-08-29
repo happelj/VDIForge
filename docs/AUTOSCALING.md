@@ -250,6 +250,13 @@ If HPA metrics remain `<unknown>`, fix Metrics Server or API resource requests b
 
 ## Future Work
 
-Phase 11 will add Prometheus/Grafana observability. It should scrape and visualize API request metrics, HPA desired/current replicas, pod CPU/memory, provisioning latency, and remote-session metrics.
+Phase 11 adds Prometheus/Grafana observability. Prometheus scrapes and visualizes API request metrics, HPA desired/current replicas, pod CPU/memory, provisioning latency, and remote-session metrics.
+
+This does not change the autoscaling control loop:
+
+```text
+Metrics Server -> Kubernetes resource metrics API -> HPA -> API Deployment replicas
+Prometheus -> dashboards and alerts only
+```
 
 Future cloud or bare-metal deployments may add true node autoscaling. That requires separate infrastructure automation and capacity management and is not part of the local MVP.

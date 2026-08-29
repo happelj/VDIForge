@@ -97,10 +97,13 @@ if ($trackedArtifacts) {
 }
 
 $chart = Get-Content "helm/vdiforge/Chart.yaml" -Raw
-if ($chart -match "version:\s+0\.10\.0" -and $chart -match "appVersion:\s+`"0\.10\.0`"") {
-    Pass "Helm chart version advanced to 0.10.0"
+$chartVersion = if ($chart -match "(?m)^version:\s+([0-9]+\.[0-9]+\.[0-9]+)") { [version]$Matches[1] } else { $null }
+$appVersion = if ($chart -match "(?m)^appVersion:\s+`"?([0-9]+\.[0-9]+\.[0-9]+)`"?") { [version]$Matches[1] } else { $null }
+$phase10Baseline = [version]"0.10.0"
+if ($chartVersion -and $appVersion -and $chartVersion -ge $phase10Baseline -and $appVersion -ge $phase10Baseline) {
+    Pass "Helm chart version remains at or above the Phase 10 baseline"
 } else {
-    Fail "Helm chart version/appVersion is not 0.10.0"
+    Fail "Helm chart version/appVersion is below the Phase 10 baseline"
 }
 
 $values = Get-Content "helm/vdiforge/values.yaml" -Raw

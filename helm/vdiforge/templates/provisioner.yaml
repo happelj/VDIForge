@@ -1,3 +1,22 @@
+{{- if and .Values.provisioner.enabled .Values.monitoring.applicationMetrics.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "vdiforge.provisioner.name" . }}-metrics
+  namespace: {{ include "vdiforge.namespace.system" . }}
+  labels:
+    {{- include "vdiforge.provisioner.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "vdiforge.provisioner.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: metrics
+      port: {{ .Values.monitoring.applicationMetrics.provisionerPort }}
+      targetPort: metrics
+      protocol: TCP
+---
+{{- end }}
 {{- if .Values.provisioner.enabled }}
 apiVersion: apps/v1
 kind: Deployment
@@ -41,6 +60,11 @@ spec:
             - python
             - -m
             - app.provisioning.reconciler
+          {{- if .Values.monitoring.applicationMetrics.enabled }}
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.monitoring.applicationMetrics.provisionerPort }}
+          {{- end }}
           env:
             - name: VDIFORGE_SERVICE_NAME
               value: vdiforge-provisioner
@@ -71,6 +95,10 @@ spec:
               value: {{ .Values.provisioner.env.maxDesktopsPerUser | quote }}
             - name: VDIFORGE_MAX_DESKTOPS_PER_ADMIN
               value: {{ .Values.provisioner.env.maxDesktopsPerAdmin | quote }}
+            - name: VDIFORGE_METRICS_ENABLED
+              value: {{ .Values.monitoring.applicationMetrics.enabled | quote }}
+            - name: VDIFORGE_METRICS_PORT
+              value: {{ .Values.monitoring.applicationMetrics.provisionerPort | quote }}
           volumeMounts:
             - name: keycloak-ca
               mountPath: /var/run/vdiforge/keycloak-ca

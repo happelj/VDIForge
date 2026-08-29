@@ -16,7 +16,7 @@ This roadmap defines planned implementation phases. Do not begin a future phase 
 | 8 | Guacamole remote desktop | Complete | Guacamole deployment, secure dynamic connection handling, RDP validation. |
 | 9 | React self-service portal | Complete | Authenticated portal, image catalog, desktop launch, lifecycle, connect/delete UI. |
 | 10 | HPA/autoscaling | Complete | API HPA, safe authenticated load test, capacity evidence, and provisioner scaling decision. |
-| 11 | Prometheus/Grafana | Planned | Metrics, dashboards, alerts, logging correlation. |
+| 11 | Prometheus/Grafana | Complete | Prometheus, Grafana, Alertmanager, application metrics, dashboards, alerts, and validation. |
 | 12 | Security/audit hardening | Planned | Threat-model controls, audit persistence, secret handling, RBAC hardening, network tests. |
 | 13 | CI/CD | Planned | GitHub Actions workflows for code, IaC, images, charts, security scans. |
 | 14 | End-to-end validation/demo | Planned | Final E2E test, demo script, cleanup, portfolio readiness. |
@@ -183,6 +183,21 @@ Completed outcomes:
 - documented that HPA changes API pods only and does not create Kubernetes worker nodes or VDI desktops
 - deferred provisioner HPA because the current reconciler does not yet include leader election, database row claiming, or another safe multi-worker coordination mechanism
 - confirmed Phase 10 does not deploy Prometheus/Grafana, node autoscaling, final CI/CD, or Phase 12 hardening
+
+## Phase 11 - Prometheus / Grafana Observability
+
+Completed outcomes:
+
+- deployed `prometheus-community/kube-prometheus-stack` `88.6.1` into the existing `monitoring` namespace
+- retained Metrics Server as the Kubernetes HPA resource-metrics provider
+- added `prometheus-client` instrumentation to the FastAPI API and provisioner
+- exposed API request count, API latency, desktop state, provisioning request/failure/duration, remote-session, reconciler, and pending-operation metrics
+- added VDIForge ServiceMonitors, PrometheusRule alerts, and Grafana dashboard ConfigMap resources to the Helm chart
+- integrated KubeVirt metrics through the supported Prometheus Operator monitoring fields on the KubeVirt CR
+- created `VDIForge Overview` dashboard-as-code under `monitoring/grafana`
+- exposed Grafana at `https://grafana.vdiforge.local` with generated local TLS and generated local admin credentials
+- validated a temporary alert, safe Phase 10 load visibility, and controlled desktop lifecycle metrics
+- confirmed Phase 11 does not implement SIEM forwarding, log aggregation, Grafana Keycloak OIDC, final CI/CD, or additional security hardening
 
 ## Future Enhancements
 

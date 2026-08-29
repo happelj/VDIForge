@@ -277,4 +277,35 @@ spec:
         - protocol: TCP
           port: {{ .Values.networkPolicy.system.allowAppDatabase.port }}
 {{- end }}
+{{- if and .Values.monitoring.enabled .Values.networkPolicy.system.allowMonitoringScrape.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Values.networkPolicy.system.allowMonitoringScrape.name }}
+  namespace: {{ include "vdiforge.namespace.system" . }}
+  labels:
+    {{- include "vdiforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: In
+        values:
+          - api
+          - provisioner
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.system.allowMonitoringScrape.namespace }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.networkPolicy.system.allowMonitoringScrape.apiPort }}
+        - protocol: TCP
+          port: {{ .Values.networkPolicy.system.allowMonitoringScrape.provisionerPort }}
+{{- end }}
 {{- end }}

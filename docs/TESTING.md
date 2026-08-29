@@ -337,6 +337,21 @@ The Phase 10 live validator checks cluster regression health, Helm lint/render/s
 
 Phase 10 deliberately does not use desktop creation as the load-test path.
 
+Phase 11 static validation:
+
+```powershell
+.\scripts\validate-phase11.ps1
+```
+
+Phase 11 live validation from `vdi-control-01`:
+
+```bash
+cd ~/vdiforge-phase11-validation
+bash scripts/validate-phase11-live.sh
+```
+
+The Phase 11 live validator checks kube-prometheus-stack installation, Prometheus/Grafana/Alertmanager health, VDIForge ServiceMonitors, PrometheusRule alerts, Grafana dashboard discovery, API/provisioner metrics, KubeVirt metrics, HPA metric visibility, temporary alert firing and cleanup, safe Phase 10 API load visibility, controlled desktop lifecycle metrics, and Phase 1-10 cluster regression health.
+
 ## Image Validation
 
 Phase 6 static validation:
@@ -440,7 +455,21 @@ Phase 10 validates Kubernetes HPA behavior for `vdiforge-api`:
 - unchanged desktop count before and after the load test
 - provisioner HPA omitted until reconciliation has safe multi-worker coordination
 
-Autoscaling tests use Metrics Server and Kubernetes HPA status. Prometheus/Grafana dashboard validation remains Phase 11.
+Autoscaling tests use Metrics Server and Kubernetes HPA status. Phase 11 adds Prometheus/Grafana dashboard and query validation for the same HPA behavior without replacing Metrics Server as the HPA data source.
+
+## Observability Tests
+
+Phase 11 validates:
+
+- `prometheus-client` metric definitions and `/metrics` output;
+- normalized API route labels instead of concrete IDs;
+- absence of high-cardinality user, request, token, desktop, and Guacamole identifiers in metric labels;
+- Helm rendering of ServiceMonitor, PrometheusRule, and dashboard ConfigMap resources;
+- Prometheus target discovery for the API and provisioner;
+- KubeVirt metric discovery through Prometheus Operator integration;
+- `VDIForge Overview` dashboard availability in Grafana;
+- temporary alert firing and cleanup;
+- safe load and desktop lifecycle metrics.
 
 ## End-to-End Test
 

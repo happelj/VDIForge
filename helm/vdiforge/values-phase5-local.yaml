@@ -1,5 +1,10 @@
 keycloak:
   enabled: true
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   ingress:
     enabled: true
   postgresql:

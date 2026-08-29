@@ -3,6 +3,7 @@ global:
 
 helm:
   testedVersion: "v4.2.4"
+  testedObservabilityVersion: "v4.2.4"
 
 namespaces:
   create: false
@@ -183,6 +184,12 @@ networkPolicy:
       clientEgressName: vdiforge-system-app-to-app-postgres
       databaseName: vdiforge-system-app-postgres-ingress
       port: 5432
+    allowMonitoringScrape:
+      enabled: false
+      name: vdiforge-system-allow-monitoring-scrape
+      namespace: monitoring
+      apiPort: 8000
+      provisionerPort: 9102
 
 placement:
   platform:
@@ -368,6 +375,7 @@ keycloak:
   existingSecret: vdiforge-keycloak-secrets
   realmImportConfigMap: vdiforge-keycloak-realm
   realmImportFile: vdiforge-realm.json
+  strategy: {}
   admin:
     usernameKey: KEYCLOAK_ADMIN_USERNAME
     passwordKey: KEYCLOAK_ADMIN_PASSWORD
@@ -501,3 +509,32 @@ guacamole:
 monitoring:
   enabled: false
   externalChart: true
+  commonLabels: {}
+  applicationMetrics:
+    enabled: true
+    provisionerPort: 9102
+  kubePrometheusStack:
+    chartName: prometheus-community/kube-prometheus-stack
+    chartVersion: "88.6.1"
+    prometheusOperatorVersion: "v0.93.1"
+    valuesFile: monitoring/kube-prometheus-stack-values-local.yaml
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    scrapeTimeout: 10s
+  prometheusRule:
+    enabled: false
+    name: vdiforge-alerts
+    vdiWorkerNodeName: vdi-worker-02
+    thresholds:
+      apiErrorRate: 0.05
+      provisionFailureRate: 0.10
+      slowProvisioningSeconds: 900
+      vdiWorkerMemoryPercent: 90
+  grafanaDashboard:
+    enabled: false
+    name: vdiforge-overview-dashboard
+    label: grafana_dashboard
+    labelValue: "1"
+    folder: VDIForge
+    file: files/grafana/vdiforge-overview.json

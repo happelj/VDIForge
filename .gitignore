@@ -8,6 +8,7 @@ Thumbs.db
 *.orig
 .idea/
 .vscode/
+.codex-remote-attachments/
 
 # Secrets and credentials
 .env
@@ -32,6 +33,7 @@ credentials/
 !scripts/phase7-create-local-secrets.sh
 !scripts/phase8-create-local-secrets.sh
 !scripts/phase9-create-local-secrets.sh
+!scripts/phase11-create-local-secrets.sh
 
 # Terraform and OpenTofu
 .terraform/

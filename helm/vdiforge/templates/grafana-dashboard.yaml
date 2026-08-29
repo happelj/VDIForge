@@ -1,0 +1,15 @@
+{{- if and .Values.monitoring.enabled .Values.monitoring.grafanaDashboard.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.monitoring.grafanaDashboard.name }}
+  namespace: {{ include "vdiforge.namespace.monitoring" . }}
+  labels:
+    {{- include "vdiforge.monitoring.labels" . | nindent 4 }}
+    {{ .Values.monitoring.grafanaDashboard.label }}: {{ .Values.monitoring.grafanaDashboard.labelValue | quote }}
+  annotations:
+    grafana_folder: {{ .Values.monitoring.grafanaDashboard.folder | quote }}
+data:
+  vdiforge-overview.json: |-
+{{ .Files.Get .Values.monitoring.grafanaDashboard.file | indent 4 }}
+{{- end }}

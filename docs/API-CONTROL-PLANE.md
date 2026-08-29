@@ -1,8 +1,8 @@
 # FastAPI VDI Control Plane
 
-Phase 7 implements the first VDIForge application service: a FastAPI API, PostgreSQL persistence, and an asynchronous provisioner that reconciles VDIForge desktop records into KubeVirt resources. Phase 8 extends that API with remote desktop session brokering for Apache Guacamole. Phase 9 adds browser portal support, including CORS for `https://vdiforge.local` and the `ubuntu-devops:1.2.0` default image. Phase 10 adds API autoscaling support and a protected local-only load-test endpoint.
+Phase 7 implements the first VDIForge application service: a FastAPI API, PostgreSQL persistence, and an asynchronous provisioner that reconciles VDIForge desktop records into KubeVirt resources. Phase 8 extends that API with remote desktop session brokering for Apache Guacamole. Phase 9 adds browser portal support, including CORS for `https://vdiforge.local` and the `ubuntu-devops:1.2.0` default image. Phase 10 adds API autoscaling support and a protected local-only load-test endpoint. Phase 11 adds Prometheus client instrumentation for the API and provisioner.
 
-This document covers the backend control plane through Phase 10. Prometheus/Grafana and final production hardening remain later phases.
+This document covers the backend control plane through Phase 11. Final production hardening remains a later phase.
 
 ## Version Pins
 
@@ -17,6 +17,7 @@ This document covers the backend control plane through Phase 10. Prometheus/Graf
 | PyJWT | 2.13.0 | JWT validation | [PyJWT PyPI](https://pypi.org/project/PyJWT/) |
 | Kubernetes Python client | 36.0.2 | Kubernetes/KubeVirt API access | [kubernetes PyPI](https://pypi.org/project/kubernetes/) |
 | cryptography | 50.0.1 | Guacamole JSON-auth token encryption | [cryptography PyPI](https://pypi.org/project/cryptography/) |
+| prometheus-client | 0.23.1 | API/provisioner metrics | [prometheus-client PyPI](https://pypi.org/project/prometheus-client/) |
 | PostgreSQL | 18.0-alpine | application state | [PostgreSQL image](https://hub.docker.com/_/postgres) |
 
 ## Components
@@ -27,6 +28,7 @@ This document covers the backend control plane through Phase 10. Prometheus/Graf
 | Alembic migrations | [backend/alembic](../backend/alembic) | creates desktop, operation, and audit-event tables |
 | Provisioner | [backend/app/provisioning](../backend/app/provisioning) | reconciles desired desktop state to Kubernetes/KubeVirt resources |
 | Remote access service | [backend/app/services/remote_access.py](../backend/app/services/remote_access.py) | creates signed/encrypted Guacamole JSON-auth handoff URLs |
+| Metrics instrumentation | [backend/app/observability/metrics.py](../backend/app/observability/metrics.py) | exports low-cardinality Prometheus metrics for API, desktops, remote sessions, and provisioner reconciliation |
 | Helm deployment | [helm/vdiforge](../helm/vdiforge) | deploys API, provisioner, app PostgreSQL, migration job, ingress, and NetworkPolicies |
 | Validation | [scripts/validate-phase7.ps1](../scripts/validate-phase7.ps1), [scripts/validate-phase7-live.sh](../scripts/validate-phase7-live.sh) | static and live Phase 7 checks |
 
@@ -46,7 +48,7 @@ This document covers the backend control plane through Phase 10. Prometheus/Graf
 | `POST` | `/api/v1/desktops/{id}/stop` | yes | request stop |
 | `DELETE` | `/api/v1/desktops/{id}` | yes | request deletion and cleanup |
 | `GET` | `/api/v1/audit-events` | admin | inspect audit events |
-| `GET` | `/metrics` | no | minimal Prometheus-compatible desktop counters |
+| `GET` | `/metrics` | no | Prometheus client metrics for API traffic, desktop lifecycle, provisioning, remote sessions, and reconciler state |
 
 API errors use:
 
@@ -213,6 +215,33 @@ GET /api/v1/health/load-test?iterations=150000
 
 It requires a valid bearer access token, returns a request ID, performs bounded CPU work, and has no side effects on desktops, audit records, or KubeVirt resources.
 
+Phase 11 enables Prometheus/Grafana observability by adding `values-phase11-local.yaml`:
+
+```bash
+bash scripts/phase11-install-monitoring.sh
+```
+
+When Phase 11 values are applied, the API/provisioner image tag is `localhost/vdiforge-api:0.11.0`. The API exposes Prometheus metrics through `/metrics`; the provisioner exposes a separate metrics server on port `9102`. The Helm chart creates ServiceMonitors for both endpoints.
+
+Implemented VDIForge metric families:
+
+```text
+vdiforge_api_requests_total
+vdiforge_api_request_duration_seconds
+vdiforge_desktop_provision_requests_total
+vdiforge_desktop_provision_failures_total
+vdiforge_desktop_provision_duration_seconds
+vdiforge_desktops_active
+vdiforge_desktops_by_state
+vdiforge_remote_sessions_active
+vdiforge_provisioner_reconcile_total
+vdiforge_provisioner_reconcile_failures_total
+vdiforge_provisioner_reconcile_duration_seconds
+vdiforge_provisioner_pending_operations
+```
+
+API route labels use normalized FastAPI path templates such as `/api/v1/desktops/{desktop_id}` instead of concrete desktop IDs. Metrics must not include request IDs, user IDs, usernames, JWT values, Guacamole connection IDs, or other high-cardinality identifiers.
+
 The Windows hosts-file helper includes `auth.vdiforge.local`, `api.vdiforge.local`, and `remote.vdiforge.local`:
 
 ```powershell
@@ -287,13 +316,23 @@ Phase 10 live validation adds:
 - automatic API scale-down after load ends
 - unchanged desktop count before and after the load test
 
+Phase 11 live validation adds:
+
+- kube-prometheus-stack install/upgrade
+- API/provisioner ServiceMonitor discovery
+- Prometheus queries for VDIForge, HPA, node, and KubeVirt metrics
+- Grafana dashboard availability at `https://grafana.vdiforge.local`
+- temporary alert firing and cleanup
+- safe Phase 10 load visibility in Prometheus
+- controlled desktop lifecycle metrics and cleanup
+
 The final Phase 7 live validation passed with Helm release revision `56`, KubeVirt hardware acceleration classified as `KUBEVIRT_KVM_VERIFIED`, and the disposable desktop VM scheduled on `vdi-worker-02` with a `devices.kubevirt.io/kvm` request. Phase 8 and later validators recheck the same KVM path for remote-enabled desktops and cluster regression.
 
 ## Limitations
 
 - Only `ubuntu-devops` is launchable in the current lab; Phase 9 defaults new launches to `ubuntu-devops:1.2.0`.
 - The source golden PVC consumes local-path storage and is not physically highly available.
-- The API exposes a minimal `/metrics` endpoint and Phase 10 HPA support; full Prometheus/Grafana dashboards remain Phase 11.
+- The API and provisioner expose Phase 11 Prometheus metrics. Prometheus/Grafana do not replace persistent audit events or structured application logs.
 - Provisioner HPA remains deferred until reconciliation concurrency has leader election or database-backed work claiming.
 - Browser remote desktop delivery is available through Guacamole, and Phase 9 adds the React Connect UI.
 - The API image is a local lab image imported into containerd on `vdi-worker-01`; a registry workflow is deferred.
