@@ -111,7 +111,7 @@ The manual `golden-image-validation.yml` workflow exists to re-run static Packer
 
 ## Helm and Manifest Validation
 
-The infrastructure workflow renders the VDIForge chart with Phase 12 local values and validates the result with kubeconform. Unknown CRD-backed resources are allowed through `-ignore-missing-schemas` because KubeVirt, CDI, Prometheus Operator, Traefik, and related CRDs are not available as built-in Kubernetes schemas.
+The infrastructure workflow renders the VDIForge chart with Phase 12 local values and validates the result with kubeconform. Unknown CRD-backed resources are allowed through `-ignore-missing-schemas` because KubeVirt, CDI, Prometheus Operator, Traefik, and related CRDs are not available as built-in Kubernetes schemas. Raw `*patch.yaml` files are excluded from kubeconform because they are strategic or merge patch fragments consumed by `kubectl patch`, not standalone Kubernetes API objects.
 
 Live Helm install, upgrade, rollback, and server-side dry-run remain local-lab validation tasks.
 

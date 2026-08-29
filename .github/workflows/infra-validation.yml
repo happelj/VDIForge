@@ -123,7 +123,7 @@ jobs:
             -summary \
             -ignore-missing-schemas \
             reports/helm/vdiforge-rendered.yaml
-          find kubernetes -type f \( -name '*.yaml' -o -name '*.yml' \) -print0 \
+          find kubernetes -type f \( -name '*.yaml' -o -name '*.yml' \) ! -name '*patch.yaml' -print0 \
             | xargs -0 kubeconform \
                 -kubernetes-version "${KUBERNETES_VERSION}" \
                 -strict \
