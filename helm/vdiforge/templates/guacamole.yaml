@@ -1,0 +1,194 @@
+{{- if .Values.guacamole.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "vdiforge.guacamole.guacdName" . }}
+  namespace: {{ include "vdiforge.namespace.remoteAccess" . }}
+  labels:
+    {{- include "vdiforge.guacamole.guacdLabels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "vdiforge.guacamole.guacdSelectorLabels" . | nindent 4 }}
+  ports:
+    - name: guacd
+      port: {{ .Values.guacamole.guacd.service.port }}
+      targetPort: guacd
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "vdiforge.guacamole.guacdName" . }}
+  namespace: {{ include "vdiforge.namespace.remoteAccess" . }}
+  labels:
+    {{- include "vdiforge.guacamole.guacdLabels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "vdiforge.guacamole.guacdSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "vdiforge.guacamole.guacdSelectorLabels" . | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      {{- with .Values.placement.platform.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.placement.platform.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.placement.platform.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: guacd
+          image: "{{ .Values.guacamole.guacd.image.repository }}:{{ .Values.guacamole.guacd.image.tag }}"
+          imagePullPolicy: {{ .Values.guacamole.guacd.image.pullPolicy }}
+          ports:
+            - name: guacd
+              containerPort: 4822
+          resources:
+            {{- toYaml .Values.guacamole.guacd.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "vdiforge.guacamole.name" . }}
+  namespace: {{ include "vdiforge.namespace.remoteAccess" . }}
+  labels:
+    {{- include "vdiforge.guacamole.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "vdiforge.guacamole.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.guacamole.service.port }}
+      targetPort: http
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "vdiforge.guacamole.name" . }}
+  namespace: {{ include "vdiforge.namespace.remoteAccess" . }}
+  labels:
+    {{- include "vdiforge.guacamole.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.guacamole.replicas }}
+  selector:
+    matchLabels:
+      {{- include "vdiforge.guacamole.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "vdiforge.guacamole.selectorLabels" . | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      {{- with .Values.placement.platform.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.placement.platform.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.placement.platform.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: guacamole
+          image: "{{ .Values.guacamole.image.repository }}:{{ .Values.guacamole.image.tag }}"
+          imagePullPolicy: {{ .Values.guacamole.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: GUACD_HOSTNAME
+              value: {{ include "vdiforge.guacamole.guacdName" . | quote }}
+            - name: GUACD_PORT
+              value: {{ .Values.guacamole.guacd.service.port | quote }}
+            - name: WEBAPP_CONTEXT
+              value: ROOT
+            - name: JSON_ENABLED
+              value: "true"
+            - name: JSON_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.guacamole.existingJsonSecret }}
+                  key: {{ .Values.guacamole.jsonSecretKey }}
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            timeoutSeconds: 5
+          resources:
+            {{- toYaml .Values.guacamole.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1001
+            runAsGroup: 1001
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+{{- if .Values.guacamole.ingress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "vdiforge.guacamole.name" . }}
+  namespace: {{ include "vdiforge.namespace.remoteAccess" . }}
+  labels:
+    {{- include "vdiforge.guacamole.labels" . | nindent 4 }}
+spec:
+  ingressClassName: {{ .Values.guacamole.ingress.className }}
+  tls:
+    - hosts:
+        - {{ .Values.guacamole.ingress.host }}
+      secretName: {{ .Values.guacamole.ingress.tlsSecretName }}
+  rules:
+    - host: {{ .Values.guacamole.ingress.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "vdiforge.guacamole.name" . }}
+                port:
+                  name: http
+{{- end }}
+{{- end }}

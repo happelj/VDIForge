@@ -1,6 +1,6 @@
 param(
     [string]$IngressIp = "192.168.56.11",
-    [string[]]$Hostnames = @("auth.vdiforge.local", "api.vdiforge.local", "vdiforge.local", "grafana.vdiforge.local"),
+    [string[]]$Hostnames = @("auth.vdiforge.local", "api.vdiforge.local", "remote.vdiforge.local", "vdiforge.local", "grafana.vdiforge.local"),
     [string]$CaCertificatePath = ".local\phase5\tls\vdiforge-local-ca.crt"
 )
 

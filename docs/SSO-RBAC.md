@@ -2,7 +2,7 @@
 
 VDIForge uses Keycloak for identity and server-side FastAPI authorization for application permissions.
 
-Phase 5 implements the Keycloak/OIDC/RBAC identity foundation. It proves trusted identity claims, but it does not implement the FastAPI authorization code that will consume those claims.
+Phase 5 implements the Keycloak/OIDC/RBAC identity foundation. Phase 7 consumes those claims in FastAPI authorization, and Phase 8 uses the same server-side authorization boundary before brokering Guacamole remote sessions.
 
 ## Realm
 
@@ -147,6 +147,8 @@ Authentication and authorization audit events include:
 - `LOGIN_SUCCESS`
 - `LOGIN_FAILURE`
 - `AUTHORIZATION_DENIED`
+- `DESKTOP_CONNECTION_REQUESTED`
+- `DESKTOP_CONNECTION_DENIED`
 - privileged administrative actions
 - desktop connection creation
 
@@ -160,5 +162,7 @@ If Keycloak owns the primary login event, VDIForge should still record applicati
 ## Phase 5 References
 
 - [Keycloak, OIDC, and RBAC Foundation](KEYCLOAK-OIDC.md)
+- [FastAPI VDI Control Plane](API-CONTROL-PLANE.md)
+- [Remote Desktop Delivery](REMOTE-DESKTOP.md)
 - [ADR 0012: Keycloak OIDC Platform Deployment](ADR/0012-keycloak-oidc-platform.md)
 - [ADR 0013: Local Ingress and TLS for Browser-Facing Services](ADR/0013-local-ingress-and-tls.md)

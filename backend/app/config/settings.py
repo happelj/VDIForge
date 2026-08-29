@@ -39,6 +39,13 @@ class Settings(BaseSettings):
     max_desktops_per_admin: int = 3
 
     default_vm_user: str = "vdiforge"
+    remote_desktop_protocol: str = "rdp"
+    remote_desktop_port: int = 3389
+    remote_session_ttl_seconds: int = 300
+    guacamole_base_url: str = "https://remote.vdiforge.local"
+    guacamole_json_secret_key: str | None = None
+    guacamole_rdp_security: str = "any"
+    guacamole_rdp_server_layout: str = "en-us-qwerty"
     default_ssh_public_key: str = Field(
         default=(
             "ssh-ed25519 "

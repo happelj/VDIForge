@@ -1,0 +1,139 @@
+{{- if and .Values.networkPolicy.enabled .Values.guacamole.enabled .Values.guacamole.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Values.guacamole.networkPolicy.defaultDeny.name }}
+  namespace: {{ include "vdiforge.namespace.remoteAccess" . }}
+  labels:
+    {{- include "vdiforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Values.guacamole.networkPolicy.allowDns.name }}
+  namespace: {{ include "vdiforge.namespace.remoteAccess" . }}
+  labels:
+    {{- include "vdiforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Values.guacamole.networkPolicy.allowIngressToWeb.name }}
+  namespace: {{ include "vdiforge.namespace.remoteAccess" . }}
+  labels:
+    {{- include "vdiforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "vdiforge.guacamole.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.guacamole.networkPolicy.allowIngressToWeb.namespace }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.guacamole.networkPolicy.allowIngressToWeb.podSelector | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Values.guacamole.networkPolicy.allowWebToGuacd.egressName }}
+  namespace: {{ include "vdiforge.namespace.remoteAccess" . }}
+  labels:
+    {{- include "vdiforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "vdiforge.guacamole.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "vdiforge.guacamole.guacdSelectorLabels" . | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: 4822
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Values.guacamole.networkPolicy.allowWebToGuacd.ingressName }}
+  namespace: {{ include "vdiforge.namespace.remoteAccess" . }}
+  labels:
+    {{- include "vdiforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "vdiforge.guacamole.guacdSelectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "vdiforge.guacamole.selectorLabels" . | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: 4822
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Values.guacamole.networkPolicy.allowGuacdToDesktops.name }}
+  namespace: {{ include "vdiforge.namespace.remoteAccess" . }}
+  labels:
+    {{- include "vdiforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "vdiforge.guacamole.guacdSelectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.guacamole.networkPolicy.allowGuacdToDesktops.desktopNamespace }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.guacamole.networkPolicy.allowGuacdToDesktops.desktopPodSelector | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.guacamole.networkPolicy.allowGuacdToDesktops.port }}
+{{- end }}

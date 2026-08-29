@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Generator
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -10,12 +11,23 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.api.dependencies import current_settings, get_current_user
+from app.api.dependencies import current_settings, get_current_user, get_remote_access_service
 from app.auth.claims import AuthenticatedUser
 from app.config.settings import Settings, get_settings
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import create_app
+from app.schemas.api import DesktopConnectionResponse
+
+
+class FakeRemoteAccessService:
+    def connection_for(self, *, desktop, user) -> DesktopConnectionResponse:
+        return DesktopConnectionResponse(
+            desktop_id=desktop.id,
+            connection_url=f"https://remote.vdiforge.local/?data=fake-{desktop.id}",
+            expires_at=datetime.now(UTC) + timedelta(minutes=5),
+            protocol="rdp",
+        )
 
 
 @pytest.fixture()
@@ -124,5 +136,6 @@ def client(
     app.dependency_overrides[get_db] = lambda: db_session
     app.dependency_overrides[current_settings] = lambda: settings
     app.dependency_overrides[get_current_user] = lambda: users["devops"]
+    app.dependency_overrides[get_remote_access_service] = lambda: FakeRemoteAccessService()
     with TestClient(app) as test_client:
         yield test_client

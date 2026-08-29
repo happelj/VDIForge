@@ -27,6 +27,13 @@ random_secret() {
   openssl rand -hex 24
 }
 
+existing_kubernetes_app_db_password() {
+  kubectl get secret "${APP_SECRET_NAME}" \
+    --namespace "${SYSTEM_NAMESPACE}" \
+    -o jsonpath='{.data.VDIFORGE_APP_DB_PASSWORD}' 2>/dev/null |
+    base64 -d 2>/dev/null || true
+}
+
 require_tool kubectl
 require_tool openssl
 
@@ -38,12 +45,22 @@ fi
 umask 077
 mkdir -p "${TLS_DIR}"
 
+EXPLICIT_APP_DB_PASSWORD="${VDIFORGE_APP_DB_PASSWORD:-}"
+
 if [[ -f "${ENV_FILE}" ]]; then
   # shellcheck disable=SC1090
   source "${ENV_FILE}"
 fi
 
-VDIFORGE_APP_DB_PASSWORD="${VDIFORGE_APP_DB_PASSWORD:-$(random_secret)}"
+EXISTING_APP_DB_PASSWORD="$(existing_kubernetes_app_db_password)"
+
+if [[ -n "${EXPLICIT_APP_DB_PASSWORD}" ]]; then
+  VDIFORGE_APP_DB_PASSWORD="${EXPLICIT_APP_DB_PASSWORD}"
+elif [[ -n "${EXISTING_APP_DB_PASSWORD}" ]]; then
+  VDIFORGE_APP_DB_PASSWORD="${EXISTING_APP_DB_PASSWORD}"
+else
+  VDIFORGE_APP_DB_PASSWORD="${VDIFORGE_APP_DB_PASSWORD:-$(random_secret)}"
+fi
 
 cat >"${ENV_FILE}" <<EOF
 VDIFORGE_APP_DB_PASSWORD=${VDIFORGE_APP_DB_PASSWORD}

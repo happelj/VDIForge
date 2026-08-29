@@ -87,7 +87,10 @@ class Reconciler:
                 return
 
             desktop.observed_state = (
-                "READY" if self.kubevirt.vmi_running_and_ready(desktop.kubevirt_vm_name) else "BOOTING"
+                "READY"
+                if self.kubevirt.vmi_running_and_ready(desktop.kubevirt_vm_name)
+                and self.kubevirt.remote_desktop_reachable(desktop)
+                else "BOOTING"
             )
             if desktop.observed_state == "READY":
                 self._complete_latest_operation(db, desktop, "SUCCESS", "Desktop is ready.")

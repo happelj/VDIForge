@@ -1,6 +1,6 @@
 # Kubernetes and KubeVirt Foundation
 
-This document records the Phase 3 Kubernetes and KubeVirt foundation for the VDIForge local lab. It covers the selected version set, bootstrap workflow, cluster add-ons, validation approach, and limitations. Phase 7 now consumes this foundation through the FastAPI provisioner; this document remains the lower-layer Kubernetes/KubeVirt reference.
+This document records the Phase 3 Kubernetes and KubeVirt foundation for the VDIForge local lab. It covers the selected version set, bootstrap workflow, cluster add-ons, validation approach, and limitations. Phase 7 consumes this foundation through the FastAPI provisioner, and Phase 8 adds Guacamole remote desktop delivery on top of the KubeVirt desktop resources. This document remains the lower-layer Kubernetes/KubeVirt reference.
 
 ## Status
 
@@ -228,7 +228,9 @@ Phase 3 uses Rancher local-path provisioner v0.0.32 with StorageClass `vdiforge-
 
 This is intentionally simple and free. It is not physically highly available and does not support live migration semantics expected from distributed storage. Production alternatives may include distributed block storage, CSI drivers backed by cloud disks, or a purpose-built storage platform justified by a later ADR.
 
-Because `vdiforge-local-path` uses `WaitForFirstConsumer`, later provisioners must create a schedulable workload that consumes a new PVC before waiting for the PVC/DataVolume to become ready. Phase 7 follows this by creating the per-desktop `DataVolume`, `VirtualMachine`, and Service before waiting for the clone to finish, which lets the PVC bind on the selected VDI worker.
+Because `vdiforge-local-path` uses `WaitForFirstConsumer`, later provisioners must create a schedulable workload that consumes a new PVC before waiting for the PVC/DataVolume to become ready. Phase 7 follows this by creating the per-desktop `DataVolume`, `VirtualMachine`, and Service before waiting for the clone to finish, which lets the PVC bind on the selected VDI worker. Phase 8 adds the per-desktop remote credential Secret needed by KubeVirt cloud-init and Guacamole brokering.
+
+CDI qcow2 imports may require temporary scratch space during conversion. The local lab uses the same `vdiforge-local-path` StorageClass for scratch storage by setting CDI `scratchSpaceStorageClass` during Phase 8 source PVC preparation. This is a lab-appropriate choice, not a production HA storage design.
 
 The storage decision is recorded in [ADR 0010](ADR/0010-local-path-storage-for-phase3.md).
 
@@ -241,7 +243,7 @@ Phase 3 creates only namespace foundations, not applications:
 | `vdiforge-system` | Future VDIForge platform services |
 | `vdiforge-desktops` | Future KubeVirt desktop resources and the disposable Phase 3 test VM |
 | `keycloak` | Future identity service |
-| `guacamole` | Future remote desktop gateway |
+| `guacamole` | Guacamole remote desktop gateway |
 | `monitoring` | Future Prometheus/Grafana resources |
 
 The `vdiforge-desktops` namespace uses privileged pod security enforcement because KubeVirt VM launcher pods require privileges. Other VDIForge namespaces start at baseline enforcement with restricted audit/warn labels.
@@ -254,7 +256,7 @@ Phase 3 creates an initial least-privilege Kubernetes boundary for the future pr
 - Role: `vdiforge-provisioner-vdi-manager` in `vdiforge-desktops`
 - RoleBinding from that Role to the ServiceAccount
 
-The Role is namespace-scoped to KubeVirt, CDI, PVC, Service, Event, and read-only Pod resources needed for future VM reconciliation. It does not grant `cluster-admin`.
+The Role is namespace-scoped to KubeVirt, CDI, PVC, Service, Secret, Event, and read-only Pod resources needed for VM reconciliation and per-desktop remote credential management. It does not grant `cluster-admin`.
 
 ## NetworkPolicy Validation
 
@@ -380,4 +382,4 @@ Phase 5 adds Keycloak/OIDC/RBAC on top of this foundation without modifying Kube
 
 Phase 6 uses the existing KubeVirt, CDI, and `vdiforge-local-path` foundation to validate a generated Ubuntu golden-image artifact. The `ubuntu-devops:1.0.0` QCOW2 is imported through CDI into a disposable DataVolume/PVC, booted as a KubeVirt VM scheduled with `vdiforge.io/node-role=vdi`, verified on `vdi-worker-02` with a `devices.kubevirt.io/kvm` launcher request, and then cleaned up. See [Golden Images](GOLDEN-IMAGES.md).
 
-Phase 7 uses the same KubeVirt/CDI/storage foundation to clone the promoted `ubuntu-devops:1.0.0` source PVC into per-desktop DataVolumes and to create KubeVirt `VirtualMachine` resources from the provisioner. See [FastAPI VDI Control Plane](API-CONTROL-PLANE.md).
+Phase 7 uses the same KubeVirt/CDI/storage foundation to clone promoted source PVCs into per-desktop DataVolumes and to create KubeVirt `VirtualMachine` resources from the provisioner. Phase 8 uses `ubuntu-devops:1.1.0` for remote desktop validation and restricts RDP access to the Guacamole path. See [FastAPI VDI Control Plane](API-CONTROL-PLANE.md) and [Remote Desktop Delivery](REMOTE-DESKTOP.md).

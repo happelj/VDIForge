@@ -15,3 +15,21 @@ spec:
       default:
         {{- toYaml .Values.resourceGovernance.limitRanges.system.default | nindent 8 }}
 {{- end }}
+{{- if and .Values.resourceGovernance.enabled .Values.resourceGovernance.limitRanges.remoteAccess.enabled }}
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: {{ .Values.resourceGovernance.limitRanges.remoteAccess.name }}
+  namespace: {{ include "vdiforge.namespace.remoteAccess" . }}
+  labels:
+    {{- include "vdiforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: resource-governance
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+        {{- toYaml .Values.resourceGovernance.limitRanges.remoteAccess.defaultRequest | nindent 8 }}
+      default:
+        {{- toYaml .Values.resourceGovernance.limitRanges.remoteAccess.default | nindent 8 }}
+{{- end }}

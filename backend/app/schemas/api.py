@@ -78,6 +78,13 @@ class DesktopListResponse(BaseModel):
     desktops: list[DesktopResponse]
 
 
+class DesktopConnectionResponse(BaseModel):
+    desktop_id: str
+    connection_url: str
+    expires_at: datetime
+    protocol: str
+
+
 class AuditEventResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

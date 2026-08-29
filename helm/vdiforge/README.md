@@ -1,6 +1,6 @@
 # VDIForge Helm Chart
 
-This chart establishes the Helm-managed VDIForge platform foundation. Phase 4 rendered only shared foundation resources. Phase 5 enables the Keycloak identity foundation through `values-phase5-local.yaml`. Phase 6 adds the separate Packer/Ansible golden-image pipeline outside Helm because it produces VM disk artifacts. Phase 7 enables the FastAPI API, asynchronous provisioner, application PostgreSQL, migrations, API ingress, and API-specific NetworkPolicies through `values-phase7-local.yaml`. Guacamole, React, Prometheus, Grafana, and browser remote desktop sessions remain unimplemented.
+This chart establishes the Helm-managed VDIForge platform foundation. Phase 4 rendered only shared foundation resources. Phase 5 enables the Keycloak identity foundation through `values-phase5-local.yaml`. Phase 6 adds the separate Packer/Ansible golden-image pipeline outside Helm because it produces VM disk artifacts. Phase 7 enables the FastAPI API, asynchronous provisioner, application PostgreSQL, migrations, API ingress, and API-specific NetworkPolicies through `values-phase7-local.yaml`. Phase 8 enables Apache Guacamole, `guacd`, remote desktop ingress/TLS, API remote-session RBAC, and Guacamole NetworkPolicies through `values-phase8-local.yaml`. React, Prometheus, Grafana, and the browser portal remain unimplemented.
 
 ## Scope
 
@@ -15,6 +15,7 @@ Chart-managed resources:
 - baseline NetworkPolicies for future platform isolation
 - optional Phase 5 Keycloak, PostgreSQL, identity ingress, identity ResourceQuota, and identity NetworkPolicies
 - optional Phase 7 FastAPI API, provisioner, app PostgreSQL, migration Job, API ingress, and API NetworkPolicies
+- optional Phase 8 Guacamole, `guacd`, remote desktop ingress, API remote-session RBAC, Guacamole ResourceQuota/LimitRange, and Guacamole NetworkPolicies
 
 Cluster add-ons from Phase 3 remain outside this chart:
 
@@ -90,7 +91,52 @@ helm upgrade --install vdiforge ./helm/vdiforge \
 kubectl rollout restart deployment/vdiforge-api deployment/vdiforge-provisioner -n vdiforge-system
 ```
 
-Phase 7 deploys only the backend control plane and a disposable-capable KubeVirt provisioning path. Guacamole connection brokering remains Phase 8.
+Phase 7 deploys only the backend control plane and a disposable-capable KubeVirt provisioning path.
+
+## Install Phase 8 Remote Desktop
+
+Create runtime-only Guacamole JSON-auth and TLS secrets:
+
+```bash
+bash scripts/phase8-create-local-secrets.sh
+```
+
+Prepare the remote-enabled DevOps source PVC and load the API image:
+
+```bash
+bash scripts/phase8-prepare-remote-source.sh
+PHASE7_IMAGE=localhost/vdiforge-api:0.8.0 \
+  PHASE7_IMAGE_TAR=/tmp/vdiforge-api-0.8.0.tar \
+  bash scripts/phase7-build-load-image.sh
+```
+
+Install or upgrade with Phase 5, Phase 7, and Phase 8 values:
+
+```bash
+kubectl delete job vdiforge-api-migrations -n vdiforge-system --ignore-not-found=true --wait=true
+helm upgrade --install vdiforge ./helm/vdiforge \
+  --namespace vdiforge-system \
+  --values ./helm/vdiforge/values-local.yaml \
+  --values ./helm/vdiforge/values-phase5-local.yaml \
+  --values ./helm/vdiforge/values-phase7-local.yaml \
+  --values ./helm/vdiforge/values-phase8-local.yaml \
+  --take-ownership \
+  --force-conflicts \
+  --wait \
+  --wait-for-jobs
+```
+
+Phase 8 exposes Guacamole at:
+
+```text
+https://remote.vdiforge.local
+```
+
+The Windows hosts-file helper includes this hostname:
+
+```powershell
+.\scripts\phase5-windows-hosts-and-trust.ps1
+```
 
 ## Validate
 
@@ -123,12 +169,25 @@ helm template vdiforge ./helm/vdiforge \
   --kube-version 1.36.4
 ```
 
+Render with remote desktop enabled:
+
+```bash
+helm template vdiforge ./helm/vdiforge \
+  --namespace vdiforge-system \
+  --values ./helm/vdiforge/values-local.yaml \
+  --values ./helm/vdiforge/values-phase5-local.yaml \
+  --values ./helm/vdiforge/values-phase7-local.yaml \
+  --values ./helm/vdiforge/values-phase8-local.yaml \
+  --kube-version 1.36.4
+```
+
 For live validation:
 
 ```bash
 bash scripts/validate-phase4-live.sh
 bash scripts/validate-phase5-live.sh
 bash scripts/validate-phase7-live.sh
+bash scripts/validate-phase8-live.sh
 ```
 
 ## Values
@@ -145,10 +204,11 @@ The values file includes disabled future sections for:
 - Guacamole
 - monitoring
 
-These values are extension points unless enabled by a phase-specific values file. Phase 7 enables the API/provisioner values; frontend, Guacamole, monitoring, and HPA remain future work.
+These values are extension points unless enabled by a phase-specific values file. Phase 7 enables the API/provisioner values, and Phase 8 enables Guacamole values. Frontend, monitoring, and HPA remain future work.
 
 `keycloak.enabled` remains `false` in `values.yaml`. Phase 5 enables it only through `values-phase5-local.yaml`.
 `api.enabled`, `provisioner.enabled`, `applicationDatabase.enabled`, and `migrations.enabled` remain `false` in `values.yaml`. Phase 7 enables them only through `values-phase7-local.yaml`.
+`guacamole.enabled` remains `false` in `values.yaml`. Phase 8 enables it only through `values-phase8-local.yaml`.
 
 ## Ownership
 

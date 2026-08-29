@@ -7,7 +7,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from app import __version__
-from app.api.dependencies import current_settings, get_current_user
+from app.api.dependencies import current_settings, get_current_user, get_remote_access_service
 from app.auth.claims import AuthenticatedUser
 from app.config.settings import Settings
 from app.db.session import get_db
@@ -15,6 +15,7 @@ from app.models.entities import Desktop
 from app.schemas.api import (
     AuditEventListResponse,
     AuditEventResponse,
+    DesktopConnectionResponse,
     DesktopCreateRequest,
     DesktopListResponse,
     DesktopResponse,
@@ -25,6 +26,7 @@ from app.schemas.api import (
 )
 from app.services.desktops import DesktopService
 from app.services.image_catalog import ImageCatalogService
+from app.services.remote_access import RemoteAccessService
 
 router = APIRouter()
 
@@ -119,6 +121,24 @@ def get_desktop(
     db: Annotated[Session, Depends(get_db)],
 ) -> Desktop:
     return DesktopService(db, settings).get_desktop(desktop_id=desktop_id, user=user)
+
+
+@router.post("/desktops/{desktop_id}/connect", response_model=DesktopConnectionResponse, tags=["desktops"])
+def connect_desktop(
+    desktop_id: str,
+    request: Request,
+    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    settings: Annotated[Settings, Depends(current_settings)],
+    remote_access: Annotated[RemoteAccessService, Depends(get_remote_access_service)],
+    db: Annotated[Session, Depends(get_db)],
+) -> DesktopConnectionResponse:
+    return DesktopService(db, settings).connect_desktop(
+        desktop_id=desktop_id,
+        user=user,
+        request_id=request.state.request_id,
+        source_ip=source_ip(request),
+        remote_access=remote_access,
+    )
 
 
 @router.post("/desktops/{desktop_id}/start", response_model=DesktopResponse, tags=["desktops"])

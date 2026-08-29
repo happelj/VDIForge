@@ -12,6 +12,7 @@ class FakeKubeVirt:
         self.source_exists = True
         self.dv_ready = False
         self.vm_ready = False
+        self.remote_ready = False
         self.vmi_exists_value = True
         self.deleted = False
         self.created_data_volume = False
@@ -39,6 +40,9 @@ class FakeKubeVirt:
 
     def vmi_running_and_ready(self, name: str) -> bool:
         return self.vm_ready
+
+    def remote_desktop_reachable(self, desktop: Desktop) -> bool:
+        return self.remote_ready
 
     def ensure_vm_stopped(self, name: str) -> None:
         self.run_strategy = "Halted"
@@ -92,6 +96,10 @@ def test_reconciler_moves_running_desktop_through_states(db_session: Session, se
     assert item.observed_state == "BOOTING"
 
     fake.vm_ready = True
+    reconciler.reconcile_once(db_session)
+    assert item.observed_state == "BOOTING"
+
+    fake.remote_ready = True
     reconciler.reconcile_once(db_session)
     assert item.observed_state == "READY"
 

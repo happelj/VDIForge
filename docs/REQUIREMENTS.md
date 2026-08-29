@@ -192,6 +192,28 @@ Requirement -> Implementation -> Test -> Evidence -> PASS / FAIL
 | APP-018 | The backend shall expose only minimal Phase 7 metrics and shall not implement the full Phase 11 observability stack. | Metrics endpoint check and scope review. |
 | APP-019 | Phase 7 validation shall produce explicit static and live PASS/FAIL results. | `scripts/validate-phase7.ps1` and `scripts/validate-phase7-live.sh`. |
 
+## Remote Desktop Delivery Requirements
+
+| ID | Requirement | Verification approach |
+| --- | --- | --- |
+| RDP-001 | Phase 8 shall deploy Apache Guacamole and `guacd` from pinned `1.6.0` images. | Helm values, rendered manifest, and live rollout validation. |
+| RDP-002 | Guacamole shall be exposed at `remote.vdiforge.local` through HTTPS ingress using local TLS material generated outside Git. | Trusted HTTPS live check and secret scan. |
+| RDP-003 | The MVP remote desktop protocol shall be RDP through `xrdp`; VNC shall remain a documented fallback, not the selected Phase 8 path. | Documentation and image validation review. |
+| RDP-004 | The provisioner shall create one per-desktop remote access Secret containing cloud-init user data and generated RDP credentials. | KubeVirt resource and Secret lifecycle tests. |
+| RDP-005 | The KubeVirt VM shall consume the per-desktop remote access Secret through `cloudInitNoCloud.secretRef`. | Rendered VM object and code review. |
+| RDP-006 | The API shall expose `POST /api/v1/desktops/{id}/connect` for remote-session handoff. | API route and integration tests. |
+| RDP-007 | The connect endpoint shall require valid Keycloak bearer-token authentication. | Missing-token and OIDC integration tests. |
+| RDP-008 | The connect endpoint shall enforce owner/admin authorization before reading remote credentials or returning a Guacamole URL. | Ownership and cross-user negative tests. |
+| RDP-009 | The connect endpoint shall reject desktops that are not `READY` or `CONNECTED`. | State-transition API tests. |
+| RDP-010 | The API response shall not contain reusable remote desktop usernames or passwords. | API response inspection and negative tests. |
+| RDP-011 | FastAPI shall create short-lived encrypted Guacamole JSON-auth tokens using a runtime-only 128-bit secret. | Unit tests, live Guacamole token exchange, and secret scan. |
+| RDP-012 | `guacd` shall reach desktop RDP Services only through internal cluster networking and NetworkPolicy-approved paths. | NetworkPolicy and TCP reachability tests. |
+| RDP-013 | Desktop RDP Services shall remain `ClusterIP` and shall not be exposed directly outside the cluster. | Kubernetes Service inspection. |
+| RDP-014 | Desktop deletion shall clean up the related remote access Secret in addition to VM, DataVolume, PVC, and Service resources. | E2E lifecycle cleanup test. |
+| RDP-015 | Connection requests and denials shall be recorded as audit events without passwords, private keys, raw JWTs, or refresh tokens. | Audit API inspection and secret-pattern checks. |
+| RDP-016 | Phase 8 validation shall produce explicit static and live PASS/FAIL results. | `scripts/validate-phase8.ps1` and `scripts/validate-phase8-live.sh`. |
+| RDP-017 | The provisioner shall not mark a desktop `READY` until the KubeVirt VMI is ready and the internal remote desktop TCP port is reachable. | Reconciler test and live RDP reachability validation. |
+
 ## Security Requirements
 
 | ID | Requirement | Verification approach |
@@ -465,3 +487,34 @@ Requirement -> Implementation -> Test -> Evidence -> PASS / FAIL
 | `APP-017` | [backend/app/audit/service.py](../backend/app/audit/service.py) | Audit validation. | PASS | Lifecycle audit events are persisted. |
 | `APP-018` | [backend/app/api/routes.py](../backend/app/api/routes.py) | Scope review. | PASS | Minimal metrics exist; full observability is deferred. |
 | `APP-019` | [scripts/validate-phase7.ps1](../scripts/validate-phase7.ps1), [scripts/validate-phase7-live.sh](../scripts/validate-phase7-live.sh) | Validator execution. | PASS | Static and live validators are provided. |
+
+## Phase 8 Traceability
+
+| Requirement | Implementation reference | Test or evidence | Status | Notes |
+| --- | --- | --- | --- | --- |
+| `NFR-003` | [helm/vdiforge/values.yaml](../helm/vdiforge/values.yaml), [backend/requirements-runtime.txt](../backend/requirements-runtime.txt), [docs/REMOTE-DESKTOP.md](REMOTE-DESKTOP.md) | Static validation. | PASS | Guacamole, `guacd`, API, and cryptography dependencies are pinned. |
+| `NFR-006` | [helm/vdiforge/values-phase8-local.yaml](../helm/vdiforge/values-phase8-local.yaml), [scripts/validate-phase8-live.sh](../scripts/validate-phase8-live.sh) | Helm install/upgrade and rollout validation. | PASS | Phase 8 extends the existing `vdiforge` release instead of creating a separate application stack. |
+| `NFR-007` | [backend/app/provisioning/kubevirt.py](../backend/app/provisioning/kubevirt.py), [backend/app/services/remote_access.py](../backend/app/services/remote_access.py) | Code review and live E2E validation. | PASS | Remote-session handoff uses Kubernetes/KubeVirt state, not Terraform. |
+| `NFR-008` | [docs/ADR/0018-guacamole-json-session-brokering.md](ADR/0018-guacamole-json-session-brokering.md) | Architecture review. | PASS | Phase 8 does not add Kafka, RabbitMQ, service mesh, OpenStack, Ceph, Vault cluster, Argo CD, Crossplane, or Elasticsearch. |
+| `FR-017` | [backend/app/services/desktops.py](../backend/app/services/desktops.py) | Backend tests and live stopped/deleted connection denial. | PASS | Only READY or CONNECTED desktops can receive a connection URL. |
+| `FR-018` | [backend/app/services/desktops.py](../backend/app/services/desktops.py), [scripts/phase8-remote-desktop-e2e-test.py](../scripts/phase8-remote-desktop-e2e-test.py) | Cross-user connection denial. | PASS | Owner/admin checks occur before session handoff. |
+| `FR-019` | [backend/app/services/remote_access.py](../backend/app/services/remote_access.py), [scripts/phase8-remote-desktop-e2e-test.py](../scripts/phase8-remote-desktop-e2e-test.py) | API response inspection. | PASS | The API response contains an encrypted Guacamole URL, not plaintext RDP credentials. |
+| `FR-020` | [backend/app/provisioning/kubevirt.py](../backend/app/provisioning/kubevirt.py) | E2E cleanup validation. | PASS | Delete removes the per-desktop Secret as well as VM/DataVolume/PVC/Service resources. |
+| `FR-024` | [backend/app/services/desktops.py](../backend/app/services/desktops.py), [scripts/phase8-remote-desktop-e2e-test.py](../scripts/phase8-remote-desktop-e2e-test.py) | Audit endpoint validation. | PASS | Connection requests and denials are recorded. |
+| `RDP-001` | [helm/vdiforge/templates/guacamole.yaml](../helm/vdiforge/templates/guacamole.yaml), [helm/vdiforge/values.yaml](../helm/vdiforge/values.yaml) | Helm render and live rollout validation. | PASS | Guacamole and `guacd` use pinned `1.6.0` images. |
+| `RDP-002` | [scripts/phase8-create-local-secrets.sh](../scripts/phase8-create-local-secrets.sh), [helm/vdiforge/templates/guacamole.yaml](../helm/vdiforge/templates/guacamole.yaml) | Trusted HTTPS check. | PASS | `remote.vdiforge.local` uses generated local TLS outside Git. |
+| `RDP-003` | [docs/REMOTE-DESKTOP.md](REMOTE-DESKTOP.md), [packer/shared/scripts/validate-image.sh](../packer/shared/scripts/validate-image.sh) | Image validation. | PASS | xrdp is required and validated; VNC is only fallback. |
+| `RDP-004` | [backend/app/provisioning/kubevirt.py](../backend/app/provisioning/kubevirt.py) | Secret existence check. | PASS | One generated Secret is created per desktop. |
+| `RDP-005` | [backend/app/provisioning/kubevirt.py](../backend/app/provisioning/kubevirt.py) | VM spec review. | PASS | VM cloud-init uses `secretRef`. |
+| `RDP-006` | [backend/app/api/routes.py](../backend/app/api/routes.py) | API route test. | PASS | Connect endpoint is implemented. |
+| `RDP-007` | [backend/app/api/routes.py](../backend/app/api/routes.py), [backend/app/api/dependencies.py](../backend/app/api/dependencies.py) | Missing-token and OIDC test. | PASS | Protected endpoint depends on validated current user. |
+| `RDP-008` | [backend/app/services/desktops.py](../backend/app/services/desktops.py) | Cross-user E2E denial. | PASS | Non-owner access is denied and audited. |
+| `RDP-009` | [backend/app/services/desktops.py](../backend/app/services/desktops.py), [backend/tests/test_api_authorization.py](../backend/tests/test_api_authorization.py) | Stopped/deleted state checks. | PASS | Non-ready desktops return `DESKTOP_NOT_READY`. |
+| `RDP-010` | [backend/app/schemas/api.py](../backend/app/schemas/api.py), [scripts/phase8-remote-desktop-e2e-test.py](../scripts/phase8-remote-desktop-e2e-test.py) | Response and audit scan. | PASS | Plaintext remote passwords are not returned. |
+| `RDP-011` | [backend/app/services/remote_access.py](../backend/app/services/remote_access.py), [backend/tests/test_remote_access.py](../backend/tests/test_remote_access.py) | Token encryption unit test and Guacamole token exchange. | PASS | JSON auth payloads are signed, encrypted, and short-lived. |
+| `RDP-012` | [helm/vdiforge/templates/guacamole-networkpolicies.yaml](../helm/vdiforge/templates/guacamole-networkpolicies.yaml), [scripts/phase8-networkpolicy-test.sh](../scripts/phase8-networkpolicy-test.sh) | NetworkPolicy allow/deny validation. | PASS | Only intended Guacamole-to-desktop paths are allowed. |
+| `RDP-013` | [backend/app/provisioning/kubevirt.py](../backend/app/provisioning/kubevirt.py), [scripts/phase8-remote-desktop-e2e-test.py](../scripts/phase8-remote-desktop-e2e-test.py) | Service inspection. | PASS | Desktop RDP Services remain `ClusterIP`. |
+| `RDP-014` | [backend/app/provisioning/kubevirt.py](../backend/app/provisioning/kubevirt.py) | E2E cleanup validation. | PASS | Remote access Secret cleanup is part of desktop deletion. |
+| `RDP-015` | [backend/app/services/desktops.py](../backend/app/services/desktops.py), [backend/app/audit/service.py](../backend/app/audit/service.py) | Audit API and secret-pattern validation. | PASS | Audit events contain metadata but not credentials. |
+| `RDP-016` | [scripts/validate-phase8.ps1](../scripts/validate-phase8.ps1), [scripts/validate-phase8-live.sh](../scripts/validate-phase8-live.sh) | Validator execution. | PASS | Phase 8 validators emit explicit PASS/FAIL output. |
+| `RDP-017` | [backend/app/provisioning/reconciler.py](../backend/app/provisioning/reconciler.py), [backend/app/provisioning/kubevirt.py](../backend/app/provisioning/kubevirt.py), [helm/vdiforge/templates/networkpolicies.yaml](../helm/vdiforge/templates/networkpolicies.yaml) | Reconciler unit test and live E2E validation. | PASS | `READY` requires both VMI readiness and provisioner access to the configured remote desktop port. |
