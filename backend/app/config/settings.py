@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     service_name: str = "vdiforge-api"
     run_mode: Literal["api", "provisioner"] = "api"
     log_level: str = "INFO"
+    cors_allowed_origins: list[str] = Field(default_factory=lambda: ["https://vdiforge.local"])
 
     database_url: str = "sqlite:///./vdiforge.db"
 

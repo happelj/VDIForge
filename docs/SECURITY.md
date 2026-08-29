@@ -1,6 +1,6 @@
 # Security Model
 
-This document defines the VDIForge threat model and security controls. Phase 2 local infrastructure controls, Phase 3 Kubernetes foundation controls, Phase 4 Helm platform controls, Phase 5 identity controls, Phase 6 image-pipeline controls, Phase 7 FastAPI control-plane controls, and Phase 8 Guacamole remote desktop controls apply to the current lab. Full Prometheus/Grafana observability and the React portal remain later-phase work.
+This document defines the VDIForge threat model and security controls. Phase 2 local infrastructure controls, Phase 3 Kubernetes foundation controls, Phase 4 Helm platform controls, Phase 5 identity controls, Phase 6 image-pipeline controls, Phase 7 FastAPI control-plane controls, Phase 8 Guacamole remote desktop controls, and Phase 9 React portal controls apply to the current lab. Full Prometheus/Grafana observability and HPA/autoscaling remain later-phase work.
 
 ## Security Objectives
 
@@ -31,7 +31,7 @@ This document defines the VDIForge threat model and security controls. Phase 2 l
 | Unauthorized desktop access | Anonymous user calls desktop APIs. | OIDC required, JWT validation, API authentication middleware. |
 | Cross-user desktop access | User guesses another desktop ID or Guacamole connection ID. | Server-side ownership checks, unguessable IDs, connection authorization, no direct RDP/VNC exposure. |
 | Privilege escalation | User modifies role claims in browser or request body. | Trust only signed Keycloak tokens and backend state; ignore client-supplied roles. |
-| Token theft | Access token leaked from browser, logs, or storage. | Short-lived tokens, no raw JWT logs, TLS, secure browser storage pattern in later frontend design. |
+| Token theft | Access token leaked from browser, logs, or storage. | Short-lived tokens, no raw JWT logs, TLS, PKCE, no client secret in the browser, and Phase 9 sessionStorage token storage. |
 | Compromised VDI VM | Malware in desktop attempts to reach Kubernetes API or database. | NetworkPolicies, no mounted service account token, no platform secrets in images. |
 | Compromised provisioning service | Provisioner token used to abuse Kubernetes. | Narrow RBAC, namespace scoping, audit logs, no `cluster-admin`. |
 | Kubernetes API abuse | Platform pod has excessive verbs or cluster scope. | Role review, least privilege, negative tests for denied verbs. |
@@ -116,7 +116,7 @@ Rules:
 Conceptual allowed paths:
 
 ```text
-Frontend -> API
+Browser portal -> API
 API -> Keycloak
 API -> PostgreSQL
 Provisioner -> Kubernetes API
@@ -145,6 +145,8 @@ Phase 5 adds Helm-managed identity policies in `keycloak`: default deny, DNS egr
 Phase 7 enables the API/provisioner policies in `vdiforge-system`: Traefik-to-API ingress, API-to-Keycloak JWKS access, API/provisioner/migration-to-application-PostgreSQL, and PostgreSQL ingress from only those clients. Validation proves an unauthorized namespace cannot reach the API ClusterIP or application PostgreSQL.
 
 Phase 8 enables Guacamole policies in `guacamole`: default deny, DNS egress, Traefik-to-Guacamole web ingress, Guacamole web-to-`guacd`, `guacd` ingress from Guacamole web, and `guacd` egress to VDI desktop pods on TCP 3389. It also enables a narrow `vdiforge-system` egress policy from the provisioner to desktop pods on TCP 3389 so the provisioner can verify the remote desktop port before marking a desktop `READY`. Validation proves the intended Guacamole paths work and unlabeled or unauthorized pods cannot use those paths.
+
+Phase 9 enables the frontend ingress policy in `vdiforge-system`, allowing Traefik to reach the `vdiforge-frontend` Service on TCP 8080. The frontend pod serves static assets only, disables automatic ServiceAccount token mounting, and does not require direct pod-to-pod egress to Keycloak, the API, Guacamole, PostgreSQL, or the Kubernetes API. Browser calls to those services use HTTPS through Traefik.
 
 ## Phase 2 Local Infrastructure Security
 
@@ -188,7 +190,7 @@ Phase 4 adds these security-relevant controls:
 - chart values and ConfigMap conventions that exclude real secrets
 - static and live validation for RBAC scope, secret patterns, rendering, and Helm lifecycle behavior
 
-Phase 4 does not deploy Keycloak, Guacamole, FastAPI, React, PostgreSQL, Prometheus, Grafana, or desktop workloads.
+Phase 4 did not deploy Keycloak, Guacamole, FastAPI, React, PostgreSQL, Prometheus, Grafana, or desktop workloads.
 
 ## Phase 5 Identity Security
 
@@ -207,7 +209,7 @@ Phase 5 adds these security-relevant controls:
 - Demo-user RBAC validation confirms unauthorized role absence.
 - Keycloak and PostgreSQL ServiceAccounts disable automatic service account token mounting.
 
-Phase 5 still does not implement FastAPI, React, Guacamole, Prometheus, Grafana, desktop authorization, or audit persistence.
+Phase 5 did not implement FastAPI, React, Guacamole, Prometheus, Grafana, desktop authorization, or audit persistence.
 
 ## Phase 6 Image Pipeline Security
 
@@ -262,6 +264,23 @@ Phase 8 adds these security-relevant controls:
 - Connection requests and denials are recorded as audit events without passwords or raw tokens.
 
 Residual Phase 8 security note: Kubernetes RBAC cannot restrict Secret `get` permissions by dynamic name prefix. The MVP compensates with server-side application authorization, explicit audit events, NetworkPolicies, and generated per-desktop credentials. A narrower credential broker or one-time credential flow is a future hardening candidate.
+
+## Phase 9 Web Portal Security
+
+Phase 9 adds these security-relevant controls:
+
+- The React portal authenticates through the existing `vdiforge-frontend` public OIDC client using Authorization Code Flow with PKCE S256.
+- The portal has no OIDC client secret and does not use implicit flow or direct access grants.
+- Runtime configuration is generated by Helm as public configuration only: API URL, Keycloak authority, public client ID, redirect URIs, and polling interval.
+- The frontend image and runtime ConfigMap must not contain passwords, raw JWTs, refresh tokens, Kubernetes credentials, Guacamole secrets, remote desktop credentials, or database credentials.
+- Browser access tokens are used only as bearer tokens to FastAPI and are stored in browser `sessionStorage`.
+- FastAPI CORS allows the local portal origin `https://vdiforge.local` without making authorization decisions in CORS.
+- The frontend ServiceAccount disables automatic Kubernetes API token mounting.
+- The frontend container runs non-root with a read-only root filesystem and dropped Linux capabilities.
+- The portal opens only the API-returned Guacamole handoff URL and does not reconstruct or decode remote desktop credentials.
+- The image role and launch-time cloud-init path now create the XFCE/xrdp session files required for new browser-launched desktops.
+
+Residual Phase 9 security note: browser-held access tokens remain exposed to normal browser risks. Phase 12 should evaluate whether a backend-for-frontend or token exchange pattern is justified for a stronger production design.
 
 ## Secret Handling
 

@@ -30,7 +30,7 @@ Validate before an interview:
 - Demo users exist and have expected roles.
 - Image catalog contains Ubuntu Base, Ubuntu Developer, and Ubuntu DevOps.
 - Ubuntu DevOps image has passed validation.
-- `ubuntu-devops:1.1.0` source PVC exists for the current remote desktop demo path.
+- `ubuntu-devops:1.2.0` source PVC exists for the current portal remote desktop demo path.
 - Guacamole and guacd are healthy.
 - `remote.vdiforge.local` resolves to the local ingress endpoint from the demo client.
 - Prometheus targets are up.
@@ -138,7 +138,7 @@ Explain desired state vs observed VM state.
 
 Return to the portal and show the desktop reaching READY. Click Connect.
 
-Show the browser-based session through Guacamole. Until the React portal exists, the Phase 8 validation helper can produce the same brokered URL through `POST /api/v1/desktops/{id}/connect`.
+Show the browser-based session through Guacamole by clicking Connect in the React portal. The portal opens the API-returned brokered URL from `POST /api/v1/desktops/{id}/connect`.
 
 ### 10. Remote Terminal Proof, 90 seconds
 

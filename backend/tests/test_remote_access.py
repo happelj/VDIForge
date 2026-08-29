@@ -11,6 +11,7 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from app.auth.claims import AuthenticatedUser
 from app.config.settings import Settings
 from app.models.entities import Desktop
+from app.provisioning.kubevirt import KubeVirtClient
 from app.services.remote_access import RemoteAccessService
 
 
@@ -79,3 +80,17 @@ def test_guacamole_json_token_contains_scoped_rdp_connection() -> None:
     assert connection["parameters"]["hostname"] == "desktop-test.vdiforge-desktops.svc.cluster.local"
     assert connection["parameters"]["username"] == "vdiforge"
     assert connection["parameters"]["password"] == remote_access_test_credential()
+
+
+def test_desktop_cloud_init_configures_xfce_xorg_session() -> None:
+    client = object.__new__(KubeVirtClient)
+    client.settings = Settings(default_ssh_public_key="ssh-ed25519 test-key")
+
+    user_data = client._cloud_init("vdiforge", "test-password")
+
+    assert "homedir: /home/vdiforge" in user_data
+    assert "create_home: true" in user_data
+    assert "allowed_users=anybody" in user_data
+    assert "needs_root_rights=yes" in user_data
+    assert "startxfce4" in user_data
+    assert "restart, xrdp-sesman" in user_data

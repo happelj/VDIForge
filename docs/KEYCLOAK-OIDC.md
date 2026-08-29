@@ -2,7 +2,7 @@
 
 Phase 5 establishes the working VDIForge identity platform. It deploys Keycloak, persists its configuration in PostgreSQL, exposes Keycloak through local HTTPS ingress, imports the `vdiforge` realm from source control, and validates Authorization Code Flow with PKCE.
 
-Phase 5 does not implement the React portal, FastAPI API, Guacamole, Ubuntu image pipeline, or VDI desktop provisioning.
+Phase 5 did not implement the React portal, FastAPI API, Guacamole, Ubuntu image pipeline, or VDI desktop provisioning. Later phases now consume this identity foundation; Phase 9 uses the `vdiforge-frontend` public client from the React portal.
 
 ## Component Versions
 

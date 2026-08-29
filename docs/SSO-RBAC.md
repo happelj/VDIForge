@@ -2,7 +2,7 @@
 
 VDIForge uses Keycloak for identity and server-side FastAPI authorization for application permissions.
 
-Phase 5 implements the Keycloak/OIDC/RBAC identity foundation. Phase 7 consumes those claims in FastAPI authorization, and Phase 8 uses the same server-side authorization boundary before brokering Guacamole remote sessions.
+Phase 5 implements the Keycloak/OIDC/RBAC identity foundation. Phase 7 consumes those claims in FastAPI authorization, Phase 8 uses the same server-side authorization boundary before brokering Guacamole remote sessions, and Phase 9 uses the public browser client from the React portal.
 
 ## Realm
 
@@ -30,7 +30,7 @@ Phase 5 clients:
 | `vdiforge-frontend` | public client | Browser-based React portal using Authorization Code Flow with PKCE. |
 | `vdiforge-api` | resource server audience | API audience and role mapping target. |
 
-The frontend client uses Authorization Code Flow with PKCE S256. The implicit flow and direct access grants are disabled. The future React portal does not receive a client secret.
+The frontend client uses Authorization Code Flow with PKCE S256. The implicit flow and direct access grants are disabled. The React portal does not receive a client secret.
 
 ## Token Validation
 
@@ -156,7 +156,7 @@ If Keycloak owns the primary login event, VDIForge should still record applicati
 
 ## Open Questions
 
-- How should refresh tokens be handled in the React portal while minimizing token exposure risk?
+- Should Phase 12 replace the Phase 9 browser token-session baseline with a stronger backend-for-frontend or token exchange pattern?
 - Should admin API access require a separate admin client audience?
 
 ## Phase 5 References

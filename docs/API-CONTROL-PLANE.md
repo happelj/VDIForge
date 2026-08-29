@@ -1,8 +1,8 @@
 # FastAPI VDI Control Plane
 
-Phase 7 implements the first VDIForge application service: a FastAPI API, PostgreSQL persistence, and an asynchronous provisioner that reconciles VDIForge desktop records into KubeVirt resources. Phase 8 extends that API with remote desktop session brokering for Apache Guacamole.
+Phase 7 implements the first VDIForge application service: a FastAPI API, PostgreSQL persistence, and an asynchronous provisioner that reconciles VDIForge desktop records into KubeVirt resources. Phase 8 extends that API with remote desktop session brokering for Apache Guacamole. Phase 9 adds browser portal support, including CORS for `https://vdiforge.local` and the `ubuntu-devops:1.2.0` default image.
 
-This document covers the backend control plane through Phase 8. React, Prometheus/Grafana, HPA, and the polished self-service portal remain later phases.
+This document covers the backend control plane through Phase 9. Prometheus/Grafana, HPA, and final production hardening remain later phases.
 
 ## Version Pins
 
@@ -93,7 +93,8 @@ Current launchable image state:
 | `ubuntu-base` | `1.0.0` | `candidate` | not created | no |
 | `ubuntu-developer` | `1.0.0` | `candidate` | not created | no |
 | `ubuntu-devops` | `1.0.0` | `available` | `vdiforge-golden-ubuntu-devops-1-0-0` | retained for rollback/history |
-| `ubuntu-devops` | `1.1.0` | `available` | `vdiforge-golden-ubuntu-devops-1-1-0` | current default for `vdi-devops` and `vdi-admin` |
+| `ubuntu-devops` | `1.1.0` | `available` | `vdiforge-golden-ubuntu-devops-1-1-0` | retained for rollback/history |
+| `ubuntu-devops` | `1.2.0` | `available` | `vdiforge-golden-ubuntu-devops-1-2-0` | current default for `vdi-devops` and `vdi-admin` |
 
 ## Desktop State
 
@@ -116,7 +117,7 @@ stateDiagram-v2
   BOOTING --> FAILED
 ```
 
-Phase 8 records `last_connected_at` and audit events when a connection handoff is created. It does not yet update the desktop to a durable `CONNECTED` state based on actual browser session telemetry.
+Phase 8 records `last_connected_at` and audit events when a connection handoff is created. Phase 9 uses that same endpoint from the React portal. The API does not yet update the desktop to a durable `CONNECTED` state based on actual browser session telemetry.
 
 ## Provisioning
 
@@ -155,7 +156,7 @@ helm upgrade --install vdiforge ./helm/vdiforge \
 
 If Podman or Buildah is present on `vdi-worker-01`, `phase7-build-load-image.sh` builds there over SSH. If neither builder exists, the script uses a temporary BuildKit validation pod and imports the resulting image into containerd on the platform worker. The build/import helper uses temporary privileged validation pods in `vdiforge-desktops`, not `vdiforge-system`, because `vdiforge-system` intentionally enforces baseline pod security while `vdiforge-desktops` is the namespace where KubeVirt privileged launcher behavior is already permitted.
 
-For Phase 8, add remote desktop secrets and values:
+For Phase 8 and Phase 9, add remote desktop and portal secrets and values:
 
 ```bash
 bash scripts/phase8-create-local-secrets.sh
@@ -249,9 +250,9 @@ The final Phase 7 live validation passed with Helm release revision `56`, KubeVi
 
 ## Limitations
 
-- Only `ubuntu-devops` is launchable in the current lab; Phase 8 defaults new launches to `ubuntu-devops:1.1.0`.
+- Only `ubuntu-devops` is launchable in the current lab; Phase 9 defaults new launches to `ubuntu-devops:1.2.0`.
 - The source golden PVC consumes local-path storage and is not physically highly available.
 - The API exposes a minimal `/metrics` endpoint; full Prometheus/Grafana dashboards remain Phase 11.
-- Browser remote desktop delivery is available through Guacamole, but the React Connect UI remains Phase 9.
+- Browser remote desktop delivery is available through Guacamole, and Phase 9 adds the React Connect UI.
 - The API image is a local lab image imported into containerd on `vdi-worker-01`; a registry workflow is deferred.
 - The API can read per-desktop remote credential Secrets after authorization; this should be narrowed in a future credential-broker design if practical.

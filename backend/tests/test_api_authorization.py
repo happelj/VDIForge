@@ -174,4 +174,18 @@ def test_app_factory_exposes_health() -> None:
     with TestClient(app) as client:
         response = client.get("/api/v1/health")
     assert response.status_code == 200
-    assert response.json()["version"] == "0.8.0"
+    assert response.json()["version"] == "0.9.0"
+
+
+def test_app_factory_allows_portal_cors_origin() -> None:
+    app = create_app()
+    with TestClient(app) as client:
+        response = client.options(
+            "/api/v1/images",
+            headers={
+                "Access-Control-Request-Method": "GET",
+                "Origin": "https://vdiforge.local",
+            },
+        )
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "https://vdiforge.local"

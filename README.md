@@ -4,9 +4,9 @@ VDIForge is a portfolio platform project for a small, open-source, self-service 
 
 ## Project Status
 
-Phase 1 established the architecture, requirements, roadmap, standards, and documentation structure. Phase 2 added the local VirtualBox infrastructure foundation. Phase 3 established the Kubernetes and KubeVirt foundation. Phase 4 added the Helm deployment foundation. Phase 5 established the Keycloak/OIDC/RBAC identity foundation. Phase 6 established the Ubuntu/Packer golden-image pipeline. Phase 7 established the FastAPI VDI control plane, PostgreSQL application persistence, and asynchronous KubeVirt provisioning. Phase 8 establishes Apache Guacamole remote desktop delivery through server-brokered RDP sessions.
+Phase 1 established the architecture, requirements, roadmap, standards, and documentation structure. Phase 2 added the local VirtualBox infrastructure foundation. Phase 3 established the Kubernetes and KubeVirt foundation. Phase 4 added the Helm deployment foundation. Phase 5 established the Keycloak/OIDC/RBAC identity foundation. Phase 6 established the Ubuntu/Packer golden-image pipeline. Phase 7 established the FastAPI VDI control plane, PostgreSQL application persistence, and asynchronous KubeVirt provisioning. Phase 8 established Apache Guacamole remote desktop delivery through server-brokered RDP sessions. Phase 9 adds the React self-service portal.
 
-The current local lab is three manually created Ubuntu Server VirtualBox VMs with Terraform infrastructure specifications, Ansible host configuration, kubeadm/containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, a Helm v4.2.4 foundation chart, Traefik ingress, Keycloak, PostgreSQL persistence, source-controlled realm configuration, Packer/Ansible golden-image definitions, image catalog policy, FastAPI API/provisioner services, application PostgreSQL persistence, Apache Guacamole, `guacd`, RDP/xrdp session brokering, validation scripts, and verified `/dev/kvm` exposure on the VDI worker. React application code, Prometheus, and Grafana dashboards are not implemented yet.
+The current local lab is three manually created Ubuntu Server VirtualBox VMs with Terraform infrastructure specifications, Ansible host configuration, kubeadm/containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, a Helm v4.2.4 foundation chart, Traefik ingress, Keycloak, PostgreSQL persistence, source-controlled realm configuration, Packer/Ansible golden-image definitions, image catalog policy, FastAPI API/provisioner services, application PostgreSQL persistence, Apache Guacamole, `guacd`, RDP/xrdp session brokering, a React/TypeScript browser portal, validation scripts, and verified `/dev/kvm` exposure on the VDI worker. Prometheus and Grafana dashboards are not implemented yet.
 
 ## Goals
 
@@ -76,7 +76,7 @@ The client does not download or boot Ubuntu locally. Applications run on the rem
 | Host configuration | Ansible baseline roles and inventory |
 | Image build | Packer `1.16.0`, QEMU plugin `1.1.6`, Ansible plugin `1.1.6`, Ansible image roles, QCOW2 artifacts |
 | Application backend | Python, FastAPI, Pydantic, PostgreSQL |
-| Frontend | React |
+| Frontend | React `19.2.8`, TypeScript `6.0.3`, Vite `8.2.2`, `oidc-client-ts` `3.5.0` |
 | Identity | Keycloak, OIDC, OAuth 2.0, JWT validation |
 | Remote desktop | Apache Guacamole, MVP protocol RDP via xrdp, VNC as fallback |
 | Deployment | Helm v4.2.4 foundation chart and future application charts |
@@ -112,7 +112,9 @@ Phase 6 defines three Ubuntu 26.04 LTS golden images: `ubuntu-base`, `ubuntu-dev
 
 Phase 7 deploys the FastAPI API and provisioner backed by PostgreSQL. The API validates Keycloak JWTs, enforces image RBAC, ownership, quotas, idempotency, and audit-event persistence, then returns `202 Accepted` while the provisioner reconciles desktop records into KubeVirt `DataVolume`, `VirtualMachine`, and `Service` resources. See [FastAPI VDI Control Plane](docs/API-CONTROL-PLANE.md).
 
-Phase 8 deploys `localhost/vdiforge-api:0.8.0`, `guacamole/guacamole:1.6.0`, and `guacamole/guacd:1.6.0`. The API adds `POST /api/v1/desktops/{id}/connect`, verifies desktop ownership and READY state, creates a short-lived encrypted Guacamole JSON handoff URL, and records connection audit events without exposing reusable RDP credentials to the frontend. The remote-enabled launchable image is `ubuntu-devops:1.1.0`. See [Remote Desktop Delivery](docs/REMOTE-DESKTOP.md).
+Phase 8 deploys Apache Guacamole `1.6.0` and `guacd` `1.6.0`. The API adds `POST /api/v1/desktops/{id}/connect`, verifies desktop ownership and READY state, creates a short-lived encrypted Guacamole JSON handoff URL, and records connection audit events without exposing reusable RDP credentials to the frontend. See [Remote Desktop Delivery](docs/REMOTE-DESKTOP.md).
+
+Phase 9 deploys `localhost/vdiforge-frontend:0.9.0` at `https://vdiforge.local` and upgrades the API/provisioner image to `localhost/vdiforge-api:0.9.0`. The portal uses the existing Keycloak public client with Authorization Code Flow and PKCE, renders API-authorized images/desktops, launches the current `ubuntu-devops:1.2.0` image, polls lifecycle state, opens the exact brokered Guacamole URL, and never receives reusable remote desktop credentials. See [React Self-Service Portal](docs/WEB-PORTAL.md).
 
 ## Repository Organization
 
@@ -130,6 +132,7 @@ Phase 8 deploys `localhost/vdiforge-api:0.8.0`, `guacamole/guacamole:1.6.0`, and
 | [docs/GOLDEN-IMAGES.md](docs/GOLDEN-IMAGES.md) | Phase 6 golden-image pipeline, build, validation, CDI import, and KubeVirt boot proof |
 | [docs/API-CONTROL-PLANE.md](docs/API-CONTROL-PLANE.md) | Phase 7 FastAPI API, PostgreSQL persistence, provisioner, KubeVirt lifecycle, and validation |
 | [docs/REMOTE-DESKTOP.md](docs/REMOTE-DESKTOP.md) | Phase 8 Guacamole, RDP/xrdp delivery, session brokering, NetworkPolicies, and validation |
+| [docs/WEB-PORTAL.md](docs/WEB-PORTAL.md) | Phase 9 React portal, OIDC/PKCE login, desktop workflows, Helm deployment, and validation |
 | [docs/SSO-RBAC.md](docs/SSO-RBAC.md) | Keycloak, OIDC, roles, and authorization |
 | [docs/AUTOSCALING.md](docs/AUTOSCALING.md) | HPA, capacity, and future node autoscaling |
 | [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md) | Metrics, logs, dashboards, and audit design |
@@ -144,7 +147,7 @@ Phase 8 deploys `localhost/vdiforge-api:0.8.0`, `guacamole/guacamole:1.6.0`, and
 | [kubernetes](kubernetes/README.md) | Kubernetes foundation manifests, namespace/RBAC skeletons, and KubeVirt test resources |
 | [helm/vdiforge](helm/vdiforge/README.md) | VDIForge Helm foundation chart and Phase 5 identity resources |
 | [backend](backend/README.md) | FastAPI API and provisioner implementation |
-| [frontend](frontend/README.md) | Planned React portal |
+| [frontend](frontend/README.md) | React self-service portal |
 | [keycloak](keycloak/README.md) | Reproducible Keycloak realm configuration |
 | [monitoring](monitoring/README.md) | Planned Prometheus and Grafana assets |
 | [scripts](scripts) | Repository validation and helper scripts |
@@ -163,6 +166,7 @@ Phase 8 deploys `localhost/vdiforge-api:0.8.0`, `guacamole/guacamole:1.6.0`, and
 - [Golden Images](docs/GOLDEN-IMAGES.md)
 - [FastAPI VDI Control Plane](docs/API-CONTROL-PLANE.md)
 - [Remote Desktop Delivery](docs/REMOTE-DESKTOP.md)
+- [React Self-Service Portal](docs/WEB-PORTAL.md)
 - [SSO and RBAC](docs/SSO-RBAC.md)
 - [Autoscaling](docs/AUTOSCALING.md)
 - [Observability](docs/OBSERVABILITY.md)
@@ -173,22 +177,22 @@ Phase 8 deploys `localhost/vdiforge-api:0.8.0`, `guacamole/guacamole:1.6.0`, and
 
 ## Limitations
 
-- The current lab includes infrastructure, Kubernetes/KubeVirt, Helm, ingress, identity, the golden-image pipeline, the FastAPI API/provisioner foundation, and Guacamole remote desktop delivery. It does not yet run the React portal or full observability stack.
+- The current lab includes infrastructure, Kubernetes/KubeVirt, Helm, ingress, identity, the golden-image pipeline, the FastAPI API/provisioner foundation, Guacamole remote desktop delivery, and the React self-service portal. It does not yet run the full observability stack.
 - Generated QCOW2 image artifacts are local build outputs and are intentionally excluded from Git.
-- The Helm chart deploys foundation, identity, API, provisioner, application PostgreSQL, Guacamole, and `guacd` resources when phase values are enabled. Disabled future values remain extension points, not implemented services.
+- The Helm chart deploys foundation, identity, API, provisioner, application PostgreSQL, Guacamole, `guacd`, and frontend resources when phase values are enabled. Disabled future values remain extension points, not implemented services.
 - The local three-node lab is not production HA.
 - KubeVirt performance depends on KVM availability. The current Phase 3 acceptance condition requires KubeVirt to expose and consume KVM on `vdi-worker-02`.
 - KubeVirt software emulation is a development fallback, not a realistic performance target.
 - Local-path storage is suitable for lab validation only and is not physically highly available.
 - Local Keycloak persistence uses a single PostgreSQL instance and is not HA.
 - Local `.local` TLS requires a generated development CA to be trusted by each browser client.
-- `remote.vdiforge.local` requires the same local hosts-file or DNS convention as `auth.vdiforge.local` and `api.vdiforge.local`.
-- Phase 8 records connection requests and authorization denials, but detailed browser disconnect/session telemetry remains future work.
+- `vdiforge.local` and `remote.vdiforge.local` require the same local hosts-file or DNS convention as `auth.vdiforge.local` and `api.vdiforge.local`.
+- Phase 9 records portal-driven connection requests and authorization denials through the API, but detailed browser disconnect/session telemetry remains future work.
 - True Kubernetes node autoscaling is future cloud or bare-metal functionality, not part of the fixed local lab.
 - Windows desktops are out of scope for the free MVP because they require licensing.
 
 ## Roadmap
 
-The next planned task after Phase 8 is Phase 9 - React Self-Service Portal. Later phases add observability, security hardening, CI/CD, and the final end-to-end demo.
+The next planned task after Phase 9 is Phase 10 - HPA / Autoscaling. Later phases add observability, security hardening, CI/CD, and the final end-to-end demo.
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for the full roadmap.

@@ -163,6 +163,34 @@ spec:
         - protocol: TCP
           port: {{ .Values.networkPolicy.system.allowIngressToApi.port }}
 {{- end }}
+{{- if .Values.networkPolicy.system.allowIngressToFrontend.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Values.networkPolicy.system.allowIngressToFrontend.name }}
+  namespace: {{ include "vdiforge.namespace.system" . }}
+  labels:
+    {{- include "vdiforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "vdiforge.frontend.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.system.allowIngressToFrontend.namespace }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.system.allowIngressToFrontend.podSelector | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.networkPolicy.system.allowIngressToFrontend.port }}
+{{- end }}
 {{- if .Values.networkPolicy.system.allowApiToKeycloak.enabled }}
 ---
 apiVersion: networking.k8s.io/v1

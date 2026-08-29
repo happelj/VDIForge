@@ -47,7 +47,7 @@
     {
       "id": "ubuntu-devops",
       "displayName": "Ubuntu DevOps",
-      "defaultVersion": "1.1.0",
+      "defaultVersion": "1.2.0",
       "description": "Ubuntu desktop with platform and infrastructure tools for the VDIForge demonstration.",
       "allowedRoles": [
         "vdi-devops",
@@ -71,6 +71,15 @@
           "lifecycle": "available",
           "manifestPath": "artifacts/images/ubuntu-devops/1.1.0/ubuntu-devops-1.1.0.manifest.json",
           "sourcePvcName": "vdiforge-golden-ubuntu-devops-1-1-0"
+        },
+        {
+          "version": "1.2.0",
+          "ubuntuRelease": "26.04 LTS",
+          "architecture": "amd64",
+          "artifactFormat": "qcow2",
+          "lifecycle": "available",
+          "manifestPath": "artifacts/images/ubuntu-devops/1.2.0/ubuntu-devops-1.2.0.manifest.json",
+          "sourcePvcName": "vdiforge-golden-ubuntu-devops-1-2-0"
         }
       ]
     }

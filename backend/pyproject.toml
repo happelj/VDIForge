@@ -1,7 +1,7 @@
 [project]
 name = "vdiforge-backend"
-version = "0.8.0"
-description = "FastAPI VDI control plane, KubeVirt provisioner, and Guacamole session broker for VDIForge Phase 8."
+version = "0.9.0"
+description = "FastAPI VDI control plane, KubeVirt provisioner, Guacamole session broker, and portal API support for VDIForge Phase 9."
 requires-python = ">=3.13,<3.15"
 dependencies = [
     "fastapi==0.141.1",
