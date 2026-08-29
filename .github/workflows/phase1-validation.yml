@@ -2,14 +2,25 @@ name: Phase 1 validation
 
 on:
   push:
+    branches:
+      - main
+      - "feature/**"
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase1-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   docs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Validate Phase 1 repository
         shell: pwsh

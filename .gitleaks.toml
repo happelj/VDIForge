@@ -1,0 +1,22 @@
+title = "VDIForge gitleaks configuration"
+
+[[allowlists]]
+description = "Exclude generated local artifacts and known non-secret placeholders."
+paths = [
+  '''^\.local/''',
+  '''^artifacts/''',
+  '''^frontend/node_modules/''',
+  '''^frontend/dist/''',
+  '''^reports/''',
+  '''^\.terraform/''',
+  '''^terraform/.*/terraform\.tfstate.*''',
+  '''^frontend/package-lock\.json$'''
+]
+regexTarget = "line"
+regexes = [
+  '''\$\{\{\s*secrets\.GITHUB_TOKEN\s*\}\}''',
+  '''POSTGRES_PASSWORD:\s+vdiforge''',
+  '''DEMO_[A-Z_]*PASSWORD''',
+  '''<generated-at-runtime>''',
+  '''replace-with-local-value'''
+]

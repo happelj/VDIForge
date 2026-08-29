@@ -329,6 +329,37 @@ Requirement -> Implementation -> Test -> Evidence -> PASS / FAIL
 | MON-015 | Phase 11 validation shall prove Prometheus scraping, Grafana dashboard availability, alerting, safe HPA load observability, and desktop lifecycle metrics. | `scripts/validate-phase11-live.sh`. |
 | MON-016 | Phase 11 shall not deploy SIEM forwarding, log aggregation, Grafana Keycloak OIDC, final CI/CD, or additional security hardening. | Scope review. |
 
+## CI/CD Requirements
+
+| ID | Requirement | Verification approach |
+| --- | --- | --- |
+| CI-001 | GitHub Actions shall run CI-safe validation on pull requests and pushes to `main`. | Workflow trigger review and GitHub Actions run evidence. |
+| CI-002 | Normal pull-request CI shall not require access to the live VirtualBox/Kubernetes lab. | Workflow scan for live-lab commands, credentials, and network dependencies. |
+| CI-003 | Workflows shall use concurrency cancellation for obsolete runs on the same branch or pull request. | Workflow YAML review. |
+| CI-004 | GitHub Actions shall use least-privilege permissions, with package write permissions limited to release publishing jobs. | Workflow permissions review. |
+| CI-005 | Workflows shall avoid `pull_request_target` unless a future ADR defines a safe privileged workflow. | Workflow YAML scan. |
+| CI-006 | Backend CI shall run Ruff and pytest using the tested Python version. | GitHub Actions backend job result. |
+| CI-007 | Backend CI shall validate Alembic migrations against a disposable PostgreSQL database. | GitHub Actions backend job result. |
+| CI-008 | Frontend CI shall run `npm ci`, lint, tests, and production build using the checked-in lockfile. | GitHub Actions frontend job result. |
+| CI-009 | CI shall distinguish CI-safe frontend tests from live-lab browser VDI E2E tests. | Documentation and workflow review. |
+| CI-010 | Terraform CI shall run `terraform fmt -check -recursive`, `terraform init -backend=false`, and `terraform validate` without provisioning infrastructure. | GitHub Actions infrastructure job result. |
+| CI-011 | Ansible CI shall run playbook syntax checks and `ansible-lint` without configuring live nodes. | GitHub Actions infrastructure job result. |
+| CI-012 | Packer CI shall run static validation without building full QCOW2 golden-image artifacts on ordinary pull requests. | GitHub Actions infrastructure job result and workflow review. |
+| CI-013 | Helm CI shall run `helm lint` and `helm template` for the VDIForge chart and supported local values. | GitHub Actions infrastructure job result. |
+| CI-014 | Kubernetes manifest CI shall validate rendered Helm manifests and raw Kubernetes manifests with a maintained schema validator while accounting for CRD-backed resources. | kubeconform job result and documented exclusions. |
+| CI-015 | CI shall scan repository content and history for committed secrets and fail on credible findings. | Gitleaks workflow result. |
+| CI-016 | CI shall run backend Python dependency security scanning. | pip-audit workflow result. |
+| CI-017 | CI shall run frontend Node dependency security scanning. | npm audit workflow result. |
+| CI-018 | CI shall build VDIForge-owned API and frontend container images without pushing images from pull requests. | Container workflow result and workflow review. |
+| CI-019 | CI shall run vulnerability scans against VDIForge-owned custom container images. | Trivy image scan result. |
+| CI-020 | CI shall handle Phase 12 accepted custom-image vulnerability findings with a documented baseline that fails on regressions. | Baseline file and checker result. |
+| CI-021 | CI shall generate an SBOM for VDIForge-owned custom container images or document why it is unavailable. | Container workflow artifact review. |
+| CI-022 | Release publishing shall use predictable immutable tags and GitHub-native authentication where practical. | Release workflow review. |
+| CI-023 | CI artifacts shall use short retention and shall not upload local-lab secrets, kubeconfigs, private keys, database dumps, or generated QCOW2 images. | Workflow artifact review. |
+| CI-024 | Dependabot shall be configured for GitHub Actions, Python, npm, and Docker dependencies without automatic merge. | `.github/dependabot.yml` review. |
+| CI-025 | The repository shall provide a local CI-safe validation command that approximates GitHub Actions without running live-lab tests by default. | `scripts/ci-local.ps1` execution. |
+| CI-026 | GitHub Actions workflow syntax shall be validated before merge where practical. | actionlint result or Phase 13 validation. |
+
 ## Operations Requirements
 
 | ID | Requirement | Verification approach |
@@ -342,7 +373,7 @@ Requirement -> Implementation -> Test -> Evidence -> PASS / FAIL
 | OPS-007 | A runbook shall document VM boot failure, image unavailable, and provisioning timeout troubleshooting. | Runbook review. |
 | OPS-008 | A runbook shall document DNS and TLS troubleshooting. | Runbook review. |
 | OPS-009 | CI shall run Phase 1 repository validation on push and pull request. | GitHub Actions workflow review. |
-| OPS-010 | Later CI shall include Python lint/tests, frontend lint/tests, Terraform fmt/validate, Ansible lint, Packer validate, Helm lint, manifest validation, dependency scanning, security scanning, and container build validation. | CI design review. |
+| OPS-010 | CI shall include Python lint/tests, frontend lint/tests, Terraform fmt/validate, Ansible lint, Packer validate, Helm lint, manifest validation, dependency scanning, security scanning, and container build validation. | GitHub Actions workflow review. |
 | OPS-011 | The final demo shall include a pre-flight checklist. | Demo document review. |
 | OPS-012 | Phase completion shall include repository validation before merge to `main`. | Git workflow evidence. |
 
@@ -730,3 +761,38 @@ Requirement -> Implementation -> Test -> Evidence -> PASS / FAIL
 | `SEC-032` | [scripts/validate-phase12.ps1](../scripts/validate-phase12.ps1), [scripts/validate-phase12-live.sh](../scripts/validate-phase12-live.sh) | Static and live validation plus browser VDI regression. | PASS | Validation emits explicit PASS/FAIL and preserves the full VDI workflow. |
 | `OBS-009` | [backend/app/schemas/api.py](../backend/app/schemas/api.py), [backend/app/models/entities.py](../backend/app/models/entities.py), [backend/app/audit/service.py](../backend/app/audit/service.py) | Audit schema/export validation. | PASS | Audit responses include identity, action, resource, result, details, source IP, and hash metadata. |
 | `OPS-012` | [scripts/validate-phase12.ps1](../scripts/validate-phase12.ps1), [scripts/validate-phase12-live.sh](../scripts/validate-phase12-live.sh) | Phase completion validation. | PASS | Phase 12 requires static and live validation before merge to `main`. |
+
+## Phase 13 Traceability
+
+| Requirement | Implementation reference | Test or evidence | Status | Notes |
+| --- | --- | --- | --- | --- |
+| `OPS-009` | [.github/workflows/phase1-validation.yml](../.github/workflows/phase1-validation.yml) | GitHub Actions workflow review and Phase 13 validation. | PASS | Phase 1 validation runs on pull request, push to `main`, and manual dispatch. |
+| `OPS-010` | [.github/workflows/ci.yml](../.github/workflows/ci.yml), [.github/workflows/infra-validation.yml](../.github/workflows/infra-validation.yml), [.github/workflows/security.yml](../.github/workflows/security.yml), [.github/workflows/containers.yml](../.github/workflows/containers.yml) | GitHub Actions workflow results. | PASS | Phase 13 implements the broad CI coverage previously planned by OPS-010. |
+| `OPS-012` | [scripts/validate-phase13.ps1](../scripts/validate-phase13.ps1), [scripts/ci-local.ps1](../scripts/ci-local.ps1) | Local validation and GitHub Actions evidence. | PASS | Phase 13 requires static/local validation and green GitHub Actions before merge. |
+| `CI-001` | [.github/workflows/ci.yml](../.github/workflows/ci.yml), [.github/workflows/infra-validation.yml](../.github/workflows/infra-validation.yml), [.github/workflows/security.yml](../.github/workflows/security.yml), [.github/workflows/containers.yml](../.github/workflows/containers.yml) | GitHub Actions feature-branch and `main` run results. | PASS | Normal CI runs on pull requests and pushes to `main`. |
+| `CI-002` | [docs/CI-CD.md](CI-CD.md), [.github/workflows](../.github/workflows) | Workflow scan for live-lab deployment operations. | PASS | Normal CI does not use local kubeconfigs, SSH into the lab, or deploy to the home cluster. |
+| `CI-003` | [.github/workflows](../.github/workflows) | Workflow YAML review. | PASS | Pull-request and `main` validation workflows define concurrency cancellation. |
+| `CI-004` | [.github/workflows/ci.yml](../.github/workflows/ci.yml), [.github/workflows/infra-validation.yml](../.github/workflows/infra-validation.yml), [.github/workflows/security.yml](../.github/workflows/security.yml), [.github/workflows/containers.yml](../.github/workflows/containers.yml), [.github/workflows/release.yml](../.github/workflows/release.yml) | Phase 13 validation. | PASS | Normal workflows use read-only contents permission; package write is limited to release publishing. |
+| `CI-005` | [.github/workflows](../.github/workflows) | Phase 13 workflow scan. | PASS | No workflow uses `pull_request_target`. |
+| `CI-006` | [.github/workflows/ci.yml](../.github/workflows/ci.yml), [backend/requirements-dev.txt](../backend/requirements-dev.txt) | Backend CI job. | PASS | CI runs Ruff and pytest on Python `3.13`. |
+| `CI-007` | [.github/workflows/ci.yml](../.github/workflows/ci.yml), [backend/alembic](../backend/alembic) | Backend CI job. | PASS | Alembic upgrades a clean disposable PostgreSQL database to head. |
+| `CI-008` | [.github/workflows/ci.yml](../.github/workflows/ci.yml), [frontend/package-lock.json](../frontend/package-lock.json) | Frontend CI job. | PASS | CI runs `npm ci`, lint, tests, and production build with Node.js `22.15.0`. |
+| `CI-009` | [docs/CI-CD.md](CI-CD.md), [docs/TESTING.md](TESTING.md) | Documentation review. | PASS | CI-safe frontend tests are separated from local live-lab VDI browser E2E validation. |
+| `CI-010` | [.github/workflows/infra-validation.yml](../.github/workflows/infra-validation.yml), [terraform/environments/local](../terraform/environments/local) | Infrastructure CI job. | PASS | Terraform validation uses `init -backend=false` and does not provision VirtualBox. |
+| `CI-011` | [.github/workflows/infra-validation.yml](../.github/workflows/infra-validation.yml), [ansible](../ansible) | Infrastructure CI job. | PASS | Ansible syntax and lint checks run without configuring live nodes. |
+| `CI-012` | [.github/workflows/infra-validation.yml](../.github/workflows/infra-validation.yml), [.github/workflows/golden-image-validation.yml](../.github/workflows/golden-image-validation.yml), [packer](../packer) | Infrastructure and manual golden-image validation jobs. | PASS | CI validates Packer templates but does not build QCOW2 images on pull requests. |
+| `CI-013` | [.github/workflows/infra-validation.yml](../.github/workflows/infra-validation.yml), [helm/vdiforge](../helm/vdiforge) | Infrastructure CI job. | PASS | Helm lint/template runs for VDIForge chart values. |
+| `CI-014` | [.github/workflows/infra-validation.yml](../.github/workflows/infra-validation.yml), [docs/CI-CD.md](CI-CD.md) | kubeconform job and documented CRD schema handling. | PASS | Rendered and raw manifests are schema-checked with CRD-backed unknown schemas ignored deliberately. |
+| `CI-015` | [.github/workflows/security.yml](../.github/workflows/security.yml), [.gitleaks.toml](../.gitleaks.toml) | Gitleaks workflow result. | PASS | Repository history/current content secret scanning is blocking. |
+| `CI-016` | [.github/workflows/security.yml](../.github/workflows/security.yml), [backend/requirements-runtime.txt](../backend/requirements-runtime.txt) | pip-audit workflow result. | PASS | Backend Python dependency scan is automated. |
+| `CI-017` | [.github/workflows/security.yml](../.github/workflows/security.yml), [frontend/package-lock.json](../frontend/package-lock.json) | npm audit workflow result. | PASS | Frontend dependency scan is automated with critical severity gating. |
+| `CI-018` | [.github/workflows/containers.yml](../.github/workflows/containers.yml), [backend/Dockerfile](../backend/Dockerfile), [frontend/Dockerfile](../frontend/Dockerfile) | Container workflow result. | PASS | API and frontend images build in CI without PR registry pushes. |
+| `CI-019` | [.github/workflows/containers.yml](../.github/workflows/containers.yml) | Trivy image scan result. | PASS | Custom API/frontend images are scanned for high and critical vulnerabilities. |
+| `CI-020` | [.github/security/trivy-baseline.json](../.github/security/trivy-baseline.json), [scripts/ci/check-trivy-baseline.py](../scripts/ci/check-trivy-baseline.py) | Baseline checker self-test and container workflow result. | PASS | CI fails when custom image findings exceed the Phase 12 accepted baseline. |
+| `CI-021` | [.github/workflows/containers.yml](../.github/workflows/containers.yml) | Uploaded CycloneDX SBOM artifacts. | PASS | CI generates SBOMs for VDIForge-owned custom images. |
+| `CI-022` | [.github/workflows/release.yml](../.github/workflows/release.yml), [docs/CI-CD.md](CI-CD.md) | Release workflow review. | PASS | Release publishing targets GHCR with semantic tag, SHA, and optional manual tags. |
+| `CI-023` | [.github/workflows/infra-validation.yml](../.github/workflows/infra-validation.yml), [.github/workflows/security.yml](../.github/workflows/security.yml), [.github/workflows/containers.yml](../.github/workflows/containers.yml) | Artifact path review. | PASS | Uploaded artifacts are rendered manifests, scan reports, and SBOMs with short retention. |
+| `CI-024` | [.github/dependabot.yml](../.github/dependabot.yml) | Dependabot configuration review. | PASS | GitHub Actions, Python, npm, and Docker ecosystems receive grouped weekly PRs without automerge. |
+| `CI-025` | [scripts/ci-local.ps1](../scripts/ci-local.ps1) | Local CI-safe validation. | PASS | Local parity command excludes live-lab tests by default. |
+| `CI-026` | [.github/workflows/ci.yml](../.github/workflows/ci.yml), [scripts/validate-phase13.ps1](../scripts/validate-phase13.ps1) | actionlint and Phase 13 static validation. | PASS | GitHub Actions YAML syntax is validated before merge where tooling is available. |
+| `SEC-008` | [.gitleaks.toml](../.gitleaks.toml), [.github/workflows/security.yml](../.github/workflows/security.yml), [scripts/validate-phase13.ps1](../scripts/validate-phase13.ps1) | Secret scan and tracked-artifact scan. | PASS | No local-lab secrets, kubeconfigs, TLS keys, tokens, or generated artifacts are committed. |

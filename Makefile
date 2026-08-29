@@ -1,4 +1,7 @@
-.PHONY: validate-phase1 validate-phase2 validate-phase3 validate-phase3-live validate-phase4 validate-phase4-live validate-phase5 validate-phase5-live validate-phase6 validate-phase6-live validate-phase7 validate-phase7-live phase6-install-build-tools phase6-build-all phase6-build-devops phase6-kubevirt-test phase7-install-container-build-tools phase7-create-secrets phase7-prepare-golden-source phase7-build-load-image phase7-rbac-test phase7-networkpolicy-test phase7-api-e2e-test install-helm-client phase5-create-secrets phase5-configure-keycloak phase5-oidc-test phase5-networkpolicy-test infra-init infra-plan infra-apply infra-output infra-destroy-spec configure configure-phase3 remove-temp-sudo terraform-init terraform-plan terraform-output ansible-syntax ansible-syntax-phase3 ansible-syntax-phase6 helm-lint helm-template helm-template-phase5 helm-template-phase7
+.PHONY: ci validate-phase1 validate-phase2 validate-phase3 validate-phase3-live validate-phase4 validate-phase4-live validate-phase5 validate-phase5-live validate-phase6 validate-phase6-live validate-phase7 validate-phase7-live validate-phase13 phase6-install-build-tools phase6-build-all phase6-build-devops phase6-kubevirt-test phase7-install-container-build-tools phase7-create-secrets phase7-prepare-golden-source phase7-build-load-image phase7-rbac-test phase7-networkpolicy-test phase7-api-e2e-test install-helm-client phase5-create-secrets phase5-configure-keycloak phase5-oidc-test phase5-networkpolicy-test infra-init infra-plan infra-apply infra-output infra-destroy-spec configure configure-phase3 remove-temp-sudo terraform-init terraform-plan terraform-output ansible-syntax ansible-syntax-phase3 ansible-syntax-phase6 helm-lint helm-template helm-template-phase5 helm-template-phase7
+
+ci:
+	pwsh -NoProfile -File ./scripts/ci-local.ps1
 
 validate-phase1:
 	pwsh -NoProfile -File ./scripts/validate-phase1.ps1
@@ -35,6 +38,9 @@ validate-phase7:
 
 validate-phase7-live:
 	bash scripts/validate-phase7-live.sh
+
+validate-phase13:
+	pwsh -NoProfile -File ./scripts/validate-phase13.ps1
 
 phase6-install-build-tools:
 	bash scripts/phase6-install-build-tools.sh

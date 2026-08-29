@@ -598,6 +598,15 @@ Phase 10 live validation checks Metrics Server, Helm render/server dry-run, API 
 
 Phase 11 live validation checks kube-prometheus-stack install/upgrade, VDIForge ServiceMonitors, PrometheusRule alerts, Grafana dashboard discovery, Prometheus scrape targets, KubeVirt metric discovery, safe Phase 10 load observability, controlled desktop lifecycle metrics, temporary alert firing/cleanup, and Phase 1-10 regression health.
 
+Phase 13 GitHub Actions runs CI-safe Helm validation with:
+
+```bash
+helm lint ./helm/vdiforge
+helm template vdiforge ./helm/vdiforge
+```
+
+The rendered resources are checked with kubeconform. Unknown CRD-backed schemas are explicitly tolerated because CI does not install KubeVirt, CDI, Traefik, or Prometheus Operator CRDs. Helm live install, upgrade, rollback, and server-side dry-run remain local-lab validations.
+
 ## Troubleshooting
 
 If Helm reports ownership conflicts, confirm the command includes:
@@ -678,7 +687,7 @@ curl -fsS http://127.0.0.1:19090/api/v1/targets
 
 ## Scope Boundary
 
-Phase 8 deploys Guacamole, `guacd`, remote desktop TLS, API remote-session RBAC, and Guacamole NetworkPolicies. Phase 9 deploys the React portal and frontend ingress/NetworkPolicy resources. Phase 10 deploys the API HPA and enables a protected local load-test endpoint only when Phase 10 values are applied. Phase 11 deploys Prometheus/Grafana observability resources and keeps Alertmanager local-only. Phase 12 adds security-header middleware, API rate-limit values, Keycloak hardening values, Grafana security settings, and validation scripts.
+Phase 8 deploys Guacamole, `guacd`, remote desktop TLS, API remote-session RBAC, and Guacamole NetworkPolicies. Phase 9 deploys the React portal and frontend ingress/NetworkPolicy resources. Phase 10 deploys the API HPA and enables a protected local load-test endpoint only when Phase 10 values are applied. Phase 11 deploys Prometheus/Grafana observability resources and keeps Alertmanager local-only. Phase 12 adds security-header middleware, API rate-limit values, Keycloak hardening values, Grafana security settings, and validation scripts. Phase 13 validates Helm chart rendering in CI but does not change live Helm ownership.
 
 Phase 12 does not deploy:
 
@@ -689,6 +698,8 @@ Phase 12 does not deploy:
 - Grafana Keycloak OIDC
 - final CI/CD
 - production VDI desktop image promotion beyond the lab DevOps image
+
+Phase 13 implements final CI/CD separately under `.github/workflows`; it does not deploy additional Helm chart resources or automatically apply Helm changes to the home lab.
 
 ## Phase 12 Helm Security Notes
 

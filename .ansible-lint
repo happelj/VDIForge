@@ -1,0 +1,14 @@
+profile: basic
+offline: true
+
+skip_list:
+  # Phase 2 and Phase 3 established hyphenated role directory names in docs,
+  # playbooks, and runbooks. Preserve those public paths instead of renaming.
+  - role-name
+
+exclude_paths:
+  - .local/
+  - artifacts/
+  - frontend/node_modules/
+  - frontend/dist/
+  - reports/

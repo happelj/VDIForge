@@ -6,6 +6,8 @@ This document is the authoritative technical design for VDIForge. Later implemen
 
 Phase 2 local infrastructure foundation is documented and host-validated. Phase 3 establishes the Kubernetes and KubeVirt foundation on that lab with kubeadm, containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, namespace/RBAC foundations, NetworkPolicy validation, and a disposable KubeVirt test VM. Phase 4 establishes the Helm platform foundation with a `vdiforge` release that manages VDIForge ConfigMap conventions, ServiceAccounts, provisioner RBAC, ResourceQuotas, a LimitRange, and baseline NetworkPolicies. Phase 5 adds Keycloak, PostgreSQL persistence, Traefik ingress, local TLS, realm import, demo identities, Authorization Code Flow with PKCE validation, JWT validation, RBAC claim validation, and identity NetworkPolicies. Phase 6 establishes the Packer/Ansible Ubuntu golden-image pipeline, image catalog foundation, QCOW2 artifact format, CDI import path, and KubeVirt boot validation. Phase 7 adds the FastAPI VDI control plane, application PostgreSQL, Alembic migrations, API/provisioner Helm resources, server-side authorization, audit persistence, and KubeVirt desktop lifecycle reconciliation. Phase 8 adds Apache Guacamole, `guacd`, RDP/xrdp session delivery, short-lived JSON-auth connection brokering, per-desktop remote credentials, and remote-session validation. Phase 9 adds the React/TypeScript self-service portal at `https://vdiforge.local`. Phase 10 adds Kubernetes HPA autoscaling for `vdiforge-api`. Phase 11 adds kube-prometheus-stack, Prometheus, Grafana, Alertmanager, VDIForge ServiceMonitors, alert rules, dashboard-as-code, and API/provisioner metrics. Phase 12 adds security headers, restricted CORS validation, Keycloak hardening, RBAC and NetworkPolicy tests, secret inventory, dependency/container scanning, log redaction, audit hash chaining, and admin-only audit export.
 
+Phase 13 adds GitHub Actions CI/CD for CI-safe validation, backend/frontend tests, Terraform/Ansible/Packer/Helm/Kubernetes manifest validation, security scans, custom container builds, SBOM generation, Dependabot updates, and GHCR release publishing. Full KubeVirt, Guacamole/xrdp, local TLS/DNS, and QCOW2 image-build validation remains local/manual.
+
 ## Goals
 
 - Provide a small self-service VDI platform suitable for a senior platform engineering portfolio.
@@ -761,6 +763,18 @@ Never log passwords, private keys, raw JWTs, refresh tokens, or other secrets.
 
 Grafana dashboard source lives in `monitoring/grafana/vdiforge-overview.json` and is packaged into the VDIForge chart. Grafana local credentials and TLS material are generated under ignored `.local/phase11` paths and applied as Kubernetes Secrets. Alertmanager is deployed without external notification credentials in the local lab.
 
+## CI/CD Design
+
+Phase 13 separates GitHub-hosted CI from local-lab validation:
+
+- pull requests and pushes to `main` run CI-safe checks for backend, frontend, Terraform, Ansible, Packer, Helm, Kubernetes manifests, secrets, dependencies, and custom containers;
+- GitHub Actions uses read-only permissions for normal CI and release-scoped package permissions only for GHCR publishing;
+- CI builds and scans VDIForge-owned API/frontend images but does not push images from pull requests;
+- SBOM artifacts are generated for custom images with short retention;
+- full KubeVirt, Guacamole/xrdp, local TLS/DNS, and QCOW2 image-build validation remains local/manual.
+
+The CI/CD boundary is documented in [CI/CD Pipeline](CI-CD.md) and [ADR 0023](ADR/0023-github-actions-cicd-boundary.md).
+
 ## Security Design
 
 Baseline controls:
@@ -859,7 +873,7 @@ Phase 2 produced local infrastructure that can host the planned three-node clust
 7. Terraform specification and outputs under `terraform/environments/local`.
 8. Ansible baseline inventory and roles under `ansible`.
 
-Phase 3 installs Kubernetes prerequisites, kubeadm/containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, namespace/RBAC foundations, and validation scripts. Phase 4 installs the Helm deployment client on `vdi-control-01` and deploys the VDIForge foundation release. Phase 5 installs Traefik ingress, Keycloak, PostgreSQL persistence, local TLS, the `vdiforge` realm, OIDC clients, demo identities, and identity validation scripts. Phase 6 adds the Packer/Ansible golden-image pipeline and KubeVirt boot validation for the DevOps image. Phase 7 installs the FastAPI API, provisioner, application PostgreSQL, migrations, and validates KubeVirt desktop launch/stop/restart/delete for the DevOps image. Phase 8 installs Guacamole/guacd, adds API session brokering, and validates RDP access to a remote-enabled DevOps desktop. Phase 9 installs the React portal and validates the browser-facing launch/connect workflow. Phase 10 installs and validates API HPA autoscaling through a safe authenticated load test. Phase 11 installs Prometheus/Grafana observability and validates scraping, dashboards, alerts, HPA metric visibility, and desktop lifecycle metrics. Phase 12 hardens the platform and validates the browser VDI workflow still works after security changes.
+Phase 3 installs Kubernetes prerequisites, kubeadm/containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, namespace/RBAC foundations, and validation scripts. Phase 4 installs the Helm deployment client on `vdi-control-01` and deploys the VDIForge foundation release. Phase 5 installs Traefik ingress, Keycloak, PostgreSQL persistence, local TLS, the `vdiforge` realm, OIDC clients, demo identities, and identity validation scripts. Phase 6 adds the Packer/Ansible golden-image pipeline and KubeVirt boot validation for the DevOps image. Phase 7 installs the FastAPI API, provisioner, application PostgreSQL, migrations, and validates KubeVirt desktop launch/stop/restart/delete for the DevOps image. Phase 8 installs Guacamole/guacd, adds API session brokering, and validates RDP access to a remote-enabled DevOps desktop. Phase 9 installs the React portal and validates the browser-facing launch/connect workflow. Phase 10 installs and validates API HPA autoscaling through a safe authenticated load test. Phase 11 installs Prometheus/Grafana observability and validates scraping, dashboards, alerts, HPA metric visibility, and desktop lifecycle metrics. Phase 12 hardens the platform and validates the browser VDI workflow still works after security changes. Phase 13 adds GitHub Actions CI/CD and keeps live-cluster deployment developer-controlled.
 
 ## Future Cloud or Bare-Metal Deployment
 
@@ -898,6 +912,7 @@ These are not required for the MVP.
 - The API needs namespace-scoped read access to per-desktop remote credential Secrets; application authorization and audit logging are compensating controls until a narrower credential broker exists.
 - The Phase 12 API rate limiter is process-local and not a global distributed limiter across HPA replicas.
 - The Phase 12 audit hash chain is tamper-evident inside PostgreSQL but does not replace SIEM forwarding or immutable storage.
+- GitHub Actions CI does not prove live VirtualBox/KubeVirt/Guacamole behavior; local/manual live validation remains required for Phase 14.
 - Windows desktops are excluded from the free MVP.
 - Version pins must be revalidated during implementation.
 - Helm now owns selected VDIForge platform resources; ad hoc `kubectl edit` changes against those objects create drift.

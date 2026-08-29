@@ -16,6 +16,8 @@ Phase 12 hardens the existing VDIForge lab without redesigning the platform or a
 
 Phase 12 does not deploy a SIEM, external secrets manager, Vault cluster, enterprise WAF, final GitHub Actions workflow, or Phase 14 demo polish.
 
+Phase 13 turns the Phase 12 scan and hardening posture into CI checks. GitHub Actions now runs Gitleaks, pip-audit, npm audit, Trivy filesystem/image scans, custom image baseline checks, and SBOM generation. The CI/CD implementation is documented separately in [CI/CD Pipeline](CI-CD.md) so this document can remain focused on platform hardening controls.
+
 ## Updated Threat Model
 
 | Threat | Phase 12 control |
@@ -222,3 +224,4 @@ The live validator checks cluster health, KubeVirt/KVM, HPA, Helm rendering, Key
 - Generated local admin credentials depend on workstation filesystem protection.
 - No SIEM or external immutable log sink is deployed in Phase 12.
 - Grafana OIDC remains deferred to a future phase or enhancement.
+- Phase 13 CI gates new image-scan regressions against the accepted Phase 12 baseline, but the baseline still requires periodic review and reduction.

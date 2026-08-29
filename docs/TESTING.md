@@ -541,27 +541,46 @@ Required classes:
 - remote desktop service unavailable
 - cleanup failure
 
-## CI/CD Plan
+## CI/CD Validation
 
-GitHub Actions should eventually run:
+Phase 13 implements GitHub Actions workflows for CI-safe validation:
 
-```text
-Python lint
-Python tests
-Frontend lint
-Frontend tests
-Terraform fmt
-Terraform validate
-Ansible lint
-Packer validate
-Helm lint
-Kubernetes manifest validation
-Dependency scanning
-Security scanning
-Container build validation
+| Area | CI checks |
+| --- | --- |
+| Repository | Phase 1 validation, Phase 13 policy validation, actionlint, image catalog validation. |
+| Backend | Python `3.13`, Ruff, pytest, Alembic migration validation against disposable PostgreSQL. |
+| Frontend | Node.js `22.15.0`, `npm ci`, lint, unit/component tests, production build. |
+| Terraform | `terraform fmt -check -recursive`, `terraform init -backend=false`, `terraform validate`. |
+| Ansible | playbook syntax checks and `ansible-lint`. |
+| Packer | `packer init`, `packer fmt -check`, `packer validate`; no QCOW2 build on PRs. |
+| Helm/Kubernetes | `helm lint`, `helm template`, kubeconform validation for rendered and raw manifests. |
+| Security | Gitleaks, pip-audit, npm audit, Trivy filesystem/image scans, Phase 12 vulnerability baseline checks. |
+| Containers | Docker Buildx builds for API/frontend, Trivy image scans, CycloneDX SBOM artifacts. |
+
+Run CI-safe checks locally from the repository root:
+
+```powershell
+.\scripts\ci-local.ps1
 ```
 
-Phase 1 includes a lightweight repository validation workflow only.
+Optional local checks that require installed tools:
+
+```powershell
+.\scripts\ci-local.ps1 -RunOptionalTools
+```
+
+GitHub Actions does not run the full live-lab workflow. The following remain local/manual from `vdi-control-01`:
+
+- VirtualBox node validation;
+- Kubernetes/KubeVirt live cluster validation;
+- full QCOW2 golden-image builds;
+- CDI import and KubeVirt VM boot proof;
+- Keycloak/OIDC through local TLS ingress;
+- Guacamole/xrdp browser connection tests;
+- Prometheus/Grafana live dashboard and alert validation;
+- browser VDI launch/connect/delete workflow.
+
+This split keeps pull-request CI safe and reproducible while preserving the higher-fidelity local lab tests for phase acceptance and demos.
 
 ## Traceability
 

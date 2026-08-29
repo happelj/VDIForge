@@ -1,0 +1,54 @@
+name: Golden image validation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: golden-image-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PACKER_VERSION: "1.16.0"
+
+jobs:
+  validate:
+    name: Validate Packer image definitions
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Packer
+        uses: hashicorp/setup-packer@v3
+        with:
+          version: ${{ env.PACKER_VERSION }}
+
+      - name: Validate image definitions without building QCOW2 artifacts
+        run: |
+          mkdir -p .local/phase13
+          key_path="${PWD}/.local/phase13/packer_ed25519"
+          touch "${key_path}"
+          for image in ubuntu-base ubuntu-developer ubuntu-devops; do
+            var_file=".local/phase13/${image}.pkrvars.hcl"
+            cat > "${var_file}" <<EOF
+          ssh_private_key_file = "${key_path}"
+          output_directory    = "${PWD}/.local/phase13/${image}"
+          headless            = true
+          EOF
+            packer init "packer/${image}"
+            packer fmt -check "packer/${image}"
+            packer validate -var-file="${var_file}" "packer/${image}"
+          done
+
+      - name: Write golden-image boundary summary
+        shell: bash
+        run: |
+          {
+            echo "### Golden Image Validation"
+            echo
+            echo "- Packer templates were statically validated."
+            echo "- Full QCOW2 golden-image builds remain local/manual because they require KVM, large artifacts, and the VDIForge lab build environment."
+          } >> "$GITHUB_STEP_SUMMARY"

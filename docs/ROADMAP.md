@@ -18,7 +18,7 @@ This roadmap defines planned implementation phases. Do not begin a future phase 
 | 10 | HPA/autoscaling | Complete | API HPA, safe authenticated load test, capacity evidence, and provisioner scaling decision. |
 | 11 | Prometheus/Grafana | Complete | Prometheus, Grafana, Alertmanager, application metrics, dashboards, alerts, and validation. |
 | 12 | Security/audit hardening | Complete | Secret inventory, RBAC/NetworkPolicy validation, Keycloak/session hardening, security headers, audit integrity, scan automation. |
-| 13 | CI/CD | Planned | GitHub Actions workflows for code, IaC, images, charts, security scans. |
+| 13 | CI/CD | Complete | GitHub Actions workflows for code, IaC, images, charts, security scans, container builds, SBOMs, and releases. |
 | 14 | End-to-end validation/demo | Planned | Final E2E test, demo script, cleanup, portfolio readiness. |
 
 ## Phase 2 - Local Infrastructure
@@ -217,6 +217,22 @@ Completed outcomes:
 - added backend dependency, frontend dependency, custom container, and golden-image hardening review automation
 - confirmed Phase 12 does not implement the final GitHub Actions CI/CD pipeline, external secrets management, SIEM forwarding, enterprise WAF, or final demo polish
 
+## Phase 13 - CI/CD Pipeline
+
+Completed outcomes:
+
+- created focused GitHub Actions workflows for repository validation, backend CI, frontend CI, infrastructure validation, security scans, container image builds, release publishing, and manual golden-image validation
+- updated the existing Phase 1 validation workflow with least-privilege permissions, branch-targeted triggers, workflow dispatch, concurrency cancellation, and a current checkout action
+- added backend CI for Python `3.13`, Ruff, pytest, and Alembic migration validation against disposable PostgreSQL
+- added frontend CI for Node.js `22.15.0`, `npm ci`, lint, unit/component tests, and production build
+- added Terraform `fmt`/`validate`, Ansible syntax/lint, Packer `fmt`/`validate`, Helm lint/template, and kubeconform manifest validation without provisioning infrastructure or deploying to the live lab
+- added Gitleaks, pip-audit, npm audit, Trivy filesystem scanning, custom API/frontend image scanning, and a Phase 12 vulnerability baseline gate
+- added Docker Buildx builds for VDIForge-owned API and frontend images without pushing on pull requests
+- added CycloneDX SBOM artifacts for custom images and GHCR release publishing with SBOM/provenance metadata for semantic tags or manual releases
+- added Dependabot grouped weekly update configuration for GitHub Actions, Python, npm, and Docker dependencies
+- documented branch-protection recommendations, fork safety, permissions, artifact retention, local CI parity, and the live-lab validation boundary
+- confirmed Phase 13 does not automatically deploy to the home lab, build full QCOW2 golden images on pull requests, expose lab secrets to CI, or implement Phase 14 final demo polish
+
 ## Future Enhancements
 
 Potential future work after the MVP:
@@ -248,7 +264,7 @@ The following are intentionally deferred:
 - detailed Guacamole connect/disconnect telemetry beyond API-side connection request audit events
 - production-grade browser token-session hardening beyond the Phase 12 `sessionStorage` and PKCE local-lab baseline
 - whether the future API needs a separate confidential admin/service client
-- whether the local API image import workflow should move to a registry before CI/CD
+- whether Phase 14 should use GHCR-published images or continue local image import for the final demo
 - provisioner horizontal scaling design: leader election, row claiming, or queue-backed reconciliation
 - production secret management through an external secrets operator, cloud KMS, or Vault-like service
 - production audit forwarding to SIEM or immutable storage
