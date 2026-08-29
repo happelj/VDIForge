@@ -2,7 +2,7 @@
 
 VDIForge observability covers metrics, structured logs, audit events, dashboards, and correlation IDs.
 
-Phase 3 implements the Kubernetes resource-metrics foundation through Metrics Server. Phase 7 adds structured backend logs, request IDs, persistent audit events, and a minimal Prometheus-compatible `/metrics` endpoint for desktop counters. Phase 8 adds audit events for remote connection requests and denials. Phase 9 propagates request IDs from browser API calls and validates portal-driven audit events. Prometheus, Grafana, full API latency/rate instrumentation, active-session metrics, and dashboards remain later-phase work.
+Phase 3 implements the Kubernetes resource-metrics foundation through Metrics Server. Phase 7 adds structured backend logs, request IDs, persistent audit events, and a minimal Prometheus-compatible `/metrics` endpoint for desktop counters. Phase 8 adds audit events for remote connection requests and denials. Phase 9 propagates request IDs from browser API calls and validates portal-driven audit events. Phase 10 uses Metrics Server for the `vdiforge-api` HPA and validates desired/current replica behavior. Prometheus, Grafana, full API latency/rate instrumentation, active-session metrics, and dashboards remain later-phase work.
 
 ## Observability Goals
 
@@ -46,7 +46,7 @@ kubectl top nodes
 kubectl top pods -A
 ```
 
-Metrics Server is not a replacement for Prometheus. It provides the Kubernetes resource metrics API needed by future HPA work.
+Metrics Server is not a replacement for Prometheus. It provides the Kubernetes resource metrics API used by the Phase 10 API HPA.
 
 ## Grafana Dashboard Design
 
@@ -214,6 +214,7 @@ The final demo should show:
 - status changes in the portal
 - corresponding API/provisioner logs
 - Kubernetes or KubeVirt resource state
+- Phase 10 HPA desired/current replica changes during controlled API load
 - a Grafana dashboard panel changing
 - an audit event for desktop launch, remote connection request, denial, or deletion
 
@@ -222,4 +223,3 @@ The final demo should show:
 - Which KubeVirt metrics are available from the selected installation without extra exporters?
 - Should audit events be stored only in PostgreSQL for MVP or also written to append-only JSON logs?
 - What retention duration is appropriate for an interview lab?
-- Which load tool will be used for the HPA demo?

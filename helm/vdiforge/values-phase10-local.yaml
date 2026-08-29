@@ -1,0 +1,39 @@
+platformConfig:
+  validationMarker: phase10-kubernetes-hpa-autoscaling
+
+api:
+  image:
+    tag: "0.10.0"
+  loadTest:
+    enabled: true
+    defaultIterations: "150000"
+    maxIterations: "1500000"
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 50
+    behavior:
+      scaleUp:
+        stabilizationWindowSeconds: 0
+        selectPolicy: Max
+        policies:
+          - type: Pods
+            value: 2
+            periodSeconds: 15
+          - type: Percent
+            value: 200
+            periodSeconds: 15
+      scaleDown:
+        stabilizationWindowSeconds: 60
+        selectPolicy: Max
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 30
+
+provisioner:
+  image:
+    tag: "0.10.0"
+  autoscaling:
+    enabled: false

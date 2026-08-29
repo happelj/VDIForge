@@ -146,7 +146,7 @@ kubectl get pods -n tigera-operator
 
 ## Metrics Server
 
-Metrics Server v0.8.1 is installed to support future HPA work. The local lab patches Metrics Server to prefer node `InternalIP` addresses.
+Metrics Server v0.8.1 is installed for Kubernetes resource metrics and is used by the Phase 10 API HPA. The local lab patches Metrics Server to prefer node `InternalIP` addresses.
 
 The patch currently includes `--kubelet-insecure-tls` because kubeadm's default kubelet serving certificates in this lab are not provisioned with a full trusted serving-certificate chain for Metrics Server. This is a documented local-lab exception and must be revisited before any non-lab deployment.
 

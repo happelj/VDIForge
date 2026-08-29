@@ -24,7 +24,9 @@ metadata:
   labels:
     {{- include "vdiforge.api.labels" . | nindent 4 }}
 spec:
+  {{- if not .Values.api.autoscaling.enabled }}
   replicas: {{ .Values.api.replicas }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "vdiforge.api.selectorLabels" . | nindent 6 }}
@@ -98,6 +100,12 @@ spec:
               value: {{ .Values.api.env.guacamoleRdpServerLayout | quote }}
             - name: VDIFORGE_CORS_ALLOWED_ORIGINS
               value: {{ .Values.api.env.corsAllowedOrigins | quote }}
+            - name: VDIFORGE_LOAD_TEST_ENABLED
+              value: {{ .Values.api.loadTest.enabled | quote }}
+            - name: VDIFORGE_LOAD_TEST_DEFAULT_ITERATIONS
+              value: {{ .Values.api.loadTest.defaultIterations | quote }}
+            - name: VDIFORGE_LOAD_TEST_MAX_ITERATIONS
+              value: {{ .Values.api.loadTest.maxIterations | quote }}
           volumeMounts:
             - name: keycloak-ca
               mountPath: /var/run/vdiforge/keycloak-ca

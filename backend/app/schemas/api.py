@@ -114,3 +114,10 @@ class ReadyResponse(BaseModel):
     status: str
     database: str
     image_catalog: str
+
+
+class LoadTestResponse(BaseModel):
+    status: str
+    iterations: int
+    checksum: int
+    request_id: str

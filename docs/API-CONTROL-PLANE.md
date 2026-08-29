@@ -1,8 +1,8 @@
 # FastAPI VDI Control Plane
 
-Phase 7 implements the first VDIForge application service: a FastAPI API, PostgreSQL persistence, and an asynchronous provisioner that reconciles VDIForge desktop records into KubeVirt resources. Phase 8 extends that API with remote desktop session brokering for Apache Guacamole. Phase 9 adds browser portal support, including CORS for `https://vdiforge.local` and the `ubuntu-devops:1.2.0` default image.
+Phase 7 implements the first VDIForge application service: a FastAPI API, PostgreSQL persistence, and an asynchronous provisioner that reconciles VDIForge desktop records into KubeVirt resources. Phase 8 extends that API with remote desktop session brokering for Apache Guacamole. Phase 9 adds browser portal support, including CORS for `https://vdiforge.local` and the `ubuntu-devops:1.2.0` default image. Phase 10 adds API autoscaling support and a protected local-only load-test endpoint.
 
-This document covers the backend control plane through Phase 9. Prometheus/Grafana, HPA, and final production hardening remain later phases.
+This document covers the backend control plane through Phase 10. Prometheus/Grafana and final production hardening remain later phases.
 
 ## Version Pins
 
@@ -36,6 +36,7 @@ This document covers the backend control plane through Phase 9. Prometheus/Grafa
 | --- | --- | --- | --- |
 | `GET` | `/api/v1/health` | no | process health |
 | `GET` | `/api/v1/ready` | no | database and image-catalog readiness |
+| `GET` | `/api/v1/health/load-test` | yes | bounded local/test CPU endpoint for HPA validation; disabled by default |
 | `GET` | `/api/v1/images` | yes | list launchable images authorized for caller roles |
 | `POST` | `/api/v1/desktops` | yes | request a desktop asynchronously |
 | `GET` | `/api/v1/desktops` | yes | list caller-owned desktops; admins may pass `all_users=true` |
@@ -184,6 +185,34 @@ https://api.vdiforge.local
 https://remote.vdiforge.local
 ```
 
+Phase 10 enables API autoscaling by adding `values-phase10-local.yaml`:
+
+```bash
+kubectl delete job vdiforge-api-migrations -n vdiforge-system --ignore-not-found=true --wait=true
+helm upgrade --install vdiforge ./helm/vdiforge \
+  --namespace vdiforge-system \
+  --values ./helm/vdiforge/values-local.yaml \
+  --values ./helm/vdiforge/values-phase5-local.yaml \
+  --values ./helm/vdiforge/values-phase7-local.yaml \
+  --values ./helm/vdiforge/values-phase8-local.yaml \
+  --values ./helm/vdiforge/values-phase9-local.yaml \
+  --values ./helm/vdiforge/values-phase10-local.yaml \
+  --take-ownership \
+  --force-conflicts \
+  --wait \
+  --wait-for-jobs
+```
+
+When Phase 10 values are applied, the `vdiforge-api` Deployment is controlled by a Kubernetes HPA with `minReplicas: 1`, `maxReplicas: 3`, and a CPU target of `50%`. The API keeps durable state in PostgreSQL, validates Keycloak tokens independently per replica, and does not store authoritative user state in pod memory.
+
+The protected load endpoint is enabled only by Phase 10 local values:
+
+```text
+GET /api/v1/health/load-test?iterations=150000
+```
+
+It requires a valid bearer access token, returns a request ID, performs bounded CPU work, and has no side effects on desktops, audit records, or KubeVirt resources.
+
 The Windows hosts-file helper includes `auth.vdiforge.local`, `api.vdiforge.local`, and `remote.vdiforge.local`:
 
 ```powershell
@@ -201,6 +230,7 @@ The Windows hosts-file helper includes `auth.vdiforge.local`, `api.vdiforge.loca
 - Provisioner Kubernetes API egress allows both the in-cluster API Service IP `10.96.0.1:443` and the control-plane endpoint `192.168.56.10:6443` for the current kubeadm lab.
 - API Kubernetes API egress is enabled in Phase 8 for authorized remote credential reads.
 - Guacamole and `guacd` disable Kubernetes ServiceAccount token mounting.
+- The Phase 10 load-test endpoint is disabled by default and requires the same bearer-token authentication as other protected API endpoints.
 
 ## Validation
 
@@ -246,13 +276,25 @@ Phase 8 live validation adds:
 - cross-user, guessed-ID, stopped, and deleted desktop connection denial
 - connection audit events without credential leakage
 
-The final Phase 7 live validation passed with Helm release revision `56`, KubeVirt hardware acceleration classified as `KUBEVIRT_KVM_VERIFIED`, and the disposable desktop VM scheduled on `vdi-worker-02` with a `devices.kubevirt.io/kvm` request. Phase 8 validation rechecks the same KVM path for the remote-enabled desktop.
+Phase 10 live validation adds:
+
+- Helm render and server dry-run with HPA enabled
+- Metrics Server and HPA metric resolution
+- automatic API scale-up under authenticated GET load
+- multiple API replicas Ready and represented in Service endpoints
+- authenticated image and desktop list consistency while scaled out
+- portal HTTPS reachability during and after scale-out
+- automatic API scale-down after load ends
+- unchanged desktop count before and after the load test
+
+The final Phase 7 live validation passed with Helm release revision `56`, KubeVirt hardware acceleration classified as `KUBEVIRT_KVM_VERIFIED`, and the disposable desktop VM scheduled on `vdi-worker-02` with a `devices.kubevirt.io/kvm` request. Phase 8 and later validators recheck the same KVM path for remote-enabled desktops and cluster regression.
 
 ## Limitations
 
 - Only `ubuntu-devops` is launchable in the current lab; Phase 9 defaults new launches to `ubuntu-devops:1.2.0`.
 - The source golden PVC consumes local-path storage and is not physically highly available.
-- The API exposes a minimal `/metrics` endpoint; full Prometheus/Grafana dashboards remain Phase 11.
+- The API exposes a minimal `/metrics` endpoint and Phase 10 HPA support; full Prometheus/Grafana dashboards remain Phase 11.
+- Provisioner HPA remains deferred until reconciliation concurrency has leader election or database-backed work claiming.
 - Browser remote desktop delivery is available through Guacamole, and Phase 9 adds the React Connect UI.
 - The API image is a local lab image imported into containerd on `vdi-worker-01`; a registry workflow is deferred.
 - The API can read per-desktop remote credential Secrets after authorization; this should be narrowed in a future credential-broker design if practical.

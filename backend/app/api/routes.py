@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app import __version__
 from app.api.dependencies import current_settings, get_current_user, get_remote_access_service
+from app.api.errors import ApiError
 from app.auth.claims import AuthenticatedUser
 from app.config.settings import Settings
 from app.db.session import get_db
@@ -22,6 +23,7 @@ from app.schemas.api import (
     HealthResponse,
     ImageResponse,
     ImageVersionResponse,
+    LoadTestResponse,
     ReadyResponse,
 )
 from app.services.desktops import DesktopService
@@ -53,6 +55,33 @@ def ready(
     db.execute(text("select 1"))
     ImageCatalogService(settings).validate_catalog()
     return ReadyResponse(status="ok", database="ok", image_catalog="ok")
+
+
+@router.get("/health/load-test", response_model=LoadTestResponse, tags=["system"])
+def load_test(
+    request: Request,
+    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    settings: Annotated[Settings, Depends(current_settings)],
+    iterations: Annotated[int | None, Query(ge=1_000, le=2_000_000)] = None,
+) -> LoadTestResponse:
+    if not settings.load_test_enabled:
+        raise ApiError(404, "LOAD_TEST_DISABLED", "The local load-test endpoint is disabled.")
+
+    requested_iterations = settings.load_test_default_iterations if iterations is None else iterations
+    if requested_iterations > settings.load_test_max_iterations:
+        raise ApiError(400, "LOAD_TEST_LIMIT_EXCEEDED", "Requested load-test work exceeds the configured limit.")
+
+    checksum = 0
+    subject_length = len(user.subject)
+    for index in range(requested_iterations):
+        checksum = ((checksum << 5) - checksum + index + subject_length) & 0xFFFFFFFF
+
+    return LoadTestResponse(
+        status="ok",
+        iterations=requested_iterations,
+        checksum=checksum,
+        request_id=request.state.request_id,
+    )
 
 
 @router.get("/images", response_model=list[ImageResponse], tags=["images"])

@@ -14,7 +14,7 @@ VDIForge will use requirements-driven testing. Later phases should trace tests b
 
 ## Backend Tests
 
-Phase 7, Phase 8, and Phase 9 Python tests cover:
+Phase 7, Phase 8, Phase 9, and Phase 10 Python tests cover:
 
 - model validation
 - API request validation
@@ -35,11 +35,13 @@ Phase 7, Phase 8, and Phase 9 Python tests cover:
 - portal/API CORS validation
 - OIDC-backed portal-equivalent launch/connect/delete workflows
 - role-specific image visibility through real API responses
+- the protected API load-test endpoint being disabled by default
+- bounded authenticated load-test behavior when explicitly enabled
 
 Run the current backend checks through the repository validator:
 
 ```powershell
-.\scripts\validate-phase9.ps1
+.\scripts\validate-phase10.ps1
 ```
 
 ## Frontend Tests
@@ -318,6 +320,23 @@ bash scripts/validate-phase9-live.sh
 
 The Phase 9 live validator checks cluster regression health, Helm lint/render/server dry-run, portal TLS, frontend image rollout, runtime configuration, CORS, OIDC/PKCE, role-specific image visibility, `ubuntu-devops:1.2.0` launch, Guacamole handoff, audit events, cleanup, and KubeVirt/KVM regression health.
 
+Phase 10 static validation:
+
+```powershell
+.\scripts\validate-phase10.ps1
+```
+
+Phase 10 live validation from `vdi-control-01`:
+
+```bash
+cd ~/vdiforge-phase10-validation
+bash scripts/validate-phase10-live.sh
+```
+
+The Phase 10 live validator checks cluster regression health, Helm lint/render/server dry-run, API image loading, HPA creation, Metrics Server resource-metric resolution, safe authenticated load, automatic API scale-up, new ready API endpoints, authenticated image and desktop reads during scale-out, portal HTTPS reachability, automatic scale-down, unchanged desktop count, KubeVirt/KVM regression health, and absence of unexpected failed pods.
+
+Phase 10 deliberately does not use desktop creation as the load-test path.
+
 ## Image Validation
 
 Phase 6 static validation:
@@ -402,6 +421,26 @@ Phase 9 portal tests:
 - desktop deletion and Kubernetes cleanup
 
 The optional browser proof opens the portal, signs in as `demo-devops`, launches a desktop, waits for Ready, opens Guacamole, and verifies the XFCE desktop works without manual guest remediation.
+
+## Autoscaling Tests
+
+Phase 10 validates Kubernetes HPA behavior for `vdiforge-api`:
+
+- HPA disabled rendering with Phase 9 values
+- HPA enabled rendering with Phase 10 values
+- `autoscaling/v2` and correct `scaleTargetRef`
+- configurable min/max replicas, CPU target, and scale behavior
+- API resource requests required for HPA utilization metrics
+- protected local load endpoint disabled by default
+- bearer-token requirement for the load endpoint
+- safe GET load generation without desktop creation
+- CPU utilization crossing the HPA target
+- automatic API replica scale-up and scale-down
+- image and desktop listing consistency while multiple API pods are Ready
+- unchanged desktop count before and after the load test
+- provisioner HPA omitted until reconciliation has safe multi-worker coordination
+
+Autoscaling tests use Metrics Server and Kubernetes HPA status. Prometheus/Grafana dashboard validation remains Phase 11.
 
 ## End-to-End Test
 

@@ -1,6 +1,6 @@
 # Security Model
 
-This document defines the VDIForge threat model and security controls. Phase 2 local infrastructure controls, Phase 3 Kubernetes foundation controls, Phase 4 Helm platform controls, Phase 5 identity controls, Phase 6 image-pipeline controls, Phase 7 FastAPI control-plane controls, Phase 8 Guacamole remote desktop controls, and Phase 9 React portal controls apply to the current lab. Full Prometheus/Grafana observability and HPA/autoscaling remain later-phase work.
+This document defines the VDIForge threat model and security controls. Phase 2 local infrastructure controls, Phase 3 Kubernetes foundation controls, Phase 4 Helm platform controls, Phase 5 identity controls, Phase 6 image-pipeline controls, Phase 7 FastAPI control-plane controls, Phase 8 Guacamole remote desktop controls, Phase 9 React portal controls, and Phase 10 API autoscaling controls apply to the current lab. Full Prometheus/Grafana observability remains later-phase work.
 
 ## Security Objectives
 
@@ -148,6 +148,8 @@ Phase 8 enables Guacamole policies in `guacamole`: default deny, DNS egress, Tra
 
 Phase 9 enables the frontend ingress policy in `vdiforge-system`, allowing Traefik to reach the `vdiforge-frontend` Service on TCP 8080. The frontend pod serves static assets only, disables automatic ServiceAccount token mounting, and does not require direct pod-to-pod egress to Keycloak, the API, Guacamole, PostgreSQL, or the Kubernetes API. Browser calls to those services use HTTPS through Traefik.
 
+Phase 10 enables API autoscaling but does not widen the network model. New `vdiforge-api` replicas use the same labels, ServiceAccount, resource limits, ingress path, database access, Keycloak JWKS access, and NetworkPolicy rules as the original API pod.
+
 ## Phase 2 Local Infrastructure Security
 
 Current Phase 2 controls:
@@ -281,6 +283,21 @@ Phase 9 adds these security-relevant controls:
 - The image role and launch-time cloud-init path now create the XFCE/xrdp session files required for new browser-launched desktops.
 
 Residual Phase 9 security note: browser-held access tokens remain exposed to normal browser risks. Phase 12 should evaluate whether a backend-for-frontend or token exchange pattern is justified for a stronger production design.
+
+## Phase 10 Autoscaling Security
+
+Phase 10 adds these security-relevant controls:
+
+- API autoscaling is implemented by a Helm-managed `autoscaling/v2` HPA for `vdiforge-api`.
+- The HPA scales API pod replicas only; it does not create Kubernetes worker nodes, KubeVirt desktops, or additional provisioner workers.
+- The dedicated load-test endpoint is disabled by default and enabled only through `values-phase10-local.yaml`.
+- `GET /api/v1/health/load-test` requires a valid bearer token and runs through normal FastAPI authentication.
+- The load-test endpoint performs bounded CPU work and does not create desktops, write audit events, create KubeVirt resources, or disclose sensitive data.
+- The load generator uses authenticated GET requests and is statically checked to avoid `POST /api/v1/desktops`.
+- HPA activity is operational infrastructure behavior; it should be investigated through Kubernetes events, HPA status, Metrics Server data, API logs, and Helm values, not through user/security audit events.
+- Provisioner HPA is deferred because the current reconciliation loop does not yet have leader election, database row claiming, or another explicit multi-worker coordination mechanism.
+
+Phase 10 does not deploy Prometheus/Grafana, node autoscaling, final CI/CD, SIEM forwarding, or production hardening.
 
 ## Secret Handling
 
