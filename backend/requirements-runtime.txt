@@ -7,6 +7,6 @@ alembic==1.19.1
 psycopg[binary]==3.3.4
 PyJWT[crypto]==2.13.0
 cryptography==50.0.1
-kubernetes==36.0.2
+kubernetes==36.0.3
 httpx==0.28.1
-prometheus-client==0.23.1
+prometheus-client==0.26.0
