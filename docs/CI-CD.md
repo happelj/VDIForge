@@ -4,7 +4,7 @@ Phase 13 establishes the GitHub Actions pipeline for VDIForge. The pipeline is d
 
 ## Goals
 
-- Run CI-safe checks on pull requests and pushes to `main`.
+- Run CI-safe checks on pull requests, pushes to `main`, and feature-branch pushes used for pre-merge validation.
 - Validate backend, frontend, infrastructure definitions, Helm charts, Kubernetes manifests, security scans, and custom container images.
 - Keep live-lab validation separate from normal pull-request validation.
 - Avoid exposing local-lab credentials, kubeconfigs, TLS private keys, or generated image artifacts to GitHub Actions.
@@ -22,15 +22,15 @@ Phase 13 establishes the GitHub Actions pipeline for VDIForge. The pipeline is d
 
 | Workflow | Trigger | Purpose |
 | --- | --- | --- |
-| `phase1-validation.yml` | pull request, push to `main`, manual | Lightweight repository/documentation regression validation. |
-| `ci.yml` | pull request, push to `main`, manual | Repository policy checks, backend lint/tests/migrations, frontend lint/tests/build. |
-| `infra-validation.yml` | pull request, push to `main`, manual | Terraform, Ansible, Packer, Helm, and Kubernetes manifest validation. |
-| `security.yml` | pull request, push to `main`, manual | Secret scan, backend dependency scan, frontend dependency scan, and repository configuration scan. |
-| `containers.yml` | pull request, push to `main`, manual | Build VDIForge-owned API/frontend images, run Trivy image scans, and upload SBOMs. |
+| `phase1-validation.yml` | pull request, push to `main`, push to `feature/**`, manual | Lightweight repository/documentation regression validation. |
+| `ci.yml` | pull request, push to `main`, push to `feature/**`, manual | Repository policy checks, backend lint/tests/migrations, frontend lint/tests/build. |
+| `infra-validation.yml` | pull request, push to `main`, push to `feature/**`, manual | Terraform, Ansible, Packer, Helm, and Kubernetes manifest validation. |
+| `security.yml` | pull request, push to `main`, push to `feature/**`, manual | Secret scan, backend dependency scan, frontend dependency scan, and repository configuration scan. |
+| `containers.yml` | pull request, push to `main`, push to `feature/**`, manual | Build VDIForge-owned API/frontend images, run Trivy image scans, and upload SBOMs. |
 | `release.yml` | semantic version tag `v*`, manual | Build and publish API/frontend images to GHCR with SBOM/provenance metadata. |
 | `golden-image-validation.yml` | manual only | Validate Packer image definitions without building QCOW2 artifacts. |
 
-All pull-request and `main` workflows use concurrency cancellation so obsolete commits do not waste runner time.
+All pull-request, feature-branch, and `main` validation workflows use concurrency cancellation so obsolete commits do not waste runner time.
 
 ## Tool Versions
 
@@ -132,7 +132,7 @@ The `containers.yml` workflow builds:
 - `vdiforge-api:ci-<sha>`
 - `vdiforge-frontend:ci-<sha>`
 
-Pull-request and `main` jobs build and scan images locally on the runner but do not push images to a registry.
+Pull-request, feature-branch, and `main` jobs build and scan images locally on the runner but do not push images to a registry.
 
 ## Trivy Baseline
 

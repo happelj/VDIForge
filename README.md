@@ -124,7 +124,7 @@ Phase 11 upgrades the API/provisioner image tag to `localhost/vdiforge-api:0.11.
 
 Phase 12 upgrades the API/provisioner image tag to `localhost/vdiforge-api:0.12.0` and hardens the existing platform. It adds API security headers, Traefik header middleware, restricted CORS validation, high-impact operation rate limits, stricter input validation, centralized redaction, audit hash chaining, admin-only JSON Lines audit export, Keycloak brute-force protection, RBAC/NetworkPolicy security tests, dependency/container scanning, and a documented secret inventory. See [Security Hardening](docs/SECURITY-HARDENING.md).
 
-Phase 13 adds GitHub Actions CI/CD for pull requests, pushes to `main`, releases, and manual validation. CI runs backend lint/tests/migration checks, frontend lint/tests/build checks, Terraform/Ansible/Packer/Helm/Kubernetes manifest validation, secret and dependency scans, custom container builds, Trivy image scans, SBOM generation, and workflow validation. Full KubeVirt, Guacamole, xrdp, and QCOW2 image-build tests remain local/manual because they require the live VirtualBox/KVM lab. See [CI/CD Pipeline](docs/CI-CD.md).
+Phase 13 adds GitHub Actions CI/CD for pull requests, feature-branch validation pushes, pushes to `main`, releases, and manual validation. CI runs backend lint/tests/migration checks, frontend lint/tests/build checks, Terraform/Ansible/Packer/Helm/Kubernetes manifest validation, secret and dependency scans, custom container builds, Trivy image scans, SBOM generation, and workflow validation. Full KubeVirt, Guacamole, xrdp, and QCOW2 image-build tests remain local/manual because they require the live VirtualBox/KVM lab. See [CI/CD Pipeline](docs/CI-CD.md).
 
 ## Repository Organization
 
