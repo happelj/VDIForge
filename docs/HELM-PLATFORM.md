@@ -678,9 +678,9 @@ curl -fsS http://127.0.0.1:19090/api/v1/targets
 
 ## Scope Boundary
 
-Phase 8 deploys Guacamole, `guacd`, remote desktop TLS, API remote-session RBAC, and Guacamole NetworkPolicies. Phase 9 deploys the React portal and frontend ingress/NetworkPolicy resources. Phase 10 deploys the API HPA and enables a protected local load-test endpoint only when Phase 10 values are applied. Phase 11 deploys Prometheus/Grafana observability resources and keeps Alertmanager local-only.
+Phase 8 deploys Guacamole, `guacd`, remote desktop TLS, API remote-session RBAC, and Guacamole NetworkPolicies. Phase 9 deploys the React portal and frontend ingress/NetworkPolicy resources. Phase 10 deploys the API HPA and enables a protected local load-test endpoint only when Phase 10 values are applied. Phase 11 deploys Prometheus/Grafana observability resources and keeps Alertmanager local-only. Phase 12 adds security-header middleware, API rate-limit values, Keycloak hardening values, Grafana security settings, and validation scripts.
 
-Phase 11 does not deploy:
+Phase 12 does not deploy:
 
 - provisioner HPA
 - node autoscaling
@@ -689,3 +689,11 @@ Phase 11 does not deploy:
 - Grafana Keycloak OIDC
 - final CI/CD
 - production VDI desktop image promotion beyond the lab DevOps image
+
+## Phase 12 Helm Security Notes
+
+- `helm/vdiforge/templates/securityheaders.yaml` creates Traefik `Middleware` resources for VDIForge browser-facing services.
+- Ingress annotations reference middleware by namespace-qualified name; Services do not carry Ingress-only middleware annotations.
+- `values-phase12-local.yaml` enables security headers and API rate limiting without duplicating the chart.
+- VDIForge-owned RBAC remains least privilege and does not create `ClusterRoleBinding` or `cluster-admin`.
+- Generated TLS keys, passwords, and local env files remain outside Helm values and outside Git.

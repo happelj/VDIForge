@@ -99,6 +99,11 @@ spec:
       {{- include "vdiforge.guacamole.selectorLabels" . | nindent 6 }}
   template:
     metadata:
+      {{- $guacamoleJsonSecretChecksum := include "vdiforge.secretChecksum" (list (include "vdiforge.namespace.remoteAccess" .) .Values.guacamole.existingJsonSecret .Values.guacamole.jsonSecretKey) }}
+      {{- if $guacamoleJsonSecretChecksum }}
+      annotations:
+        checksum/vdiforge-guacamole-json-secret: {{ $guacamoleJsonSecretChecksum | quote }}
+      {{- end }}
       labels:
         {{- include "vdiforge.guacamole.selectorLabels" . | nindent 8 }}
     spec:
@@ -173,6 +178,11 @@ metadata:
   namespace: {{ include "vdiforge.namespace.remoteAccess" . }}
   labels:
     {{- include "vdiforge.guacamole.labels" . | nindent 4 }}
+  {{- $middleware := include "vdiforge.securityMiddlewareRef" (list . "guacamole") }}
+  {{- if $middleware }}
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: {{ $middleware | quote }}
+  {{- end }}
 spec:
   ingressClassName: {{ .Values.guacamole.ingress.className }}
   tls:

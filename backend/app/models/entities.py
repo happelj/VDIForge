@@ -83,3 +83,5 @@ class AuditEvent(Base):
     source_ip: Mapped[str | None] = mapped_column(String(64), nullable=True)
     result: Mapped[str] = mapped_column(String(32))
     details: Mapped[dict] = mapped_column(JSON, default=dict)
+    previous_event_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    event_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True)

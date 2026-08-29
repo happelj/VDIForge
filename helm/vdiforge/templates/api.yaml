@@ -32,6 +32,17 @@ spec:
       {{- include "vdiforge.api.selectorLabels" . | nindent 6 }}
   template:
     metadata:
+      {{- $apiDbSecretChecksum := include "vdiforge.secretChecksum" (list (include "vdiforge.namespace.system" .) .Values.api.env.databaseSecretName .Values.api.env.databasePasswordKey) }}
+      {{- $guacamoleJsonSecretChecksum := include "vdiforge.secretChecksum" (list (include "vdiforge.namespace.system" .) .Values.api.env.guacamoleJsonSecretName .Values.api.env.guacamoleJsonSecretKey) }}
+      {{- if or $apiDbSecretChecksum $guacamoleJsonSecretChecksum }}
+      annotations:
+        {{- if $apiDbSecretChecksum }}
+        checksum/vdiforge-app-secrets: {{ $apiDbSecretChecksum | quote }}
+        {{- end }}
+        {{- if $guacamoleJsonSecretChecksum }}
+        checksum/vdiforge-guacamole-json-secret: {{ $guacamoleJsonSecretChecksum | quote }}
+        {{- end }}
+      {{- end }}
       labels:
         {{- include "vdiforge.api.selectorLabels" . | nindent 8 }}
     spec:
@@ -110,6 +121,16 @@ spec:
               value: {{ .Values.monitoring.applicationMetrics.enabled | quote }}
             - name: VDIFORGE_METRICS_PORT
               value: {{ .Values.monitoring.applicationMetrics.provisionerPort | quote }}
+            - name: VDIFORGE_API_RATE_LIMIT_ENABLED
+              value: {{ .Values.api.rateLimit.enabled | quote }}
+            - name: VDIFORGE_DESKTOP_MUTATION_RATE_LIMIT
+              value: {{ .Values.api.rateLimit.desktopMutation.limit | quote }}
+            - name: VDIFORGE_DESKTOP_MUTATION_RATE_WINDOW_SECONDS
+              value: {{ .Values.api.rateLimit.desktopMutation.windowSeconds | quote }}
+            - name: VDIFORGE_DESKTOP_CONNECT_RATE_LIMIT
+              value: {{ .Values.api.rateLimit.desktopConnect.limit | quote }}
+            - name: VDIFORGE_DESKTOP_CONNECT_RATE_WINDOW_SECONDS
+              value: {{ .Values.api.rateLimit.desktopConnect.windowSeconds | quote }}
           volumeMounts:
             - name: keycloak-ca
               mountPath: /var/run/vdiforge/keycloak-ca
@@ -155,6 +176,11 @@ metadata:
   namespace: {{ include "vdiforge.namespace.system" . }}
   labels:
     {{- include "vdiforge.api.labels" . | nindent 4 }}
+  {{- $middleware := include "vdiforge.securityMiddlewareRef" (list . "api") }}
+  {{- if $middleware }}
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: {{ $middleware | quote }}
+  {{- end }}
 spec:
   ingressClassName: {{ .Values.api.ingress.className }}
   tls:

@@ -641,3 +641,53 @@ This runbook defines troubleshooting procedures for the VDIForge local lab and p
 | Diagnostics | `kubectl -n keycloak describe ingress vdiforge-keycloak`; `kubectl -n vdiforge-system describe ingress vdiforge-api`; `kubectl -n guacamole describe ingress vdiforge-guacamole`; `kubectl -n monitoring describe ingress vdiforge-monitoring-grafana`; `kubectl -n keycloak get secret vdiforge-keycloak-tls`; `kubectl -n vdiforge-system get secret vdiforge-api-tls`; `kubectl -n guacamole get secret vdiforge-guacamole-tls`; `kubectl -n monitoring get secret vdiforge-grafana-tls`; `openssl x509 -in .local/phase5/tls/auth.vdiforge.local.crt -noout -text`; `openssl x509 -in .local/phase7/tls/api.vdiforge.local.crt -noout -text`; `openssl x509 -in .local/phase8/tls/remote.vdiforge.local.crt -noout -text`; `openssl x509 -in .local/phase11/tls/grafana.vdiforge.local.crt -noout -text`; trusted `curl --resolve` checks for all browser-facing hosts. |
 | Remediation | Regenerate identity TLS with `scripts/phase5-create-local-secrets.sh`, API TLS with `scripts/phase7-create-local-secrets.sh`, Guacamole TLS with `scripts/phase8-create-local-secrets.sh`, and Grafana TLS with `scripts/phase11-create-local-secrets.sh`; refresh Kubernetes TLS Secrets, trust the local CA on the browser client, and rerun Phase 5/7/8/11 validation. Do not use `curl -k` as final validation evidence. |
 | Logs/metrics | Ingress TLS errors, browser error, API request failures. |
+
+## Phase 12 Security Headers or CORS Failure
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | Browser API calls fail, OIDC callback breaks, Guacamole fails to load, Grafana page errors appear, or `scripts/phase12-security-headers-test.sh` fails. |
+| Likely causes | Traefik middleware missing, wrong middleware namespace reference, CORS origin mismatch, CSP too strict for the target service, stale Helm values, or certificate trust failure. |
+| Diagnostics | `kubectl get middleware -A`; `kubectl -n vdiforge-system describe ingress vdiforge-api`; `kubectl -n vdiforge-system logs deploy/vdiforge-api`; run trusted curl checks from `scripts/phase12-security-headers-test.sh`; inspect browser developer tools for blocked script, frame, or CORS errors. |
+| Remediation | Reapply Phase 12 Helm values, verify `providers.kubernetesCRD.enabled` in Traefik values, keep CSP stricter on API/portal than on Keycloak/Guacamole, and rerun Phase 12 header validation. |
+| Logs/metrics | Traefik logs, browser console, API request logs, `vdiforge_api_requests_total`. |
+
+## Phase 12 RBAC Denial
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | Provisioner cannot create or clean desktop resources, API cannot create a connection handoff, or `scripts/phase12-rbac-test.sh` fails. |
+| Likely causes | RoleBinding missing, wrong namespace, ServiceAccount renamed, Helm drift, or a permission was narrowed too far. |
+| Diagnostics | `kubectl -n vdiforge-system get serviceaccount`; `kubectl -n vdiforge-desktops get role,rolebinding`; `kubectl auth can-i --as=system:serviceaccount:vdiforge-system:vdiforge-provisioner create virtualmachines.kubevirt.io -n vdiforge-desktops`; inspect provisioner logs. |
+| Remediation | Restore Helm-managed RBAC from source values, keep permissions namespace scoped, do not grant `cluster-admin`, and rerun Phase 12 RBAC and desktop lifecycle validation. |
+| Logs/metrics | Provisioner logs, Kubernetes audit/events where available, API error responses with request IDs. |
+
+## Phase 12 Audit Export or Integrity Failure
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | Admin audit export fails, non-admin can read audit data, audit records lack `event_hash`, or exported audit data contains sensitive fields. |
+| Likely causes | Migration `0002_phase12_audit_integrity` did not run, API image is stale, admin role claim mismatch, redaction regression, or database connectivity failure. |
+| Diagnostics | `kubectl -n vdiforge-system logs job/vdiforge-api-migrations`; `kubectl -n vdiforge-system logs deploy/vdiforge-api`; call `/api/v1/audit-events` and `/api/v1/audit-events/export` as admin and non-admin users; verify API health reports version `0.12.0`. |
+| Remediation | Re-run the migration job through Helm, rebuild/load the Phase 12 API image, verify Keycloak role claims, and rerun `scripts/phase12-api-security-test.py`. Do not manually edit audit rows as a normal remediation step. |
+| Logs/metrics | API logs, migration job logs, audit endpoint response, PostgreSQL connection errors. |
+
+## Phase 12 Dependency or Container Scan Finding
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | `scripts/phase12-dependency-scan.sh` reports critical or high findings. |
+| Likely causes | vulnerable Python package, vulnerable Node package, vulnerable container base layer, or stale lock file. |
+| Diagnostics | Review `pip-audit`, `npm audit`, and Trivy output; identify whether findings are in VDIForge-owned dependencies, base images, or test-only tooling. |
+| Remediation | Apply compatible patch upgrades where safe, rebuild custom images, document accepted local-lab risks when no safe patch exists, and do not perform broad breaking upgrades just to silence a scanner. |
+| Logs/metrics | Scanner output under the current validation run; package lock diffs. |
+
+## Phase 12 Secret Rotation
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | Need to rotate local database, Grafana, Keycloak, TLS, Guacamole JSON, or per-desktop xrdp credentials. |
+| Likely causes | demo reset, suspected exposure, expired local certificate, or generated credential replacement. |
+| Diagnostics | Review [Security Hardening](SECURITY-HARDENING.md) secret inventory; list Secret metadata with `scripts/phase12-inventory.sh`; never decode and paste secret values into tickets or docs. |
+| Remediation | Generate replacements outside Git, update the matching Kubernetes Secret, restart affected pods, and rerun the relevant Phase 12 live checks. For per-desktop xrdp credentials, prefer deleting and relaunching the desktop. |
+| Logs/metrics | Pod rollout status, readiness checks, OIDC discovery, API readiness, Guacamole connection tests. |

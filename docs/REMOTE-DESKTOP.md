@@ -4,6 +4,8 @@ Phase 8 implements the browser-based remote desktop delivery foundation for VDIF
 
 Phase 9 uses the same server-side broker from the portal: the frontend requests `POST /api/v1/desktops/{id}/connect` only for a READY or CONNECTED desktop, then opens the exact returned Guacamole URL without seeing reusable RDP credentials.
 
+Phase 12 preserves this architecture and adds validation around per-desktop credentials, direct RDP exposure, NetworkPolicies, security headers, and audit redaction.
+
 ## Status
 
 | Item | Value |
@@ -13,7 +15,7 @@ Phase 9 uses the same server-side broker from the portal: the frontend requests 
 | Namespace | `guacamole` |
 | Public hostname | `remote.vdiforge.local` |
 | Protocol | RDP through `xrdp` |
-| API version | `0.9.0` |
+| API version | `0.12.0` |
 | Session TTL | 300 seconds |
 | Runtime secret | `vdiforge-guacamole-json-secret` |
 | TLS secret | `vdiforge-guacamole-tls` |
@@ -231,6 +233,14 @@ The live validator checks:
 
 For a manual browser proof, run the E2E helper with `--keep-desktop`, open the generated `connection_url` from `.local/phase8/browser-connection.json`, and then delete the desktop through the API validation helper or API endpoint.
 
+Phase 12 remote desktop security validation is included in:
+
+```bash
+bash scripts/validate-phase12-live.sh
+```
+
+It proves that per-desktop xrdp credentials are not returned by the API or audit export, desktop RDP Services remain ClusterIP-only, intended Guacamole-to-desktop traffic works, unrelated pod positions cannot reach RDP, and cross-user or guessed-ID connection attempts are denied.
+
 ## Limitations
 
 - Detailed browser disconnect/session telemetry remains deferred.
@@ -242,3 +252,12 @@ For a manual browser proof, run the E2E helper with `--keep-desktop`, open the g
 - Local TLS still depends on the generated development CA being trusted on the browser client.
 - CDI may require scratch space when importing the remote-enabled qcow2 source image. Phase 8 configures CDI `scratchSpaceStorageClass` to `vdiforge-local-path` during source PVC preparation so the conversion path is reproducible in the local lab.
 - The Phase 9 validation image is sized for the current local lab, not for long-lived user profile storage.
+- Phase 12 confirms per-desktop xrdp credentials are protected and deleted during desktop cleanup, but live rotation of a running desktop is not the default local-lab workflow. Deleting and relaunching the desktop remains the clean credential-rotation path.
+
+## Phase 12 Security Notes
+
+- `POST /api/v1/desktops/{id}/connect` still requires owner/admin authorization and a connectable desktop state.
+- Guacamole JSON-auth handoff remains short-lived and opaque to the portal.
+- Per-desktop remote credentials are Kubernetes Secrets in `vdiforge-desktops`.
+- NetworkPolicy validation proves intended Guacamole-to-desktop RDP access and denies unrelated pod positions.
+- Audit records capture connection requests and denials without storing xrdp or Guacamole secret values.

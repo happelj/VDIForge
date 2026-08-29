@@ -215,6 +215,50 @@ ingress:
     enabled: false
     apiSecretName: vdiforge-api-tls
 
+securityHeaders:
+  enabled: true
+  traefikMiddleware:
+    enabled: true
+    defaults:
+      contentTypeNosniff: true
+      forceSTSHeader: true
+      stsSeconds: 31536000
+      stsIncludeSubdomains: true
+      stsPreload: false
+      referrerPolicy: strict-origin-when-cross-origin
+      permissionsPolicy: "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+    services:
+      frontend:
+        enabled: true
+        name: vdiforge-frontend-security-headers
+        namespaceKey: system
+        customFrameOptionsValue: DENY
+        contentSecurityPolicy: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https://api.vdiforge.local https://auth.vdiforge.local; base-uri 'self'; form-action 'self' https://auth.vdiforge.local; frame-ancestors 'none'"
+      api:
+        enabled: true
+        name: vdiforge-api-security-headers
+        namespaceKey: system
+        customFrameOptionsValue: DENY
+        contentSecurityPolicy: "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+      keycloak:
+        enabled: true
+        name: vdiforge-keycloak-security-headers
+        namespaceKey: identity
+        customFrameOptionsValue: SAMEORIGIN
+        contentSecurityPolicy: ""
+      guacamole:
+        enabled: true
+        name: vdiforge-guacamole-security-headers
+        namespaceKey: remoteAccess
+        customFrameOptionsValue: SAMEORIGIN
+        contentSecurityPolicy: ""
+      grafana:
+        enabled: true
+        name: vdiforge-grafana-security-headers
+        namespaceKey: monitoring
+        customFrameOptionsValue: DENY
+        contentSecurityPolicy: ""
+
 frontend:
   enabled: false
   name: vdiforge-frontend
@@ -282,6 +326,14 @@ api:
     enabled: false
     defaultIterations: "125000"
     maxIterations: "1500000"
+  rateLimit:
+    enabled: true
+    desktopMutation:
+      limit: "30"
+      windowSeconds: "60"
+    desktopConnect:
+      limit: "20"
+      windowSeconds: "60"
   resources:
     requests:
       cpu: 100m

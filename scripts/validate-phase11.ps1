@@ -24,6 +24,23 @@ function Warn($Message) {
     Write-Host "WARN: $Message" -ForegroundColor Yellow
 }
 
+function Test-VersionAtLeast($Content, $FieldName, $MinimumVersion) {
+    $pattern = "(?m)^\s*$([regex]::Escape($FieldName)):\s+`"?([0-9]+\.[0-9]+\.[0-9]+)`"?\s*$"
+    $match = [regex]::Match($Content, $pattern)
+    if (-not $match.Success) {
+        return $false
+    }
+    return ([version]$match.Groups[1].Value -ge [version]$MinimumVersion)
+}
+
+function Test-PyprojectVersionAtLeast($Content, $MinimumVersion) {
+    $match = [regex]::Match($Content, '(?m)^version = "([0-9]+\.[0-9]+\.[0-9]+)"$')
+    if (-not $match.Success) {
+        return $false
+    }
+    return ([version]$match.Groups[1].Value -ge [version]$MinimumVersion)
+}
+
 function Check-File($Path) {
     if (Test-Path $Path) {
         Pass "required file exists: $Path"
@@ -130,17 +147,17 @@ if ($metrics -notmatch '"request_id"|"user_id"|"username"|"desktop_id"|"subject"
 }
 
 $chart = Get-Content "helm/vdiforge/Chart.yaml" -Raw
-if ($chart -match "version:\s+0\.11\.0" -and $chart -match "appVersion:\s+`"0\.11\.0`"") {
-    Pass "Helm chart version advanced to 0.11.0"
+if ((Test-VersionAtLeast $chart "version" "0.11.0") -and (Test-VersionAtLeast $chart "appVersion" "0.11.0")) {
+    Pass "Helm chart version remains at or above the Phase 11 baseline"
 } else {
-    Fail "Helm chart version/appVersion is not 0.11.0"
+    Fail "Helm chart version/appVersion is below the Phase 11 baseline"
 }
 
 $pyproject = Get-Content "backend/pyproject.toml" -Raw
-if ($pyproject -match 'prometheus-client==0\.23\.1' -and $pyproject -match 'version = "0\.11\.0"') {
-    Pass "backend package includes prometheus-client and version 0.11.0"
+if ($pyproject -match 'prometheus-client==0\.23\.1' -and (Test-PyprojectVersionAtLeast $pyproject "0.11.0")) {
+    Pass "backend package includes prometheus-client and remains at or above the Phase 11 baseline"
 } else {
-    Fail "backend package version or prometheus-client dependency missing"
+    Fail "backend package version is below the Phase 11 baseline or prometheus-client dependency is missing"
 }
 
 $dash = Get-Content "monitoring/grafana/vdiforge-overview.json" -Raw | ConvertFrom-Json

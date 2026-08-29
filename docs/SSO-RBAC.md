@@ -140,6 +140,15 @@ Validated Phase 5 claims:
 
 The Phase 5 PKCE/JWT test validates signature, issuer, audience, expiration, expected role presence, and unauthorized role absence.
 
+Phase 12 keeps this identity model and adds hardening validation:
+
+- Keycloak brute-force protection is enabled for the local lab.
+- The browser client remains public and uses PKCE S256.
+- Implicit flow and browser client secrets remain disabled.
+- Redirect URIs and web origins remain explicit rather than wildcard.
+- Token lifetimes and browser storage behavior are documented.
+- API security tests continue to reject missing, tampered, expired, wrong-issuer, and wrong-audience tokens.
+
 ## Audit Events
 
 Authentication and authorization audit events include:
@@ -156,7 +165,7 @@ If Keycloak owns the primary login event, VDIForge should still record applicati
 
 ## Open Questions
 
-- Should Phase 12 replace the Phase 9 browser token-session baseline with a stronger backend-for-frontend or token exchange pattern?
+- Should a future production profile replace the Phase 9/12 browser token-session baseline with a stronger backend-for-frontend or token exchange pattern?
 - Should admin API access require a separate admin client audience?
 
 ## Phase 5 References

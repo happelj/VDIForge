@@ -5,6 +5,8 @@ import logging
 import sys
 from datetime import UTC, datetime
 
+from app.security.redaction import redact_text
+
 
 class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
@@ -16,7 +18,7 @@ class JsonFormatter(logging.Formatter):
             "user_id": getattr(record, "user_id", None),
             "operation": getattr(record, "operation", None),
             "resource_id": getattr(record, "resource_id", None),
-            "message": record.getMessage(),
+            "message": redact_text(record.getMessage()),
         }
         return json.dumps({key: value for key, value in payload.items() if value is not None}, separators=(",", ":"))
 

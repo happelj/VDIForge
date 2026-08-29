@@ -304,6 +304,22 @@ The PKCE/JWT test helper validates that:
 | Wrong audience | Token validation fails. |
 | Unauthorized admin role | `demo-user` lacks `vdi-admin`. |
 
+## Phase 12 Identity Hardening
+
+Phase 12 applies and validates local-lab Keycloak hardening without changing the realm model:
+
+- `vdiforge-frontend` remains a public client with Authorization Code Flow and PKCE S256.
+- Implicit flow, direct grants for the browser client, wildcard redirects, wildcard web origins, and browser client secrets remain disabled.
+- Brute-force protection is enabled for the `vdiforge` realm with bounded wait times appropriate for the lab.
+- Demo identities remain local non-production users and their passwords are generated outside Git.
+- OIDC/JWT regression tests continue to validate discovery, JWKS, signature, issuer, audience, expiration, role claims, and negative token cases.
+
+The hardening helper is:
+
+```bash
+bash scripts/phase12-keycloak-hardening.sh
+```
+
 ## Operations Notes
 
 Inspect Keycloak:
@@ -337,4 +353,4 @@ Do not delete the PostgreSQL PVC unless intentionally resetting the identity lab
 - Browser trust requires importing the local CA on each client.
 - Local hostnames require a hosts-file entry or equivalent local DNS.
 - Phase 5 proves identity claims, not VDIForge application authorization.
-- No refresh-token storage policy is implemented because the React portal does not exist yet.
+- Phase 12 documents the React portal token-storage tradeoff: `sessionStorage` is acceptable for the local lab but does not provide the isolation of a backend-for-frontend production design.

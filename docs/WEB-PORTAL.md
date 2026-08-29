@@ -2,6 +2,8 @@
 
 Phase 9 implements the user-facing VDIForge portal. It provides authenticated browser workflows for image discovery, desktop launch, lifecycle polling, remote connection handoff, and desktop cleanup while preserving the existing backend, Keycloak, Guacamole, and KubeVirt boundaries.
 
+Phase 12 keeps the Phase 9 portal architecture and adds browser-facing security hardening through Traefik headers, restricted API CORS, and explicit token/session documentation.
+
 ## Status
 
 | Item | Value |
@@ -14,7 +16,7 @@ Phase 9 implements the user-facing VDIForge portal. It provides authenticated br
 | Test runner | `Vitest 4.1.10` |
 | Browser E2E | `Playwright 1.62.1` |
 | Container image | `localhost/vdiforge-frontend:0.9.0` |
-| Helm chart | `helm/vdiforge` version `0.10.0` |
+| Helm chart | `helm/vdiforge` version `0.12.0` |
 | Runtime config | ConfigMap-mounted `/runtime-config.js` |
 
 ## Architecture
@@ -234,6 +236,17 @@ A thin client or browser-only workstation needs only:
 
 It does not need Terraform, Ansible, kubectl, Helm, Packer, Python development tooling, or a native Guacamole desktop client.
 
+## Phase 12 Security Notes
+
+- The portal does not contain a client secret.
+- OIDC login still uses Authorization Code Flow with PKCE.
+- The portal stores OIDC state and active tokens in browser `sessionStorage`, not `localStorage`.
+- Logout clears the browser-side OIDC session state.
+- The portal opens only the opaque Guacamole URL returned by the API.
+- Reusable xrdp credentials are never exposed to frontend JavaScript.
+- API calls remain subject to backend authorization, CORS, input validation, rate limiting, and audit logging.
+- The portal receives Traefik-managed security headers, including a service-specific CSP compatible with the React static app.
+
 ## Validation
 
 Static validation:
@@ -278,7 +291,8 @@ Manual browser proof:
 
 ## Limitations
 
-- The dashboard is a user-facing summary only. Prometheus/Grafana observability remains Phase 11.
+- The dashboard is a user-facing summary only. Prometheus/Grafana observability is implemented separately by Phase 11.
 - API HPA autoscaling is implemented in Phase 10; the portal itself remains a single static frontend Deployment in the local lab.
 - Browser disconnect telemetry is still limited to API connection requests; detailed Guacamole session telemetry is deferred.
 - The portal uses local lab hostnames and a local development CA, not public DNS or production certificate automation.
+- Browser `sessionStorage` is acceptable for the local lab but remains exposed to JavaScript running in the same origin. A backend-for-frontend or token-exchange design remains a possible production enhancement.

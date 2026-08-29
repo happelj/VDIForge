@@ -52,6 +52,17 @@ class Settings(BaseSettings):
     load_test_max_iterations: int = 1_500_000
     metrics_enabled: bool = True
     metrics_port: int = 9102
+    security_headers_enabled: bool = True
+    hsts_enabled: bool = True
+    hsts_max_age_seconds: int = 31_536_000
+    referrer_policy: str = "strict-origin-when-cross-origin"
+    permissions_policy: str = "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+    api_content_security_policy: str = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+    api_rate_limit_enabled: bool = True
+    desktop_mutation_rate_limit: int = 30
+    desktop_mutation_rate_window_seconds: int = 60
+    desktop_connect_rate_limit: int = 20
+    desktop_connect_rate_window_seconds: int = 60
     default_ssh_public_key: str = Field(
         default=(
             "ssh-ed25519 "

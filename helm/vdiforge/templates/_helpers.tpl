@@ -294,3 +294,23 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{ toYaml . }}
 {{- end }}
 {{- end -}}
+
+{{- define "vdiforge.securityMiddlewareRef" -}}
+{{- $root := index . 0 -}}
+{{- $service := index . 1 -}}
+{{- $config := get $root.Values.securityHeaders.traefikMiddleware.services $service -}}
+{{- if and $root.Values.securityHeaders.enabled $root.Values.securityHeaders.traefikMiddleware.enabled $config.enabled -}}
+{{- $namespace := required (printf "securityHeaders.traefikMiddleware.services.%s.namespaceKey must reference a namespace value" $service) (get $root.Values.namespaces $config.namespaceKey) -}}
+{{- printf "%s-%s@kubernetescrd" $namespace $config.name -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "vdiforge.secretChecksum" -}}
+{{- $namespace := index . 0 -}}
+{{- $name := index . 1 -}}
+{{- $key := index . 2 -}}
+{{- $secret := lookup "v1" "Secret" $namespace $name -}}
+{{- if and $secret $secret.data (hasKey $secret.data $key) -}}
+{{- index $secret.data $key | sha256sum -}}
+{{- end -}}
+{{- end -}}

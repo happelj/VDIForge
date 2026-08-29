@@ -17,7 +17,7 @@ This roadmap defines planned implementation phases. Do not begin a future phase 
 | 9 | React self-service portal | Complete | Authenticated portal, image catalog, desktop launch, lifecycle, connect/delete UI. |
 | 10 | HPA/autoscaling | Complete | API HPA, safe authenticated load test, capacity evidence, and provisioner scaling decision. |
 | 11 | Prometheus/Grafana | Complete | Prometheus, Grafana, Alertmanager, application metrics, dashboards, alerts, and validation. |
-| 12 | Security/audit hardening | Planned | Threat-model controls, audit persistence, secret handling, RBAC hardening, network tests. |
+| 12 | Security/audit hardening | Complete | Secret inventory, RBAC/NetworkPolicy validation, Keycloak/session hardening, security headers, audit integrity, scan automation. |
 | 13 | CI/CD | Planned | GitHub Actions workflows for code, IaC, images, charts, security scans. |
 | 14 | End-to-end validation/demo | Planned | Final E2E test, demo script, cleanup, portfolio readiness. |
 
@@ -199,6 +199,24 @@ Completed outcomes:
 - validated a temporary alert, safe Phase 10 load visibility, and controlled desktop lifecycle metrics
 - confirmed Phase 11 does not implement SIEM forwarding, log aggregation, Grafana Keycloak OIDC, final CI/CD, or additional security hardening
 
+## Phase 12 - Security / Audit Hardening
+
+Completed outcomes:
+
+- updated the threat model against the real Phase 11 implementation
+- documented the local-lab secret inventory, readers, storage, rotation, deletion behavior, and Git exposure controls
+- enabled Keycloak brute-force protection while preserving Authorization Code Flow with PKCE
+- added FastAPI security headers and Traefik header middleware for portal, API, Keycloak, Guacamole, and Grafana ingress
+- kept CORS restricted to the expected portal origin
+- added lab-appropriate API rate limits for high-impact desktop lifecycle and connect operations
+- strengthened request validation for image IDs, image versions, resource profiles, idempotency keys, UUID path IDs, and display names
+- added centralized log redaction and audit-detail redaction
+- added tamper-evident audit hash-chain metadata and admin-only JSON Lines export
+- validated VDIForge ServiceAccount privileges with `kubectl auth can-i`
+- validated NetworkPolicy controls for platform, identity, Guacamole, monitoring, database, and VDI desktop paths
+- added backend dependency, frontend dependency, custom container, and golden-image hardening review automation
+- confirmed Phase 12 does not implement the final GitHub Actions CI/CD pipeline, external secrets management, SIEM forwarding, enterprise WAF, or final demo polish
+
 ## Future Enhancements
 
 Potential future work after the MVP:
@@ -228,11 +246,12 @@ The following are intentionally deferred:
 - whether future image builds should move from `vdi-worker-02` to a dedicated Linux/KVM build host
 - remote desktop clipboard/file-transfer policy
 - detailed Guacamole connect/disconnect telemetry beyond API-side connection request audit events
-- exact security and dependency scanning tools
-- stronger browser token-session hardening beyond the Phase 9 sessionStorage and PKCE baseline
+- production-grade browser token-session hardening beyond the Phase 12 `sessionStorage` and PKCE local-lab baseline
 - whether the future API needs a separate confidential admin/service client
 - whether the local API image import workflow should move to a registry before CI/CD
 - provisioner horizontal scaling design: leader election, row claiming, or queue-backed reconciliation
+- production secret management through an external secrets operator, cloud KMS, or Vault-like service
+- production audit forwarding to SIEM or immutable storage
 
 ## Roadmap Rules
 
