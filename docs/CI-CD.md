@@ -99,6 +99,8 @@ terraform -chdir=terraform/environments/local validate
 
 The pipeline also runs Ansible syntax checks, `ansible-lint`, Packer `init`/`fmt`/`validate`, Helm `lint`/`template`, and kubeconform schema validation for rendered Helm output and raw Kubernetes manifests.
 
+The `.ansible-lint` configuration preserves the hyphenated role directory names established by earlier phases while keeping the rest of the basic lint profile enabled.
+
 Terraform state, VirtualBox VM files, kubeconfigs, and generated plans are not produced or committed by CI.
 
 ## Packer and Golden Image Boundary
