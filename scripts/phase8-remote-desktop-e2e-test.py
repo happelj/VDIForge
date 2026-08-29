@@ -281,6 +281,7 @@ def wait_desktop_state(
     deadline = time.monotonic() + timeout_seconds
     last_payload = {}
     last_reported_state = ""
+    last_transient_status = 0
     while time.monotonic() < deadline:
         status, payload = api_request(opener, "GET", f"/api/v1/desktops/{desktop_id}", tokens[username])
         if status == 401:
@@ -290,6 +291,13 @@ def wait_desktop_state(
                 f"/api/v1/desktops/{desktop_id}",
                 tokens.refresh(username),
             )
+        if status in {502, 503, 504}:
+            if status != last_transient_status:
+                print(f"WAIT: desktop {desktop_id} API returned transient HTTP {status}; retrying")
+                last_transient_status = status
+            time.sleep(10)
+            continue
+        last_transient_status = 0
         if status != 200:
             raise RuntimeError(f"desktop status returned HTTP {status}: {payload}")
         last_payload = payload
@@ -498,6 +506,11 @@ def main() -> int:
     parser.add_argument("--env", default=".local/phase5/phase5.env")
     parser.add_argument("--ca", default=".local/phase5/tls/vdiforge-local-ca.crt")
     parser.add_argument("--resolve-ip", default=os.environ.get("VDIFORGE_INGRESS_IP", "192.168.56.11"))
+    parser.add_argument(
+        "--expected-image-version",
+        default=os.environ.get("VDIFORGE_EXPECTED_REMOTE_IMAGE_VERSION", "1.1.0"),
+        help="Expected ubuntu-devops version for this regression run.",
+    )
     parser.add_argument("--keep-desktop", action="store_true", help="Leave the test desktop running for manual browser proof.")
     parser.add_argument("--cleanup-only", action="store_true", help="Delete stale Phase 8 validation desktops and exit.")
     parser.add_argument("--browser-artifact", default=".local/phase8/browser-connection.json")
@@ -531,8 +544,8 @@ def main() -> int:
     print("PASS: remote-enabled desktop launch accepted")
 
     ready = wait_desktop_state(opener, tokens, "demo-devops", desktop["id"], {"READY"}, 1200)
-    if ready["image_version"] != "1.1.0":
-        raise AssertionError(f"expected ubuntu-devops:1.1.0, got {ready['image_version']}")
+    if ready["image_version"] != args.expected_image_version:
+        raise AssertionError(f"expected ubuntu-devops:{args.expected_image_version}, got {ready['image_version']}")
     verify_kubevirt(ready)
     verify_desktop_service(ready)
     if not secret_exists(ready):

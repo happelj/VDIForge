@@ -106,6 +106,10 @@ spec:
               value: {{ .Values.api.loadTest.defaultIterations | quote }}
             - name: VDIFORGE_LOAD_TEST_MAX_ITERATIONS
               value: {{ .Values.api.loadTest.maxIterations | quote }}
+            - name: VDIFORGE_METRICS_ENABLED
+              value: {{ .Values.monitoring.applicationMetrics.enabled | quote }}
+            - name: VDIFORGE_METRICS_PORT
+              value: {{ .Values.monitoring.applicationMetrics.provisionerPort | quote }}
           volumeMounts:
             - name: keycloak-ca
               mountPath: /var/run/vdiforge/keycloak-ca

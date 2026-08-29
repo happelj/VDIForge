@@ -244,7 +244,7 @@ Phase 3 creates only namespace foundations, not applications:
 | `vdiforge-desktops` | Future KubeVirt desktop resources and the disposable Phase 3 test VM |
 | `keycloak` | Future identity service |
 | `guacamole` | Guacamole remote desktop gateway |
-| `monitoring` | Future Prometheus/Grafana resources |
+| `monitoring` | Prometheus/Grafana observability resources added in Phase 11 |
 
 The `vdiforge-desktops` namespace uses privileged pod security enforcement because KubeVirt VM launcher pods require privileges. Other VDIForge namespaces start at baseline enforcement with restricted audit/warn labels.
 

@@ -1,0 +1,32 @@
+platformConfig:
+  validationMarker: phase11-prometheus-grafana-observability
+
+api:
+  image:
+    tag: "0.11.0"
+
+provisioner:
+  image:
+    tag: "0.11.0"
+
+monitoring:
+  enabled: true
+  externalChart: true
+  commonLabels:
+    vdiforge.io/phase: "11"
+  applicationMetrics:
+    enabled: true
+    provisionerPort: 9102
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    scrapeTimeout: 10s
+  prometheusRule:
+    enabled: true
+  grafanaDashboard:
+    enabled: true
+
+networkPolicy:
+  system:
+    allowMonitoringScrape:
+      enabled: true

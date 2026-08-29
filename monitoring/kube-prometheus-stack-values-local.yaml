@@ -1,0 +1,165 @@
+nameOverride: vdiforge-monitoring
+kubeTargetVersionOverride: "1.36.4"
+
+commonLabels:
+  app.kubernetes.io/part-of: vdiforge
+  vdiforge.io/phase: "11"
+
+crds:
+  enabled: true
+
+defaultRules:
+  create: true
+  rules:
+    nodeExporterAlerting: false
+    nodeExporterRecording: false
+
+windowsMonitoring:
+  enabled: false
+
+nodeExporter:
+  enabled: false
+
+kubeEtcd:
+  enabled: false
+
+kubeControllerManager:
+  enabled: false
+
+kubeScheduler:
+  enabled: false
+
+kubeProxy:
+  enabled: false
+
+alertmanager:
+  enabled: true
+  alertmanagerSpec:
+    nodeSelector:
+      vdiforge.io/node-role: platform
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 384Mi
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: vdiforge-local-path
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi
+
+prometheusOperator:
+  nodeSelector:
+    vdiforge.io/node-role: platform
+  resources:
+    requests:
+      cpu: 100m
+      memory: 192Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+prometheus:
+  prometheusSpec:
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    serviceMonitorNamespaceSelector: {}
+    podMonitorNamespaceSelector: {}
+    ruleNamespaceSelector: {}
+    scrapeInterval: 30s
+    evaluationInterval: 30s
+    retention: 3d
+    retentionSize: 3GB
+    nodeSelector:
+      vdiforge.io/node-role: platform
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 2Gi
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: vdiforge-local-path
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 5Gi
+
+kube-state-metrics:
+  nodeSelector:
+    vdiforge.io/node-role: platform
+  resources:
+    requests:
+      cpu: 50m
+      memory: 96Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+prometheus-node-exporter:
+  enabled: false
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 150m
+      memory: 128Mi
+
+grafana:
+  enabled: true
+  admin:
+    existingSecret: vdiforge-grafana-admin
+    userKey: admin-user
+    passwordKey: admin-password
+  nodeSelector:
+    vdiforge.io/node-role: platform
+  resources:
+    requests:
+      cpu: 100m
+      memory: 192Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  persistence:
+    enabled: true
+    storageClassName: vdiforge-local-path
+    accessModes:
+      - ReadWriteOnce
+    size: 2Gi
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    hosts:
+      - grafana.vdiforge.local
+    tls:
+      - secretName: vdiforge-grafana-tls
+        hosts:
+          - grafana.vdiforge.local
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      labelValue: "1"
+      searchNamespace: ALL
+    datasources:
+      enabled: true
+      defaultDatasourceEnabled: true
+  grafana.ini:
+    server:
+      root_url: https://grafana.vdiforge.local
+    users:
+      allow_sign_up: false
+    auth.anonymous:
+      enabled: false

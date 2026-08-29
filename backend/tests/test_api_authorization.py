@@ -174,7 +174,7 @@ def test_app_factory_exposes_health() -> None:
     with TestClient(app) as client:
         response = client.get("/api/v1/health")
     assert response.status_code == 200
-    assert response.json()["version"] == "0.10.0"
+    assert response.json()["version"] == "0.11.0"
 
 
 def test_load_test_endpoint_is_disabled_by_default(client: TestClient) -> None:

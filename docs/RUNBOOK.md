@@ -377,9 +377,9 @@ This runbook defines troubleshooting procedures for the VDIForge local lab and p
 | Area | Detail |
 | --- | --- |
 | Symptoms | Login fails; OIDC discovery is unavailable; PKCE validation fails; future API readiness fails when it depends on issuer metadata. |
-| Likely causes | Keycloak pod down, PostgreSQL unavailable, bad realm import, ingress/TLS issue, DNS problem, ResourceQuota pressure on `vdi-worker-01`. |
+| Likely causes | Keycloak pod down, PostgreSQL unavailable, bad realm import, ingress/TLS issue, DNS problem, ResourceQuota pressure on `vdi-worker-01`, or an attempted rolling update that temporarily needs more platform-worker capacity than the local lab has. |
 | Diagnostics | `kubectl -n keycloak get pods,svc,ingress,pvc`; `kubectl -n keycloak describe deployment/vdiforge-keycloak`; `kubectl -n keycloak logs deployment/vdiforge-keycloak`; `kubectl -n keycloak get events --sort-by=.lastTimestamp`; `curl --cacert .local/phase5/tls/vdiforge-local-ca.crt --resolve auth.vdiforge.local:443:192.168.56.11 https://auth.vdiforge.local/realms/vdiforge/.well-known/openid-configuration`. |
-| Remediation | Wait for rollout, fix PostgreSQL, correct ingress/DNS/TLS, verify runtime secrets exist, rerun `scripts/phase5-configure-keycloak.sh`, or roll back the `vdiforge` Helm release. Do not delete the PostgreSQL PVC unless intentionally resetting identity state. |
+| Remediation | Wait for rollout, fix PostgreSQL, correct ingress/DNS/TLS, verify runtime secrets exist, rerun `scripts/phase5-configure-keycloak.sh`, or roll back the `vdiforge` Helm release. The local values use a no-surge Keycloak rolling update (`maxSurge: 0`, `maxUnavailable: 1`) to avoid an extra replacement pod on the small platform worker. Do not delete the PostgreSQL PVC unless intentionally resetting identity state. |
 | Logs/metrics | Keycloak logs, PostgreSQL logs, Traefik logs, Kubernetes events, `kubectl top pods -A`. |
 
 ## Keycloak PostgreSQL Unavailable
@@ -562,6 +562,66 @@ This runbook defines troubleshooting procedures for the VDIForge local lab and p
 | Remediation | Fix root cause, delete failed desktop, retry launch with same or corrected profile, promote fixed image. |
 | Logs/metrics | Provisioning latency, retry count, failure reason metrics. |
 
+## Prometheus Unavailable
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | Grafana panels show no data, `curl http://127.0.0.1:19090/-/ready` fails during port-forward, or `helm status vdiforge-monitoring -n monitoring` is not deployed. |
+| Likely causes | kube-prometheus-stack install failed, Prometheus StatefulSet Pending, local-path storage issue, platform-worker capacity pressure, or CRD/operator startup delay. |
+| Diagnostics | `kubectl -n monitoring get pods,svc,pvc`; `kubectl -n monitoring describe statefulset prometheus-vdiforge-monitoring-prometheus`; `kubectl -n monitoring logs deploy/vdiforge-monitoring-operator`; `helm status vdiforge-monitoring -n monitoring`; `kubectl describe node vdi-worker-01`. |
+| Remediation | Free platform-worker capacity, resolve PVC/storage errors, rerun `bash scripts/phase11-install-monitoring.sh`, then rerun `bash scripts/validate-phase11-live.sh`. |
+| Logs/metrics | Prometheus operator logs, StatefulSet events, PVC events, node CPU/memory. |
+
+## Grafana Unavailable or Login Fails
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | `https://grafana.vdiforge.local` does not load, browser reports DNS/TLS errors, or local admin login fails. |
+| Likely causes | Windows hosts file missing `grafana.vdiforge.local`, Grafana pod unavailable, ingress/TLS Secret missing, or credentials in `.local/phase11/phase11.env` do not match the Kubernetes Secret. |
+| Diagnostics | `kubectl -n monitoring get pods,svc,ingress,secret vdiforge-grafana-admin vdiforge-grafana-tls`; `kubectl -n monitoring logs deploy/vdiforge-monitoring-grafana`; `cat .local/phase11/phase11.env`; `curl --cacert .local/phase5/tls/vdiforge-local-ca.crt --resolve grafana.vdiforge.local:443:192.168.56.11 https://grafana.vdiforge.local/api/health`. |
+| Remediation | Add `192.168.56.11 grafana.vdiforge.local` to the client hosts file, rerun `bash scripts/phase11-create-local-secrets.sh`, restart Grafana if credentials changed, and retry with the generated admin password. |
+| Logs/metrics | Grafana pod logs, Traefik logs, ingress events. |
+
+## VDIForge Prometheus Target Missing
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | Prometheus does not show `vdiforge-api` or `vdiforge-provisioner` targets, or alert `VDIForgeAPIDown` fires unexpectedly. |
+| Likely causes | ServiceMonitor missing, service labels do not match selectors, Prometheus selector settings too restrictive, NetworkPolicy blocks scrape traffic, or API/provisioner pods are not Ready. |
+| Diagnostics | `kubectl -n monitoring get servicemonitor vdiforge-api vdiforge-provisioner -o yaml`; `kubectl -n vdiforge-system get svc vdiforge-api vdiforge-provisioner-metrics --show-labels`; `kubectl -n vdiforge-system get pods -l app.kubernetes.io/part-of=vdiforge`; `kubectl -n monitoring port-forward svc/vdiforge-monitoring-prometheus 19090:9090`; query `/api/v1/targets`. |
+| Remediation | Reapply Phase 11 values, restore expected service labels, verify `monitoring` namespace discovery is enabled, confirm the scrape NetworkPolicy allows API port 8000 and provisioner port 9102, and restart failed workloads. |
+| Logs/metrics | Prometheus target status, API/provisioner logs, NetworkPolicy events where available. |
+
+## Grafana Dashboard Missing
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | Grafana loads, but the `VDIForge Overview` dashboard is not visible. |
+| Likely causes | Dashboard ConfigMap missing, label mismatch, sidecar not searching all namespaces, or Grafana sidecar has not reloaded. |
+| Diagnostics | `kubectl -n monitoring get configmap vdiforge-overview-dashboard -o yaml`; verify label `grafana_dashboard=1`; `kubectl -n monitoring logs deploy/vdiforge-monitoring-grafana`; Grafana API search for `VDIForge`. |
+| Remediation | Reapply the VDIForge chart with `values-phase11-local.yaml`, verify dashboard source matches the packaged chart file, and restart Grafana if the sidecar does not reload. |
+| Logs/metrics | Grafana sidecar logs, ConfigMap metadata. |
+
+## KubeVirt Metrics Missing
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | Prometheus query for `kubevirt_vmi.*` returns no data while KubeVirt itself is healthy. |
+| Likely causes | KubeVirt CR monitoring fields missing, Prometheus ServiceAccount name changed, KubeVirt ServiceMonitor not created, or Prometheus namespace selectors are too restrictive. |
+| Diagnostics | `kubectl -n kubevirt get kubevirt kubevirt -o yaml`; `kubectl -n monitoring get servicemonitor`; `kubectl -n monitoring get serviceaccount`; query Prometheus for `{__name__=~"kubevirt_vmi.*"}`. |
+| Remediation | Rerun `bash scripts/phase11-install-monitoring.sh` so the KubeVirt CR receives `monitorNamespace`, `monitorAccount`, and `serviceMonitorNamespace`, wait for KubeVirt Available, and rerun live validation. |
+| Logs/metrics | KubeVirt operator logs, Prometheus target status. |
+
+## Alert Rule Does Not Fire
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | Phase 11 temporary alert validation fails or expected VDIForge alerts never appear in Prometheus. |
+| Likely causes | PrometheusRule CRD unavailable, rule selector excludes VDIForge labels, Prometheus has not reloaded, Alertmanager unavailable, or expression has no matching series. |
+| Diagnostics | `kubectl -n monitoring get prometheusrule vdiforge-alerts`; `kubectl -n monitoring describe prometheusrule vdiforge-alerts`; query Prometheus for `ALERTS`; inspect Prometheus operator logs. |
+| Remediation | Fix PrometheusRule rendering, ensure rule discovery selectors allow non-stack rules, rerun Helm upgrade, and rerun temporary alert validation. Remove any temporary validation rules after testing. |
+| Logs/metrics | Prometheus rule evaluation status, operator logs, Alertmanager pod logs. |
+
 ## DNS Problems
 
 | Area | Detail |
@@ -576,8 +636,8 @@ This runbook defines troubleshooting procedures for the VDIForge local lab and p
 
 | Area | Detail |
 | --- | --- |
-| Symptoms | Browser certificate warnings, OIDC redirect failure, API calls rejected, or `remote.vdiforge.local` certificate errors. |
+| Symptoms | Browser certificate warnings, OIDC redirect failure, API calls rejected, `remote.vdiforge.local` certificate errors, or `grafana.vdiforge.local` certificate errors. |
 | Likely causes | expired local certificate, wrong hostname/SAN, missing local CA trust, wrong Kubernetes TLS secret, Traefik ingress issue. |
-| Diagnostics | `kubectl -n keycloak describe ingress vdiforge-keycloak`; `kubectl -n vdiforge-system describe ingress vdiforge-api`; `kubectl -n guacamole describe ingress vdiforge-guacamole`; `kubectl -n keycloak get secret vdiforge-keycloak-tls`; `kubectl -n vdiforge-system get secret vdiforge-api-tls`; `kubectl -n guacamole get secret vdiforge-guacamole-tls`; `openssl x509 -in .local/phase5/tls/auth.vdiforge.local.crt -noout -text`; `openssl x509 -in .local/phase7/tls/api.vdiforge.local.crt -noout -text`; `openssl x509 -in .local/phase8/tls/remote.vdiforge.local.crt -noout -text`; trusted `curl --resolve` checks for all browser-facing hosts. |
-| Remediation | Regenerate identity TLS with `scripts/phase5-create-local-secrets.sh`, API TLS with `scripts/phase7-create-local-secrets.sh`, and Guacamole TLS with `scripts/phase8-create-local-secrets.sh`; refresh Kubernetes TLS Secrets, trust the local CA on the browser client, and rerun Phase 5/7/8 validation. Do not use `curl -k` as final validation evidence. |
+| Diagnostics | `kubectl -n keycloak describe ingress vdiforge-keycloak`; `kubectl -n vdiforge-system describe ingress vdiforge-api`; `kubectl -n guacamole describe ingress vdiforge-guacamole`; `kubectl -n monitoring describe ingress vdiforge-monitoring-grafana`; `kubectl -n keycloak get secret vdiforge-keycloak-tls`; `kubectl -n vdiforge-system get secret vdiforge-api-tls`; `kubectl -n guacamole get secret vdiforge-guacamole-tls`; `kubectl -n monitoring get secret vdiforge-grafana-tls`; `openssl x509 -in .local/phase5/tls/auth.vdiforge.local.crt -noout -text`; `openssl x509 -in .local/phase7/tls/api.vdiforge.local.crt -noout -text`; `openssl x509 -in .local/phase8/tls/remote.vdiforge.local.crt -noout -text`; `openssl x509 -in .local/phase11/tls/grafana.vdiforge.local.crt -noout -text`; trusted `curl --resolve` checks for all browser-facing hosts. |
+| Remediation | Regenerate identity TLS with `scripts/phase5-create-local-secrets.sh`, API TLS with `scripts/phase7-create-local-secrets.sh`, Guacamole TLS with `scripts/phase8-create-local-secrets.sh`, and Grafana TLS with `scripts/phase11-create-local-secrets.sh`; refresh Kubernetes TLS Secrets, trust the local CA on the browser client, and rerun Phase 5/7/8/11 validation. Do not use `curl -k` as final validation evidence. |
 | Logs/metrics | Ingress TLS errors, browser error, API request failures. |

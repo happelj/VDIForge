@@ -2,7 +2,9 @@
 
 VDIForge observability covers metrics, structured logs, audit events, dashboards, and correlation IDs.
 
-Phase 3 implements the Kubernetes resource-metrics foundation through Metrics Server. Phase 7 adds structured backend logs, request IDs, persistent audit events, and a minimal Prometheus-compatible `/metrics` endpoint for desktop counters. Phase 8 adds audit events for remote connection requests and denials. Phase 9 propagates request IDs from browser API calls and validates portal-driven audit events. Phase 10 uses Metrics Server for the `vdiforge-api` HPA and validates desired/current replica behavior. Prometheus, Grafana, full API latency/rate instrumentation, active-session metrics, and dashboards remain later-phase work.
+Phase 3 implements the Kubernetes resource-metrics foundation through Metrics Server. Phase 7 adds structured backend logs, request IDs, persistent audit events, and a minimal metrics endpoint. Phase 8 adds audit events for remote connection requests and denials. Phase 9 propagates request IDs from browser API calls and validates portal-driven audit events. Phase 10 uses Metrics Server for the `vdiforge-api` HPA and validates desired/current replica behavior.
+
+Phase 11 deploys Prometheus, Grafana, Alertmanager, kube-state-metrics, VDIForge ServiceMonitors, alert rules, and the `VDIForge Overview` dashboard through Helm. The local baseline intentionally disables node-exporter to keep the `monitoring` namespace at baseline Pod Security; node health and capacity panels use kubelet and kube-state metrics. See [Prometheus and Grafana Observability](PROMETHEUS-GRAFANA.md) for operational details.
 
 ## Observability Goals
 
@@ -14,20 +16,24 @@ Phase 3 implements the Kubernetes resource-metrics foundation through Metrics Se
 
 ## Metrics
 
-Planned application metrics:
+Implemented Phase 11 application metrics:
 
-| Metric concept | Labels | Purpose |
+| Metric | Labels | Purpose |
 | --- | --- | --- |
-| API request rate | method, route, status | Traffic and error analysis. |
-| API latency | method, route, status | User-facing API performance. |
-| Active desktops | image, profile | Capacity and demo state. |
-| Provisioning desktops | image, profile | Queue and lifecycle visibility. |
-| Failed desktops | image, failure_reason | Failure tracking. |
-| Provisioning success rate | image, profile | Image and provisioner reliability. |
-| Provisioning latency | image, profile | P50/P95 provisioning performance. |
-| Active remote sessions | protocol | Remote access usage. |
-| Provisioner reconciliations | result | Reconciler health. |
-| Provisioner retry count | failure_reason | Failure mode visibility. |
+| `vdiforge_api_requests_total` | method, route, status_code | Traffic and error analysis. |
+| `vdiforge_api_request_duration_seconds` | method, route, status_code | User-facing API latency. |
+| `vdiforge_desktop_provision_requests_total` | image_id, result | Accepted, rejected, and replayed launches. |
+| `vdiforge_desktop_provision_failures_total` | image_id, reason | Provisioning failure tracking. |
+| `vdiforge_desktop_provision_duration_seconds` | image_id, result | P50/P95 provisioning performance. |
+| `vdiforge_desktops_active` | none | Current non-terminal desktops. |
+| `vdiforge_desktops_by_state` | state | Lifecycle state distribution. |
+| `vdiforge_remote_sessions_active` | protocol | Approximate active remote sessions. |
+| `vdiforge_provisioner_reconcile_total` | result | Reconciler health. |
+| `vdiforge_provisioner_reconcile_failures_total` | reason | Failure mode visibility. |
+| `vdiforge_provisioner_reconcile_duration_seconds` | result | Reconcile loop latency. |
+| `vdiforge_provisioner_pending_operations` | none | Pending async operations. |
+
+Metrics labels must stay low-cardinality. Do not label by desktop ID, request ID, username, token subject, Guacamole connection ID, raw URL, JWT content, or other unbounded values.
 
 Kubernetes metrics:
 
@@ -39,18 +45,27 @@ Kubernetes metrics:
 - HPA desired/current replicas
 - KubeVirt VirtualMachine and VMI phase/condition metrics where available
 
-Phase 3 Metrics Server validation:
+Metrics Server validation:
 
 ```bash
 kubectl top nodes
 kubectl top pods -A
 ```
 
-Metrics Server is not a replacement for Prometheus. It provides the Kubernetes resource metrics API used by the Phase 10 API HPA.
+Metrics Server is not a replacement for Prometheus. It provides the Kubernetes resource metrics API used by the Phase 10 API HPA. Phase 11 Prometheus observes HPA status and pod/node metrics but does not become the HPA metrics backend.
+
+Prometheus scrape targets are managed through ServiceMonitors in the existing `monitoring` namespace:
+
+| ServiceMonitor | Target |
+| --- | --- |
+| `vdiforge-api` | FastAPI `/metrics` on service port `http`. |
+| `vdiforge-provisioner` | Provisioner metrics server on port `9102`. |
+
+KubeVirt metrics are integrated by patching the KubeVirt CR with Prometheus Operator monitoring fields.
 
 ## Grafana Dashboard Design
 
-Initial dashboard panels:
+Phase 11 dashboard panels:
 
 - active desktops
 - provisioning desktops
@@ -66,6 +81,7 @@ Initial dashboard panels:
 - worker-node CPU/memory
 - Kubernetes node health
 - active remote sessions
+- pending provisioning operations
 
 Suggested dashboard sections:
 
@@ -183,24 +199,31 @@ Labels and annotations must avoid storing sensitive data.
 
 ## Alerting Candidates
 
-MVP alerting can be documentation-only until monitoring is implemented. Candidate alerts:
+Phase 11 alert rules:
 
-- API error rate above threshold
-- API P95 latency above threshold
-- provisioner reconciliation failures
-- desktop provisioning timeout rate
-- KubeVirt unavailable
-- worker node NotReady
-- pod CrashLoopBackOff
-- storage usage high
-- Keycloak unavailable
-- Guacamole unavailable
+- `VDIForgeAPIDown`
+- `VDIForgeHighAPIErrorRate`
+- `VDIForgeHighProvisionFailureRate`
+- `VDIForgeSlowProvisioning`
+- `KubernetesNodeNotReady`
+- `VDIWorkerHighMemory`
+
+Alertmanager is deployed without an external receiver in the local lab. Notification integrations are deferred because they require external credentials.
 
 ## Retention
 
-Initial local retention can be short and lab-friendly. Later phases should define:
+Initial local retention is short and lab-friendly:
 
-- Prometheus retention duration
+| Item | Phase 11 setting |
+| --- | --- |
+| Prometheus retention time | 3 days |
+| Prometheus retention size | 3 GiB |
+| Prometheus storage | 5 GiB local-path PVC |
+| Alertmanager storage | 1 GiB local-path PVC |
+| Grafana storage | 2 GiB local-path PVC |
+
+Later phases should define:
+
 - application log retention
 - audit event retention
 - backup/export behavior for audit records
@@ -220,6 +243,6 @@ The final demo should show:
 
 ## Open Questions
 
-- Which KubeVirt metrics are available from the selected installation without extra exporters?
 - Should audit events be stored only in PostgreSQL for MVP or also written to append-only JSON logs?
-- What retention duration is appropriate for an interview lab?
+- Should Grafana authenticate through Keycloak OIDC in Phase 12, and how should Grafana roles map to VDIForge roles?
+- What application log collection path should be added before SIEM forwarding is considered?

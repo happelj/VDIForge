@@ -140,7 +140,10 @@ foreach ($pin in $expectedPins.GetEnumerator()) {
 }
 
 $chart = Get-Content "helm/vdiforge/Chart.yaml" -Raw
-if ($chart -match "version:\s+0\.(9|10)\.0" -and $chart -match "appVersion:\s+`"0\.(9|10)\.0`"") {
+$chartVersion = if ($chart -match "(?m)^version:\s+([0-9]+\.[0-9]+\.[0-9]+)") { [version]$Matches[1] } else { $null }
+$appVersion = if ($chart -match "(?m)^appVersion:\s+`"?([0-9]+\.[0-9]+\.[0-9]+)`"?") { [version]$Matches[1] } else { $null }
+$phase9Baseline = [version]"0.9.0"
+if ($chartVersion -and $appVersion -and $chartVersion -ge $phase9Baseline -and $appVersion -ge $phase9Baseline) {
     Pass "Helm chart version remains at or above the Phase 9 baseline"
 } else {
     Fail "Helm chart version/appVersion is below the Phase 9 baseline"

@@ -50,6 +50,8 @@ class Settings(BaseSettings):
     load_test_enabled: bool = False
     load_test_default_iterations: int = 125_000
     load_test_max_iterations: int = 1_500_000
+    metrics_enabled: bool = True
+    metrics_port: int = 9102
     default_ssh_public_key: str = Field(
         default=(
             "ssh-ed25519 "

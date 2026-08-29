@@ -1,0 +1,69 @@
+{{- if and .Values.monitoring.enabled .Values.monitoring.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ .Values.monitoring.prometheusRule.name }}
+  namespace: {{ include "vdiforge.namespace.monitoring" . }}
+  labels:
+    {{- include "vdiforge.monitoring.labels" . | nindent 4 }}
+spec:
+  groups:
+    - name: vdiforge.phase11.application
+      rules:
+        - alert: VDIForgeAPIDown
+          expr: absent(up{namespace="{{ include "vdiforge.namespace.system" . }}",service="{{ include "vdiforge.api.name" . }}"}) or min(up{namespace="{{ include "vdiforge.namespace.system" . }}",service="{{ include "vdiforge.api.name" . }}"}) < 1
+          for: 2m
+          labels:
+            severity: critical
+            phase: "11"
+          annotations:
+            summary: VDIForge API metrics target is down
+            description: Prometheus has no healthy scrape target for the VDIForge API service.
+        - alert: VDIForgeHighAPIErrorRate
+          expr: sum(rate(vdiforge_api_requests_total{status_code=~"5.."}[5m])) / clamp_min(sum(rate(vdiforge_api_requests_total[5m])), 0.001) > {{ .Values.monitoring.prometheusRule.thresholds.apiErrorRate }}
+          for: 5m
+          labels:
+            severity: warning
+            phase: "11"
+          annotations:
+            summary: VDIForge API 5xx error rate is high
+            description: The ratio of 5xx responses to total API responses is above the local-lab threshold.
+        - alert: VDIForgeHighProvisionFailureRate
+          expr: sum(rate(vdiforge_desktop_provision_failures_total[10m])) / clamp_min(sum(rate(vdiforge_desktop_provision_requests_total{result="accepted"}[10m])), 0.001) > {{ .Values.monitoring.prometheusRule.thresholds.provisionFailureRate }}
+          for: 10m
+          labels:
+            severity: warning
+            phase: "11"
+          annotations:
+            summary: VDIForge desktop provisioning failure rate is high
+            description: Provisioning failures are occurring frequently compared with accepted desktop launches.
+        - alert: VDIForgeSlowProvisioning
+          expr: histogram_quantile(0.95, sum(rate(vdiforge_desktop_provision_duration_seconds_bucket[15m])) by (le)) > {{ .Values.monitoring.prometheusRule.thresholds.slowProvisioningSeconds }}
+          for: 15m
+          labels:
+            severity: warning
+            phase: "11"
+          annotations:
+            summary: VDIForge desktop provisioning latency is high
+            description: P95 provisioning latency is above the local-lab threshold.
+    - name: vdiforge.phase11.cluster
+      rules:
+        - alert: KubernetesNodeNotReady
+          expr: kube_node_status_condition{condition="Ready",status="true"} == 0
+          for: 5m
+          labels:
+            severity: critical
+            phase: "11"
+          annotations:
+            summary: Kubernetes node is not Ready
+            description: At least one Kubernetes node has reported Ready=false for more than five minutes.
+        - alert: VDIWorkerHighMemory
+          expr: (100 * sum(container_memory_working_set_bytes{node="{{ .Values.monitoring.prometheusRule.vdiWorkerNodeName }}",container!="",pod!=""}) / clamp_min(max(kube_node_status_allocatable{node="{{ .Values.monitoring.prometheusRule.vdiWorkerNodeName }}",resource="memory",unit="byte"}), 1)) > {{ .Values.monitoring.prometheusRule.thresholds.vdiWorkerMemoryPercent }}
+          for: 10m
+          labels:
+            severity: warning
+            phase: "11"
+          annotations:
+            summary: VDI worker memory pressure is high
+            description: The VDI-oriented worker is above the configured memory utilization threshold.
+{{- end }}

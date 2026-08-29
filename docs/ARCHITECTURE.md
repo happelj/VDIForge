@@ -1,6 +1,6 @@
 # VDIForge Architecture
 
-This document contains architecture views for VDIForge. The local VirtualBox infrastructure, Kubernetes/KubeVirt foundation, Helm platform foundation, Keycloak identity foundation, golden-image pipeline, FastAPI control plane, Guacamole remote desktop flow, React portal, and API HPA autoscaling reflect Phases 2 through 10. Full Prometheus/Grafana observability remains planned until Phase 11.
+This document contains architecture views for VDIForge. The local VirtualBox infrastructure, Kubernetes/KubeVirt foundation, Helm platform foundation, Keycloak identity foundation, golden-image pipeline, FastAPI control plane, Guacamole remote desktop flow, React portal, API HPA autoscaling, and Prometheus/Grafana observability reflect Phases 2 through 11.
 
 ## System Context
 
@@ -33,9 +33,10 @@ flowchart LR
   VM --> XRDP
   Guac -->|RDP or VNC| XRDP
   User -->|HTTPS / WebSocket| Guac
-  Prom -->|scrape| API
-  Prom -->|scrape| Provisioner
-  Prom -->|scrape| K8s
+  Prom -->|scrape /metrics| API
+  Prom -->|scrape /metrics| Provisioner
+  Prom -->|scrape Kubernetes metrics| K8s
+  Prom -->|scrape KubeVirt metrics| KubeVirt
   Grafana --> Prom
 ```
 
@@ -60,7 +61,7 @@ flowchart TB
     KC[Keycloak]
     DB[(PostgreSQL)]
     GUAC[Guacamole]
-    MON[Prometheus / Grafana]
+    MON[Prometheus / Grafana<br/>Alertmanager]
   end
 
   subgraph VDI[VDI workloads]
@@ -86,6 +87,7 @@ flowchart TB
   W1[vdi-worker-01<br/>192.168.56.11<br/>2 vCPU / 6 GiB / 50 GiB]
   W2[vdi-worker-02<br/>192.168.56.12<br/>4 vCPU / 8 GiB / 60 GiB<br/>/dev/kvm verified]
   Cluster[Phase 3 foundation<br/>kubeadm, containerd, Calico, Metrics Server, KubeVirt, CDI]
+  Observability[Phase 11 observability<br/>Prometheus, Grafana, Alertmanager]
 
   HW --> VBox
   VBox --> NAT
@@ -99,6 +101,7 @@ flowchart TB
   CP --> Cluster
   W1 --> Cluster
   W2 --> Cluster
+  Cluster --> Observability
 ```
 
 `vdi-worker-02` is the only node that requires nested virtualization for Phase 3. Phase 2 verified `svm` CPU flags and `/dev/kvm` inside the guest; Phase 3 verified KubeVirt exposes and consumes `devices.kubevirt.io/kvm`.
@@ -166,7 +169,8 @@ flowchart TB
   Remote[Phase 8 remote desktop<br/>Guacamole and guacd]
   Portal[Phase 9 portal<br/>React and nginx]
   HPA[Phase 10 API HPA<br/>vdiforge-api]
-  Future[Future application charts<br/>Prometheus and Grafana]
+  Observability[Phase 11 observability resources<br/>ServiceMonitors, alerts, dashboard]
+  Monitoring[Release: vdiforge-monitoring<br/>kube-prometheus-stack]
 
   Git --> Helm
   Helm --> Release
@@ -180,10 +184,11 @@ flowchart TB
   Release --> Remote
   Release --> Portal
   Release --> HPA
-  Release -. later phases .-> Future
+  Release --> Observability
+  Monitoring -. scrapes .-> Observability
 ```
 
-Phase 4 establishes Helm ownership, values conventions, RBAC boundaries, resource governance, NetworkPolicy foundations, and lifecycle validation for install, upgrade, repeated upgrade, and rollback. Phase 5 enables only the identity stack through the Phase 5 values file.
+Phase 4 establishes Helm ownership, values conventions, RBAC boundaries, resource governance, NetworkPolicy foundations, and lifecycle validation for install, upgrade, repeated upgrade, and rollback. Later phase values enable the identity, API/provisioner, Guacamole, portal, HPA, and VDIForge observability resources. Phase 11 uses a separate upstream `kube-prometheus-stack` release for the core monitoring stack and the VDIForge chart for app-specific monitoring resources.
 
 ## Identity Foundation
 

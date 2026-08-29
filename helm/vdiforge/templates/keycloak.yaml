@@ -50,6 +50,10 @@ metadata:
     {{- include "vdiforge.keycloak.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.keycloak.replicas }}
+  {{- with .Values.keycloak.strategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "vdiforge.keycloak.selectorLabels" . | nindent 6 }}

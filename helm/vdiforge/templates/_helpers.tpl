@@ -59,6 +59,10 @@ app.kubernetes.io/part-of: vdiforge
 {{- required "namespaces.remoteAccess is required" .Values.namespaces.remoteAccess -}}
 {{- end -}}
 
+{{- define "vdiforge.namespace.monitoring" -}}
+{{- required "namespaces.monitoring is required" .Values.namespaces.monitoring -}}
+{{- end -}}
+
 {{- define "vdiforge.serviceAccount.apiName" -}}
 {{- required "serviceAccounts.api.name is required" .Values.serviceAccounts.api.name -}}
 {{- end -}}
@@ -143,6 +147,22 @@ app.kubernetes.io/component: provisioner
 app.kubernetes.io/part-of: vdiforge
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- with .Values.global.labels }}
+{{ toYaml . }}
+{{- end }}
+{{- end -}}
+
+{{- define "vdiforge.monitoring.labels" -}}
+helm.sh/chart: {{ include "vdiforge.chart" . }}
+app.kubernetes.io/name: {{ include "vdiforge.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+app.kubernetes.io/component: observability
+app.kubernetes.io/part-of: vdiforge
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- with .Values.global.labels }}
+{{ toYaml . }}
+{{- end }}
+{{- with .Values.monitoring.commonLabels }}
 {{ toYaml . }}
 {{- end }}
 {{- end -}}

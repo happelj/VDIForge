@@ -1,6 +1,6 @@
 # VDIForge Backend
 
-Phase 7 implements the first VDIForge backend service. Phase 8 extends it with Apache Guacamole session brokering. Phase 9 adds browser-portal support through CORS for `https://vdiforge.local` and the `ubuntu-devops:1.2.0` launch path. Phase 10 adds a protected, local/test-gated load endpoint for API HPA validation. The same Python package runs as either the FastAPI API or the asynchronous KubeVirt provisioner.
+Phase 7 implements the first VDIForge backend service. Phase 8 extends it with Apache Guacamole session brokering. Phase 9 adds browser-portal support through CORS for `https://vdiforge.local` and the `ubuntu-devops:1.2.0` launch path. Phase 10 adds a protected, local/test-gated load endpoint for API HPA validation. Phase 11 adds Prometheus metrics for the API and provisioner. The same Python package runs as either the FastAPI API or the asynchronous KubeVirt provisioner.
 
 ## Components
 
@@ -13,6 +13,7 @@ Phase 7 implements the first VDIForge backend service. Phase 8 extends it with A
 | `app/services` | image catalog, desktop lifecycle, quota, ownership logic, and Guacamole remote-session brokering. |
 | `app/provisioning` | KubeVirt/CDI reconciliation through the Kubernetes Python client. |
 | `app/audit` | audit-event persistence. |
+| `app/observability/metrics.py` | Prometheus counters, gauges, and histograms for API traffic, desktop lifecycle, remote sessions, and provisioner reconciliation. |
 | `alembic` | PostgreSQL schema migrations. |
 | `tests` | Backend unit/component tests for API, authorization, provisioning, remote access, CORS, and audit behavior. |
 
@@ -38,10 +39,13 @@ Protected endpoints require a valid Keycloak bearer token. Authorization is enfo
 
 `GET /api/v1/health/load-test` is disabled by default. It is enabled only by Phase 10 local Helm values and performs bounded CPU work for autoscaling validation without creating desktops or returning sensitive data.
 
+`GET /metrics` exports Prometheus client metrics. The provisioner also starts a metrics listener on port `9102` when `VDIFORGE_METRICS_ENABLED=true`.
+
 ## Local Checks
 
 ```powershell
 .\scripts\validate-phase10.ps1
+.\scripts\validate-phase11.ps1
 ```
 
 ## Runtime
@@ -53,6 +57,6 @@ The Helm chart deploys:
 - `vdiforge-app-postgres` StatefulSet and Service
 - `vdiforge-api-migrations` Job
 
-The live lab uses image `localhost/vdiforge-api:0.10.0`, imported into containerd on `vdi-worker-01`.
+The live lab uses image `localhost/vdiforge-api:0.11.0`, imported into containerd on `vdi-worker-01`.
 
 Because the lab reuses local image tags, restart `vdiforge-api` and `vdiforge-provisioner` after importing a rebuilt image. The provisioner creates the per-desktop remote Secret, `DataVolume`, `VirtualMachine`, and Service before waiting for clone readiness so `WaitForFirstConsumer` storage can bind on the VDI worker.

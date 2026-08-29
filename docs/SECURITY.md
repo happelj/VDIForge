@@ -1,6 +1,6 @@
 # Security Model
 
-This document defines the VDIForge threat model and security controls. Phase 2 local infrastructure controls, Phase 3 Kubernetes foundation controls, Phase 4 Helm platform controls, Phase 5 identity controls, Phase 6 image-pipeline controls, Phase 7 FastAPI control-plane controls, Phase 8 Guacamole remote desktop controls, Phase 9 React portal controls, and Phase 10 API autoscaling controls apply to the current lab. Full Prometheus/Grafana observability remains later-phase work.
+This document defines the VDIForge threat model and security controls. Phase 2 local infrastructure controls, Phase 3 Kubernetes foundation controls, Phase 4 Helm platform controls, Phase 5 identity controls, Phase 6 image-pipeline controls, Phase 7 FastAPI control-plane controls, Phase 8 Guacamole remote desktop controls, Phase 9 React portal controls, Phase 10 API autoscaling controls, and Phase 11 Prometheus/Grafana observability controls apply to the current lab.
 
 ## Security Objectives
 
@@ -23,6 +23,8 @@ This document defines the VDIForge threat model and security controls. Phase 2 l
 | Provisioner to Kubernetes API | Provisioner creates and deletes VM resources. | Dedicated ServiceAccount, narrow Role/RoleBinding. |
 | Guacamole to VDI VM | Remote desktop traffic flows inside the cluster. | NetworkPolicy, short-lived connection authorization. |
 | VDI VM to platform | VDI desktops are user workloads. | Deny-by-default policies and no platform credentials in VMs. |
+| Prometheus to workloads | Prometheus scrapes metrics endpoints. | ServiceMonitor selection, NetworkPolicy allow paths, low-cardinality non-secret metrics. |
+| Browser to Grafana | Operators view dashboards through HTTPS. | Local TLS and generated Grafana admin Secret. |
 
 ## Threat Model
 
@@ -149,6 +151,8 @@ Phase 8 enables Guacamole policies in `guacamole`: default deny, DNS egress, Tra
 Phase 9 enables the frontend ingress policy in `vdiforge-system`, allowing Traefik to reach the `vdiforge-frontend` Service on TCP 8080. The frontend pod serves static assets only, disables automatic ServiceAccount token mounting, and does not require direct pod-to-pod egress to Keycloak, the API, Guacamole, PostgreSQL, or the Kubernetes API. Browser calls to those services use HTTPS through Traefik.
 
 Phase 10 enables API autoscaling but does not widen the network model. New `vdiforge-api` replicas use the same labels, ServiceAccount, resource limits, ingress path, database access, Keycloak JWKS access, and NetworkPolicy rules as the original API pod.
+
+Phase 11 enables Prometheus/Grafana observability. NetworkPolicy allows Prometheus in `monitoring` to scrape the API and provisioner metrics endpoints. Metrics must not contain passwords, raw JWTs, refresh tokens, request IDs, usernames, desktop IDs, Guacamole connection IDs, or other high-cardinality sensitive identifiers. Grafana is exposed through HTTPS at `grafana.vdiforge.local` and uses generated local admin credentials stored in Kubernetes Secret `vdiforge-grafana-admin`.
 
 ## Phase 2 Local Infrastructure Security
 
@@ -299,6 +303,21 @@ Phase 10 adds these security-relevant controls:
 
 Phase 10 does not deploy Prometheus/Grafana, node autoscaling, final CI/CD, SIEM forwarding, or production hardening.
 
+## Phase 11 Observability Security
+
+Phase 11 adds these security-relevant controls:
+
+- `kube-prometheus-stack` runs in the existing `monitoring` namespace with local-path persistence.
+- Grafana admin credentials are generated under ignored `.local/phase11/phase11.env` and applied as Kubernetes Secret `vdiforge-grafana-admin`.
+- Grafana TLS material is generated under ignored `.local/phase11/tls` and applied as Kubernetes Secret `vdiforge-grafana-tls`.
+- The VDIForge chart creates ServiceMonitors and PrometheusRule resources, but it does not grant VDIForge application components `cluster-admin`.
+- Prometheus scrape access is allowed only to the API and provisioner metrics ports through explicit NetworkPolicy.
+- Application metrics use normalized route labels and avoid user, request, desktop, token, and Guacamole connection identifiers.
+- Alertmanager has no external receiver in Phase 11, so no email, webhook, chat, or paging credentials are required.
+- Prometheus/Grafana are operational telemetry systems, not the source of security audit truth. Audit events remain in application PostgreSQL.
+
+Phase 11 does not implement SIEM forwarding, log aggregation, Grafana Keycloak OIDC, final CI/CD, or broader production hardening.
+
 ## Secret Handling
 
 Secrets that must not be committed:
@@ -307,6 +326,7 @@ Secrets that must not be committed:
 - database passwords
 - Guacamole database credentials
 - Guacamole JSON authentication secret
+- Grafana admin passwords
 - per-desktop remote access passwords
 - OIDC client secrets
 - TLS private keys

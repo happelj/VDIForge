@@ -4,9 +4,9 @@ VDIForge is a portfolio platform project for a small, open-source, self-service 
 
 ## Project Status
 
-Phase 1 established the architecture, requirements, roadmap, standards, and documentation structure. Phase 2 added the local VirtualBox infrastructure foundation. Phase 3 established the Kubernetes and KubeVirt foundation. Phase 4 added the Helm deployment foundation. Phase 5 established the Keycloak/OIDC/RBAC identity foundation. Phase 6 established the Ubuntu/Packer golden-image pipeline. Phase 7 established the FastAPI VDI control plane, PostgreSQL application persistence, and asynchronous KubeVirt provisioning. Phase 8 established Apache Guacamole remote desktop delivery through server-brokered RDP sessions. Phase 9 added the React self-service portal. Phase 10 adds Kubernetes HPA autoscaling for the API.
+Phase 1 established the architecture, requirements, roadmap, standards, and documentation structure. Phase 2 added the local VirtualBox infrastructure foundation. Phase 3 established the Kubernetes and KubeVirt foundation. Phase 4 added the Helm deployment foundation. Phase 5 established the Keycloak/OIDC/RBAC identity foundation. Phase 6 established the Ubuntu/Packer golden-image pipeline. Phase 7 established the FastAPI VDI control plane, PostgreSQL application persistence, and asynchronous KubeVirt provisioning. Phase 8 established Apache Guacamole remote desktop delivery through server-brokered RDP sessions. Phase 9 added the React self-service portal. Phase 10 added Kubernetes HPA autoscaling for the API. Phase 11 adds Prometheus and Grafana observability.
 
-The current local lab is three manually created Ubuntu Server VirtualBox VMs with Terraform infrastructure specifications, Ansible host configuration, kubeadm/containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, a Helm v4.2.4 foundation chart, Traefik ingress, Keycloak, PostgreSQL persistence, source-controlled realm configuration, Packer/Ansible golden-image definitions, image catalog policy, FastAPI API/provisioner services, application PostgreSQL persistence, Apache Guacamole, `guacd`, RDP/xrdp session brokering, a React/TypeScript browser portal, API HPA autoscaling, validation scripts, and verified `/dev/kvm` exposure on the VDI worker. Prometheus and Grafana dashboards are not implemented yet.
+The current local lab is three manually created Ubuntu Server VirtualBox VMs with Terraform infrastructure specifications, Ansible host configuration, kubeadm/containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, a Helm v4.2.4 foundation chart, Traefik ingress, Keycloak, PostgreSQL persistence, source-controlled realm configuration, Packer/Ansible golden-image definitions, image catalog policy, FastAPI API/provisioner services, application PostgreSQL persistence, Apache Guacamole, `guacd`, RDP/xrdp session brokering, a React/TypeScript browser portal, API HPA autoscaling, kube-prometheus-stack, Prometheus, Grafana, Alertmanager, VDIForge ServiceMonitors, alert rules, a dashboard-as-code, validation scripts, and verified `/dev/kvm` exposure on the VDI worker.
 
 ## Goals
 
@@ -75,13 +75,13 @@ The client does not download or boot Ubuntu locally. Applications run on the rem
 | Infrastructure lifecycle | Terraform specifications for the current VirtualBox lab; future KVM/libvirt or cloud lifecycle where practical |
 | Host configuration | Ansible baseline roles and inventory |
 | Image build | Packer `1.16.0`, QEMU plugin `1.1.6`, Ansible plugin `1.1.6`, Ansible image roles, QCOW2 artifacts |
-| Application backend | Python, FastAPI, Pydantic, PostgreSQL |
+| Application backend | Python, FastAPI, Pydantic, PostgreSQL, prometheus-client |
 | Frontend | React `19.2.8`, TypeScript `6.0.3`, Vite `8.2.2`, `oidc-client-ts` `3.5.0` |
 | Identity | Keycloak, OIDC, OAuth 2.0, JWT validation |
 | Remote desktop | Apache Guacamole, MVP protocol RDP via xrdp, VNC as fallback |
 | Deployment | Helm v4.2.4 foundation chart and future application charts |
 | Autoscaling | Kubernetes HPA for `vdiforge-api`; node autoscaling deferred |
-| Observability | Metrics Server, minimal API metrics, planned Prometheus/Grafana dashboards, structured logs, audit events |
+| Observability | Metrics Server for HPA, kube-prometheus-stack `88.6.1`, Prometheus Operator `v0.93.1`, Prometheus, Grafana, Alertmanager, ServiceMonitors, PrometheusRule alerts, structured logs, audit events |
 | CI/CD | GitHub Actions |
 
 ## Local Development Concept
@@ -119,6 +119,8 @@ Phase 9 deploys `localhost/vdiforge-frontend:0.9.0` at `https://vdiforge.local` 
 
 Phase 10 upgrades the API/provisioner image tag to `localhost/vdiforge-api:0.10.0` and adds a Helm-managed `autoscaling/v2` HPA for `vdiforge-api`. The autoscaling demo uses a protected, local/test-gated `GET /api/v1/health/load-test` endpoint and does not create desktop VMs. Provisioner HPA remains deferred until reconciliation has explicit work coordination. See [Autoscaling](docs/AUTOSCALING.md).
 
+Phase 11 upgrades the API/provisioner image tag to `localhost/vdiforge-api:0.11.0` and deploys `kube-prometheus-stack` into the existing `monitoring` namespace. Prometheus scrapes VDIForge API/provisioner metrics through ServiceMonitors, KubeVirt metrics through the supported Prometheus Operator integration, Kubernetes/node/HPA metrics, and renders the `VDIForge Overview` Grafana dashboard at `https://grafana.vdiforge.local`. See [Prometheus and Grafana](docs/PROMETHEUS-GRAFANA.md).
+
 ## Repository Organization
 
 | Path | Purpose |
@@ -136,6 +138,7 @@ Phase 10 upgrades the API/provisioner image tag to `localhost/vdiforge-api:0.10.
 | [docs/API-CONTROL-PLANE.md](docs/API-CONTROL-PLANE.md) | Phase 7 FastAPI API, PostgreSQL persistence, provisioner, KubeVirt lifecycle, and validation |
 | [docs/REMOTE-DESKTOP.md](docs/REMOTE-DESKTOP.md) | Phase 8 Guacamole, RDP/xrdp delivery, session brokering, NetworkPolicies, and validation |
 | [docs/WEB-PORTAL.md](docs/WEB-PORTAL.md) | Phase 9 React portal, OIDC/PKCE login, desktop workflows, Helm deployment, and validation |
+| [docs/PROMETHEUS-GRAFANA.md](docs/PROMETHEUS-GRAFANA.md) | Phase 11 Prometheus, Grafana, Alertmanager, dashboards, alerts, and validation |
 | [docs/SSO-RBAC.md](docs/SSO-RBAC.md) | Keycloak, OIDC, roles, and authorization |
 | [docs/AUTOSCALING.md](docs/AUTOSCALING.md) | HPA, capacity, and future node autoscaling |
 | [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md) | Metrics, logs, dashboards, and audit design |
@@ -152,7 +155,7 @@ Phase 10 upgrades the API/provisioner image tag to `localhost/vdiforge-api:0.10.
 | [backend](backend/README.md) | FastAPI API and provisioner implementation |
 | [frontend](frontend/README.md) | React self-service portal |
 | [keycloak](keycloak/README.md) | Reproducible Keycloak realm configuration |
-| [monitoring](monitoring/README.md) | Planned Prometheus and Grafana assets |
+| [monitoring](monitoring/README.md) | Prometheus/Grafana values and dashboard source |
 | [scripts](scripts) | Repository validation and helper scripts |
 
 ## Documentation Index
@@ -170,6 +173,7 @@ Phase 10 upgrades the API/provisioner image tag to `localhost/vdiforge-api:0.10.
 - [FastAPI VDI Control Plane](docs/API-CONTROL-PLANE.md)
 - [Remote Desktop Delivery](docs/REMOTE-DESKTOP.md)
 - [React Self-Service Portal](docs/WEB-PORTAL.md)
+- [Prometheus and Grafana](docs/PROMETHEUS-GRAFANA.md)
 - [SSO and RBAC](docs/SSO-RBAC.md)
 - [Autoscaling](docs/AUTOSCALING.md)
 - [Observability](docs/OBSERVABILITY.md)
@@ -180,7 +184,7 @@ Phase 10 upgrades the API/provisioner image tag to `localhost/vdiforge-api:0.10.
 
 ## Limitations
 
-- The current lab includes infrastructure, Kubernetes/KubeVirt, Helm, ingress, identity, the golden-image pipeline, the FastAPI API/provisioner foundation, Guacamole remote desktop delivery, and the React self-service portal. It does not yet run the full observability stack.
+- The current lab includes infrastructure, Kubernetes/KubeVirt, Helm, ingress, identity, the golden-image pipeline, the FastAPI API/provisioner foundation, Guacamole remote desktop delivery, the React self-service portal, API HPA autoscaling, and Prometheus/Grafana observability.
 - Generated QCOW2 image artifacts are local build outputs and are intentionally excluded from Git.
 - The Helm chart deploys foundation, identity, API, provisioner, application PostgreSQL, Guacamole, `guacd`, and frontend resources when phase values are enabled. Disabled future values remain extension points, not implemented services.
 - The local three-node lab is not production HA.
@@ -192,11 +196,13 @@ Phase 10 upgrades the API/provisioner image tag to `localhost/vdiforge-api:0.10.
 - `vdiforge.local` and `remote.vdiforge.local` require the same local hosts-file or DNS convention as `auth.vdiforge.local` and `api.vdiforge.local`.
 - Phase 9 records portal-driven connection requests and authorization denials through the API, but detailed browser disconnect/session telemetry remains future work.
 - Phase 10 autoscaling applies only to API pods. It does not autoscale KubeVirt desktops, the provisioner, or Kubernetes worker nodes.
+- Phase 11 Grafana uses generated local admin credentials instead of Keycloak OIDC. Grafana OIDC role mapping is deferred.
+- Alertmanager has no external notification receiver in the local lab.
 - True Kubernetes node autoscaling is future cloud or bare-metal functionality, not part of the fixed local lab.
 - Windows desktops are out of scope for the free MVP because they require licensing.
 
 ## Roadmap
 
-The next planned task after Phase 10 is Phase 11 - Prometheus / Grafana Observability. Later phases add security hardening, CI/CD, and the final end-to-end demo.
+The next planned task after Phase 11 is Phase 12 - Security / Audit Hardening. Later phases add CI/CD and the final end-to-end demo.
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for the full roadmap.

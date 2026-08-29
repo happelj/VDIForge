@@ -1,0 +1,47 @@
+{{- if and .Values.monitoring.enabled .Values.monitoring.serviceMonitor.enabled }}
+{{- if .Values.api.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "vdiforge.api.name" . }}
+  namespace: {{ include "vdiforge.namespace.monitoring" . }}
+  labels:
+    {{- include "vdiforge.monitoring.labels" . | nindent 4 }}
+spec:
+  namespaceSelector:
+    matchNames:
+      - {{ include "vdiforge.namespace.system" . }}
+  selector:
+    matchLabels:
+      {{- include "vdiforge.api.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: {{ .Values.monitoring.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.monitoring.serviceMonitor.scrapeTimeout }}
+{{- end }}
+{{- if and .Values.api.enabled .Values.provisioner.enabled }}
+---
+{{- end }}
+{{- if .Values.provisioner.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "vdiforge.provisioner.name" . }}
+  namespace: {{ include "vdiforge.namespace.monitoring" . }}
+  labels:
+    {{- include "vdiforge.monitoring.labels" . | nindent 4 }}
+spec:
+  namespaceSelector:
+    matchNames:
+      - {{ include "vdiforge.namespace.system" . }}
+  selector:
+    matchLabels:
+      {{- include "vdiforge.provisioner.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: {{ .Values.monitoring.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.monitoring.serviceMonitor.scrapeTimeout }}
+{{- end }}
+{{- end }}

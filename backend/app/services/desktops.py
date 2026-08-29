@@ -12,6 +12,7 @@ from app.auth.claims import AuthenticatedUser
 from app.auth.policy import TERMINAL_STATES, can_access_owned_resource, can_view_all_desktops, max_desktops_for_user
 from app.config.settings import Settings
 from app.models.entities import Desktop, ProvisioningOperation
+from app.observability.metrics import record_desktop_provision_request
 from app.schemas.api import DesktopConnectionResponse, DesktopCreateRequest
 from app.services.image_catalog import ImageCatalogService
 from app.services.remote_access import RemoteAccessService
@@ -55,6 +56,7 @@ class DesktopService:
                 and existing.image_version == (request.image_version or existing.image_version)
                 and existing.resource_profile == request.resource_profile
             ):
+                record_desktop_provision_request(existing.image_id, "replayed")
                 return existing
             raise ApiError(409, "IDEMPOTENCY_CONFLICT", "Idempotency-Key was already used with different inputs.")
 
@@ -109,6 +111,7 @@ class DesktopService:
         )
         self.db.commit()
         self.db.refresh(desktop)
+        record_desktop_provision_request(desktop.image_id, "accepted")
         return desktop
 
     def list_desktops(self, *, user: AuthenticatedUser, all_users: bool = False) -> list[Desktop]:

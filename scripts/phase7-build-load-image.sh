@@ -18,6 +18,10 @@ IMPORTER_POD="${PHASE7_IMPORTER_POD:-phase7-image-importer}"
 IMPORTER_IMAGE="${PHASE7_IMPORTER_IMAGE:-docker.io/moby/buildkit:v0.26.2}"
 BUILDER_POD="${PHASE7_BUILDER_POD:-phase7-image-builder}"
 BUILDER_IMAGE="${PHASE7_BUILDER_IMAGE:-docker.io/moby/buildkit:v0.26.2}"
+BUILDER_CPU_REQUEST="${PHASE7_BUILDER_CPU_REQUEST:-100m}"
+BUILDER_MEMORY_REQUEST="${PHASE7_BUILDER_MEMORY_REQUEST:-256Mi}"
+BUILDER_CPU_LIMIT="${PHASE7_BUILDER_CPU_LIMIT:-1}"
+BUILDER_MEMORY_LIMIT="${PHASE7_BUILDER_MEMORY_LIMIT:-3Gi}"
 HOST_CTR_PATH="${PHASE7_HOST_CTR_PATH:-/usr/bin/ctr}"
 HOST_LIBC_PATH="${PHASE7_HOST_LIBC_PATH:-/usr/lib/x86_64-linux-gnu/libc.so.6}"
 HOST_LD_PATH="${PHASE7_HOST_LD_PATH:-/lib64/ld-linux-x86-64.so.2}"
@@ -90,11 +94,11 @@ spec:
         privileged: true
       resources:
         requests:
-          cpu: 500m
-          memory: 512Mi
+          cpu: ${BUILDER_CPU_REQUEST}
+          memory: ${BUILDER_MEMORY_REQUEST}
         limits:
-          cpu: "2"
-          memory: 2Gi
+          cpu: "${BUILDER_CPU_LIMIT}"
+          memory: ${BUILDER_MEMORY_LIMIT}
       volumeMounts:
         - name: host-output
           mountPath: /host-output
