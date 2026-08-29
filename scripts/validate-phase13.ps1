@@ -44,18 +44,18 @@ function Check-ContentPresent($Path, $Pattern, $Description) {
 
 function Get-RepositoryFiles {
     Get-ChildItem -File -Recurse -Force -ErrorAction SilentlyContinue |
-        Where-Object { $_.FullName -notmatch "\\.git\\" } |
-        Where-Object { $_.FullName -notmatch "\\.codex-remote-attachments\\" } |
-        Where-Object { $_.FullName -notmatch "\\.local\\" } |
-        Where-Object { $_.FullName -notmatch "\\artifacts\\" } |
-        Where-Object { $_.FullName -notmatch "\\reports\\" } |
-        Where-Object { $_.FullName -notmatch "\\packer_cache\\" } |
-        Where-Object { $_.FullName -notmatch "\\node_modules\\" } |
-        Where-Object { $_.FullName -notmatch "\\dist\\" } |
-        Where-Object { $_.FullName -notmatch "\\.terraform\\" } |
-        Where-Object { $_.FullName -notmatch "\\.pytest_cache\\" } |
-        Where-Object { $_.FullName -notmatch "\\__pycache__\\" } |
-        Where-Object { $_.FullName -notmatch "\\.venv\\" }
+        Where-Object { $_.FullName -notmatch "[\\/]\.git([\\/]|$)" } |
+        Where-Object { $_.FullName -notmatch "[\\/]\.codex-remote-attachments([\\/]|$)" } |
+        Where-Object { $_.FullName -notmatch "[\\/]\.local([\\/]|$)" } |
+        Where-Object { $_.FullName -notmatch "[\\/]artifacts([\\/]|$)" } |
+        Where-Object { $_.FullName -notmatch "[\\/]reports([\\/]|$)" } |
+        Where-Object { $_.FullName -notmatch "[\\/]packer_cache([\\/]|$)" } |
+        Where-Object { $_.FullName -notmatch "[\\/]node_modules([\\/]|$)" } |
+        Where-Object { $_.FullName -notmatch "[\\/]dist([\\/]|$)" } |
+        Where-Object { $_.FullName -notmatch "[\\/]\.terraform([\\/]|$)" } |
+        Where-Object { $_.FullName -notmatch "[\\/]\.pytest_cache([\\/]|$)" } |
+        Where-Object { $_.FullName -notmatch "[\\/]__pycache__([\\/]|$)" } |
+        Where-Object { $_.FullName -notmatch "[\\/]\.venv([\\/]|$)" }
 }
 
 function Check-ContentAbsent($Paths, $Pattern, $Description) {
