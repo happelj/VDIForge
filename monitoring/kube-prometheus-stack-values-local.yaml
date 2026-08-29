@@ -141,6 +141,8 @@ grafana:
   ingress:
     enabled: true
     ingressClassName: traefik
+    annotations:
+      traefik.ingress.kubernetes.io/router.middlewares: monitoring-vdiforge-grafana-security-headers@kubernetescrd
     hosts:
       - grafana.vdiforge.local
     tls:
@@ -163,3 +165,11 @@ grafana:
       allow_sign_up: false
     auth.anonymous:
       enabled: false
+    security:
+      allow_embedding: false
+      content_security_policy: true
+      content_type_protection: true
+      cookie_samesite: lax
+      cookie_secure: true
+      strict_transport_security: true
+      strict_transport_security_max_age_seconds: 31536000

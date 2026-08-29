@@ -471,6 +471,32 @@ Phase 11 validates:
 - temporary alert firing and cleanup;
 - safe load and desktop lifecycle metrics.
 
+## Security Hardening Tests
+
+Phase 12 validates:
+
+- secret scan and generated-artifact scan;
+- Helm render checks for security headers, no plaintext secrets, no `cluster-admin`, and no direct `nodeName` scheduling;
+- backend unit tests for missing/tampered tokens, CORS, security headers, unsafe input, rate limiting, audit redaction, and audit hashes;
+- frontend token-storage review for `sessionStorage` and absence of client secrets;
+- Keycloak PKCE, redirect/origin, implicit-flow, and brute-force protection settings;
+- RBAC positive and negative tests with `kubectl auth can-i`;
+- NetworkPolicy positive and negative tests across platform, identity, Guacamole, database, monitoring, and desktop paths;
+- dependency scans for backend Python and frontend Node packages;
+- Trivy scans for VDIForge-owned custom container images;
+- audit export validation with no credential leakage;
+- full browser VDI lifecycle regression after hardening.
+
+Phase 12 validation entry points:
+
+```powershell
+.\scripts\validate-phase12.ps1
+```
+
+```bash
+bash scripts/validate-phase12-live.sh
+```
+
 ## End-to-End Test
 
 Core E2E flow:

@@ -1,0 +1,23 @@
+platformConfig:
+  validationMarker: phase12-security-audit-hardening
+
+api:
+  image:
+    tag: "0.12.0"
+  rateLimit:
+    enabled: true
+    desktopMutation:
+      limit: "30"
+      windowSeconds: "60"
+    desktopConnect:
+      limit: "20"
+      windowSeconds: "60"
+
+provisioner:
+  image:
+    tag: "0.12.0"
+
+securityHeaders:
+  enabled: true
+  traefikMiddleware:
+    enabled: true

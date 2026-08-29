@@ -18,6 +18,14 @@ from app.db.base import Base
 from app.db.session import get_db
 from app.main import create_app
 from app.schemas.api import DesktopConnectionResponse
+from app.security.rate_limit import api_rate_limiter
+
+
+@pytest.fixture(autouse=True)
+def reset_api_rate_limiter() -> Generator[None]:
+    api_rate_limiter.reset()
+    yield
+    api_rate_limiter.reset()
 
 
 class FakeRemoteAccessService:

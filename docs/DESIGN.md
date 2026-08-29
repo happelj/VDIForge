@@ -4,7 +4,7 @@ This document is the authoritative technical design for VDIForge. Later implemen
 
 ## Status
 
-Phase 2 local infrastructure foundation is documented and host-validated. Phase 3 establishes the Kubernetes and KubeVirt foundation on that lab with kubeadm, containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, namespace/RBAC foundations, NetworkPolicy validation, and a disposable KubeVirt test VM. Phase 4 establishes the Helm platform foundation with a `vdiforge` release that manages VDIForge ConfigMap conventions, ServiceAccounts, provisioner RBAC, ResourceQuotas, a LimitRange, and baseline NetworkPolicies. Phase 5 adds Keycloak, PostgreSQL persistence, Traefik ingress, local TLS, realm import, demo identities, Authorization Code Flow with PKCE validation, JWT validation, RBAC claim validation, and identity NetworkPolicies. Phase 6 establishes the Packer/Ansible Ubuntu golden-image pipeline, image catalog foundation, QCOW2 artifact format, CDI import path, and KubeVirt boot validation. Phase 7 adds the FastAPI VDI control plane, application PostgreSQL, Alembic migrations, API/provisioner Helm resources, server-side authorization, audit persistence, and KubeVirt desktop lifecycle reconciliation. Phase 8 adds Apache Guacamole, `guacd`, RDP/xrdp session delivery, short-lived JSON-auth connection brokering, per-desktop remote credentials, and remote-session validation. Phase 9 adds the React/TypeScript self-service portal at `https://vdiforge.local`. Phase 10 adds Kubernetes HPA autoscaling for `vdiforge-api`. Phase 11 adds kube-prometheus-stack, Prometheus, Grafana, Alertmanager, VDIForge ServiceMonitors, alert rules, dashboard-as-code, and API/provisioner metrics.
+Phase 2 local infrastructure foundation is documented and host-validated. Phase 3 establishes the Kubernetes and KubeVirt foundation on that lab with kubeadm, containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, namespace/RBAC foundations, NetworkPolicy validation, and a disposable KubeVirt test VM. Phase 4 establishes the Helm platform foundation with a `vdiforge` release that manages VDIForge ConfigMap conventions, ServiceAccounts, provisioner RBAC, ResourceQuotas, a LimitRange, and baseline NetworkPolicies. Phase 5 adds Keycloak, PostgreSQL persistence, Traefik ingress, local TLS, realm import, demo identities, Authorization Code Flow with PKCE validation, JWT validation, RBAC claim validation, and identity NetworkPolicies. Phase 6 establishes the Packer/Ansible Ubuntu golden-image pipeline, image catalog foundation, QCOW2 artifact format, CDI import path, and KubeVirt boot validation. Phase 7 adds the FastAPI VDI control plane, application PostgreSQL, Alembic migrations, API/provisioner Helm resources, server-side authorization, audit persistence, and KubeVirt desktop lifecycle reconciliation. Phase 8 adds Apache Guacamole, `guacd`, RDP/xrdp session delivery, short-lived JSON-auth connection brokering, per-desktop remote credentials, and remote-session validation. Phase 9 adds the React/TypeScript self-service portal at `https://vdiforge.local`. Phase 10 adds Kubernetes HPA autoscaling for `vdiforge-api`. Phase 11 adds kube-prometheus-stack, Prometheus, Grafana, Alertmanager, VDIForge ServiceMonitors, alert rules, dashboard-as-code, and API/provisioner metrics. Phase 12 adds security headers, restricted CORS validation, Keycloak hardening, RBAC and NetworkPolicy tests, secret inventory, dependency/container scanning, log redaction, audit hash chaining, and admin-only audit export.
 
 ## Goals
 
@@ -785,6 +785,20 @@ Baseline controls:
 
 The provisioning service is sensitive because it creates and deletes KubeVirt resources. It must not receive `cluster-admin`. Its Kubernetes access should be scoped to the VDI namespaces and the minimal resource verbs required.
 
+Phase 12 hardening keeps the existing architecture and adds practical controls:
+
+- Keycloak brute-force protection while retaining PKCE and restricted redirect/origin policy
+- FastAPI and Traefik security headers with service-specific CSP choices
+- restricted CORS for the portal origin
+- in-process rate limits for desktop launch/connect/start/stop/delete
+- stricter API input validation for IDs, resource profiles, display names, and idempotency keys
+- centralized redaction for logs and audit details
+- tamper-evident audit hashes and admin-only JSON Lines export
+- RBAC and NetworkPolicy positive/negative validation
+- dependency, custom container, and golden-image hardening scans
+
+The Phase 12 rate limiter is per API pod under HPA. The audit hash chain is tamper-evident but not an immutable external audit store. Both are acceptable local-lab controls and remain candidates for production enhancement.
+
 ## Failure Handling
 
 Expected failure classes:
@@ -845,7 +859,7 @@ Phase 2 produced local infrastructure that can host the planned three-node clust
 7. Terraform specification and outputs under `terraform/environments/local`.
 8. Ansible baseline inventory and roles under `ansible`.
 
-Phase 3 installs Kubernetes prerequisites, kubeadm/containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, namespace/RBAC foundations, and validation scripts. Phase 4 installs the Helm deployment client on `vdi-control-01` and deploys the VDIForge foundation release. Phase 5 installs Traefik ingress, Keycloak, PostgreSQL persistence, local TLS, the `vdiforge` realm, OIDC clients, demo identities, and identity validation scripts. Phase 6 adds the Packer/Ansible golden-image pipeline and KubeVirt boot validation for the DevOps image. Phase 7 installs the FastAPI API, provisioner, application PostgreSQL, migrations, and validates KubeVirt desktop launch/stop/restart/delete for the DevOps image. Phase 8 installs Guacamole/guacd, adds API session brokering, and validates RDP access to a remote-enabled DevOps desktop. Phase 9 installs the React portal and validates the browser-facing launch/connect workflow. Phase 10 installs and validates API HPA autoscaling through a safe authenticated load test. Phase 11 installs Prometheus/Grafana observability and validates scraping, dashboards, alerts, HPA metric visibility, and desktop lifecycle metrics.
+Phase 3 installs Kubernetes prerequisites, kubeadm/containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, namespace/RBAC foundations, and validation scripts. Phase 4 installs the Helm deployment client on `vdi-control-01` and deploys the VDIForge foundation release. Phase 5 installs Traefik ingress, Keycloak, PostgreSQL persistence, local TLS, the `vdiforge` realm, OIDC clients, demo identities, and identity validation scripts. Phase 6 adds the Packer/Ansible golden-image pipeline and KubeVirt boot validation for the DevOps image. Phase 7 installs the FastAPI API, provisioner, application PostgreSQL, migrations, and validates KubeVirt desktop launch/stop/restart/delete for the DevOps image. Phase 8 installs Guacamole/guacd, adds API session brokering, and validates RDP access to a remote-enabled DevOps desktop. Phase 9 installs the React portal and validates the browser-facing launch/connect workflow. Phase 10 installs and validates API HPA autoscaling through a safe authenticated load test. Phase 11 installs Prometheus/Grafana observability and validates scraping, dashboards, alerts, HPA metric visibility, and desktop lifecycle metrics. Phase 12 hardens the platform and validates the browser VDI workflow still works after security changes.
 
 ## Future Cloud or Bare-Metal Deployment
 
@@ -882,6 +896,8 @@ These are not required for the MVP.
 - Remote desktop performance will not match commercial proprietary protocols.
 - Phase 9 validates the user-facing React Connect workflow, but detailed Guacamole disconnect/session telemetry remains future work.
 - The API needs namespace-scoped read access to per-desktop remote credential Secrets; application authorization and audit logging are compensating controls until a narrower credential broker exists.
+- The Phase 12 API rate limiter is process-local and not a global distributed limiter across HPA replicas.
+- The Phase 12 audit hash chain is tamper-evident inside PostgreSQL but does not replace SIEM forwarding or immutable storage.
 - Windows desktops are excluded from the free MVP.
 - Version pins must be revalidated during implementation.
 - Helm now owns selected VDIForge platform resources; ad hoc `kubectl edit` changes against those objects create drift.
@@ -890,6 +906,6 @@ These are not required for the MVP.
 
 - Should routine Ansible operations remain on `vdi-control-01`, move to WSL, or use another Linux controller?
 - What exact resource profiles should be exposed first?
-- Should Phase 12 replace the Phase 9 browser token-session baseline with a stronger backend-for-frontend or token exchange pattern?
+- Should a future production profile replace the browser-token baseline with a backend-for-frontend or token exchange pattern?
 - Does the future API need a separate confidential service/admin client beyond the current `vdiforge-api` audience marker?
-- Should Phase 12 replace per-desktop static passwords with one-time or frequently rotated remote-session credentials?
+- Should a future production profile replace per-desktop static credentials with one-time or frequently rotated remote-session credentials?

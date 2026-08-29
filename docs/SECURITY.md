@@ -1,6 +1,6 @@
 # Security Model
 
-This document defines the VDIForge threat model and security controls. Phase 2 local infrastructure controls, Phase 3 Kubernetes foundation controls, Phase 4 Helm platform controls, Phase 5 identity controls, Phase 6 image-pipeline controls, Phase 7 FastAPI control-plane controls, Phase 8 Guacamole remote desktop controls, Phase 9 React portal controls, Phase 10 API autoscaling controls, and Phase 11 Prometheus/Grafana observability controls apply to the current lab.
+This document defines the VDIForge threat model and security controls. Phase 2 local infrastructure controls, Phase 3 Kubernetes foundation controls, Phase 4 Helm platform controls, Phase 5 identity controls, Phase 6 image-pipeline controls, Phase 7 FastAPI control-plane controls, Phase 8 Guacamole remote desktop controls, Phase 9 React portal controls, Phase 10 API autoscaling controls, Phase 11 Prometheus/Grafana observability controls, and Phase 12 security/audit hardening controls apply to the current lab.
 
 ## Security Objectives
 
@@ -41,7 +41,7 @@ This document defines the VDIForge threat model and security controls. Phase 2 l
 | Secret exposure | Passwords or private keys committed or logged. | `.gitignore`, secret scanning, structured logging filters, Kubernetes Secrets or external secret store later. |
 | Lateral movement | Desktop reaches Keycloak admin, database, monitoring admin, or platform APIs. | Default-deny NetworkPolicies and explicit allow paths. |
 | Denial of service | User launches too many desktops or load test creates desktops. | Quotas, resource profiles, admission checks, HPA load test isolated from provisioning. |
-| Audit-log tampering | Admin action deletes or modifies audit records. | Append-oriented audit table design, restricted DB permissions, future SIEM forwarding. |
+| Audit-log tampering | Admin action deletes or modifies audit records. | Append-oriented public API behavior, admin-only audit read/export, tamper-evident hash chaining, restricted DB access, future SIEM forwarding. |
 
 ## Authentication Controls
 
@@ -153,6 +153,8 @@ Phase 9 enables the frontend ingress policy in `vdiforge-system`, allowing Traef
 Phase 10 enables API autoscaling but does not widen the network model. New `vdiforge-api` replicas use the same labels, ServiceAccount, resource limits, ingress path, database access, Keycloak JWKS access, and NetworkPolicy rules as the original API pod.
 
 Phase 11 enables Prometheus/Grafana observability. NetworkPolicy allows Prometheus in `monitoring` to scrape the API and provisioner metrics endpoints. Metrics must not contain passwords, raw JWTs, refresh tokens, request IDs, usernames, desktop IDs, Guacamole connection IDs, or other high-cardinality sensitive identifiers. Grafana is exposed through HTTPS at `grafana.vdiforge.local` and uses generated local admin credentials stored in Kubernetes Secret `vdiforge-grafana-admin`.
+
+Phase 12 hardens the existing platform without changing the major architecture. It adds Keycloak brute-force protection, API and ingress security headers, restricted CORS validation, high-impact operation rate limits, stricter input validation, centralized redaction, audit hash chaining, admin-only JSON Lines audit export, secret inventory documentation, RBAC tests, NetworkPolicy tests, dependency scans, and custom container scans. The hardening details are documented in [Security Hardening](SECURITY-HARDENING.md).
 
 ## Phase 2 Local Infrastructure Security
 
@@ -317,6 +319,24 @@ Phase 11 adds these security-relevant controls:
 - Prometheus/Grafana are operational telemetry systems, not the source of security audit truth. Audit events remain in application PostgreSQL.
 
 Phase 11 does not implement SIEM forwarding, log aggregation, Grafana Keycloak OIDC, final CI/CD, or broader production hardening.
+
+## Phase 12 Security and Audit Hardening
+
+Phase 12 adds these security-relevant controls:
+
+- `vdiforge-api` adds security headers, stricter CORS behavior, request validation, and lab-appropriate rate limiting for desktop launch/connect/start/stop/delete operations.
+- Keycloak retains Authorization Code Flow with PKCE, disabled implicit flow, no browser client secret, no wildcard redirects/origins, and now has local-lab brute-force protection enabled.
+- The React portal keeps the public-client PKCE model and uses browser `sessionStorage`; this is documented as a local-lab tradeoff rather than a production-perfect session architecture.
+- Application logs and audit event details pass through centralized redaction for token, password, credential, and authorization-header patterns.
+- Audit events include `previous_event_hash` and `event_hash` fields to make local tampering detectable.
+- The audit read and JSON Lines export endpoints remain admin-only.
+- Traefik header middleware is applied to `vdiforge.local`, `api.vdiforge.local`, `auth.vdiforge.local`, `remote.vdiforge.local`, and `grafana.vdiforge.local`, with CSP kept service-specific to avoid breaking Keycloak and Guacamole.
+- `kubectl auth can-i` tests verify the frontend has no Kubernetes privilege and that the provisioner cannot perform unrelated privileged actions.
+- NetworkPolicy validation covers intended and denied paths across VDIForge system, desktop, identity, Guacamole, monitoring, and database resources.
+- `pip-audit`, `npm audit`, and Trivy scanning are added for VDIForge-owned dependencies and custom images.
+- Secret categories, rotation procedures, and Git exposure controls are documented without storing real values.
+
+Phase 12 intentionally does not deploy a SIEM, external secret manager, enterprise WAF, cloud KMS, Vault cluster, final GitHub Actions CI/CD workflow, or Phase 14 demo polish.
 
 ## Secret Handling
 

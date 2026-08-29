@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query, Request, Response
 from prometheus_client import CONTENT_TYPE_LATEST
@@ -32,6 +34,7 @@ from app.schemas.api import (
     LoadTestResponse,
     ReadyResponse,
 )
+from app.security.rate_limit import api_rate_limiter
 from app.services.desktops import DesktopService
 from app.services.image_catalog import ImageCatalogService
 from app.services.remote_access import RemoteAccessService
@@ -46,6 +49,27 @@ def source_ip(request: Request) -> str | None:
     if request.client:
         return request.client.host
     return None
+
+
+def enforce_rate_limit(
+    *,
+    request: Request,
+    user: AuthenticatedUser,
+    settings: Settings,
+    scope: str,
+    limit: int,
+    window_seconds: int,
+) -> None:
+    if not settings.api_rate_limit_enabled:
+        return
+    key = f"{scope}:{user.subject}:{source_ip(request) or 'unknown'}"
+    decision = api_rate_limiter.check(key, limit=limit, window_seconds=window_seconds)
+    if not decision.allowed:
+        raise ApiError(
+            429,
+            "RATE_LIMIT_EXCEEDED",
+            f"Too many requests for this operation. Retry after {decision.retry_after_seconds} seconds.",
+        )
 
 
 @router.get("/health", response_model=HealthResponse, tags=["system"])
@@ -126,8 +150,19 @@ def create_desktop(
     user: Annotated[AuthenticatedUser, Depends(get_current_user)],
     settings: Annotated[Settings, Depends(current_settings)],
     db: Annotated[Session, Depends(get_db)],
-    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+    idempotency_key: Annotated[
+        str | None,
+        Header(alias="Idempotency-Key", min_length=8, max_length=128, pattern=r"^[A-Za-z0-9._:-]+$"),
+    ] = None,
 ) -> Desktop:
+    enforce_rate_limit(
+        request=request,
+        user=user,
+        settings=settings,
+        scope="desktop-mutation",
+        limit=settings.desktop_mutation_rate_limit,
+        window_seconds=settings.desktop_mutation_rate_window_seconds,
+    )
     try:
         return DesktopService(db, settings).create_desktop(
             request=body,
@@ -154,25 +189,33 @@ def list_desktops(
 
 @router.get("/desktops/{desktop_id}", response_model=DesktopResponse, tags=["desktops"])
 def get_desktop(
-    desktop_id: str,
+    desktop_id: UUID,
     user: Annotated[AuthenticatedUser, Depends(get_current_user)],
     settings: Annotated[Settings, Depends(current_settings)],
     db: Annotated[Session, Depends(get_db)],
 ) -> Desktop:
-    return DesktopService(db, settings).get_desktop(desktop_id=desktop_id, user=user)
+    return DesktopService(db, settings).get_desktop(desktop_id=str(desktop_id), user=user)
 
 
 @router.post("/desktops/{desktop_id}/connect", response_model=DesktopConnectionResponse, tags=["desktops"])
 def connect_desktop(
-    desktop_id: str,
+    desktop_id: UUID,
     request: Request,
     user: Annotated[AuthenticatedUser, Depends(get_current_user)],
     settings: Annotated[Settings, Depends(current_settings)],
     remote_access: Annotated[RemoteAccessService, Depends(get_remote_access_service)],
     db: Annotated[Session, Depends(get_db)],
 ) -> DesktopConnectionResponse:
+    enforce_rate_limit(
+        request=request,
+        user=user,
+        settings=settings,
+        scope="desktop-connect",
+        limit=settings.desktop_connect_rate_limit,
+        window_seconds=settings.desktop_connect_rate_window_seconds,
+    )
     return DesktopService(db, settings).connect_desktop(
-        desktop_id=desktop_id,
+        desktop_id=str(desktop_id),
         user=user,
         request_id=request.state.request_id,
         source_ip=source_ip(request),
@@ -182,14 +225,22 @@ def connect_desktop(
 
 @router.post("/desktops/{desktop_id}/start", response_model=DesktopResponse, tags=["desktops"])
 def start_desktop(
-    desktop_id: str,
+    desktop_id: UUID,
     request: Request,
     user: Annotated[AuthenticatedUser, Depends(get_current_user)],
     settings: Annotated[Settings, Depends(current_settings)],
     db: Annotated[Session, Depends(get_db)],
 ) -> Desktop:
+    enforce_rate_limit(
+        request=request,
+        user=user,
+        settings=settings,
+        scope="desktop-mutation",
+        limit=settings.desktop_mutation_rate_limit,
+        window_seconds=settings.desktop_mutation_rate_window_seconds,
+    )
     return DesktopService(db, settings).start_desktop(
-        desktop_id=desktop_id,
+        desktop_id=str(desktop_id),
         user=user,
         request_id=request.state.request_id,
         source_ip=source_ip(request),
@@ -198,14 +249,22 @@ def start_desktop(
 
 @router.post("/desktops/{desktop_id}/stop", response_model=DesktopResponse, tags=["desktops"])
 def stop_desktop(
-    desktop_id: str,
+    desktop_id: UUID,
     request: Request,
     user: Annotated[AuthenticatedUser, Depends(get_current_user)],
     settings: Annotated[Settings, Depends(current_settings)],
     db: Annotated[Session, Depends(get_db)],
 ) -> Desktop:
+    enforce_rate_limit(
+        request=request,
+        user=user,
+        settings=settings,
+        scope="desktop-mutation",
+        limit=settings.desktop_mutation_rate_limit,
+        window_seconds=settings.desktop_mutation_rate_window_seconds,
+    )
     return DesktopService(db, settings).stop_desktop(
-        desktop_id=desktop_id,
+        desktop_id=str(desktop_id),
         user=user,
         request_id=request.state.request_id,
         source_ip=source_ip(request),
@@ -214,14 +273,22 @@ def stop_desktop(
 
 @router.delete("/desktops/{desktop_id}", response_model=DesktopResponse, status_code=202, tags=["desktops"])
 def delete_desktop(
-    desktop_id: str,
+    desktop_id: UUID,
     request: Request,
     user: Annotated[AuthenticatedUser, Depends(get_current_user)],
     settings: Annotated[Settings, Depends(current_settings)],
     db: Annotated[Session, Depends(get_db)],
 ) -> Desktop:
+    enforce_rate_limit(
+        request=request,
+        user=user,
+        settings=settings,
+        scope="desktop-mutation",
+        limit=settings.desktop_mutation_rate_limit,
+        window_seconds=settings.desktop_mutation_rate_window_seconds,
+    )
     return DesktopService(db, settings).delete_desktop(
-        desktop_id=desktop_id,
+        desktop_id=str(desktop_id),
         user=user,
         request_id=request.state.request_id,
         source_ip=source_ip(request),
@@ -234,9 +301,35 @@ def audit_events(
     settings: Annotated[Settings, Depends(current_settings)],
     db: Annotated[Session, Depends(get_db)],
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    action: Annotated[str | None, Query(pattern=r"^[A-Z0-9_]{3,64}$")] = None,
+    result: Annotated[str | None, Query(pattern=r"^[A-Z0-9_]{2,32}$")] = None,
 ) -> AuditEventListResponse:
-    events = DesktopService(db, settings).audit_events(user=user, limit=limit)
+    events = DesktopService(db, settings).audit_events(user=user, limit=limit, action=action, result=result)
     return AuditEventListResponse(audit_events=[AuditEventResponse.model_validate(event) for event in events])
+
+
+@router.get("/audit-events/export", tags=["audit"])
+def audit_events_export(
+    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    settings: Annotated[Settings, Depends(current_settings)],
+    db: Annotated[Session, Depends(get_db)],
+    limit: Annotated[int, Query(ge=1, le=1000)] = 200,
+    action: Annotated[str | None, Query(pattern=r"^[A-Z0-9_]{3,64}$")] = None,
+    result: Annotated[str | None, Query(pattern=r"^[A-Z0-9_]{2,32}$")] = None,
+) -> Response:
+    events = DesktopService(db, settings).audit_events(user=user, limit=limit, action=action, result=result)
+    lines = [
+        json.dumps(
+            AuditEventResponse.model_validate(event).model_dump(mode="json"),
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        for event in events
+    ]
+    body = "\n".join(lines)
+    if body:
+        body += "\n"
+    return Response(body, media_type="application/x-ndjson")
 
 
 @router.get("/metrics", tags=["system"])

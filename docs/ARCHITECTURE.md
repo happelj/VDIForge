@@ -459,3 +459,36 @@ flowchart TB
 ```
 
 Correlation/request IDs allow a launch operation to be traced across browser, API, provisioner, Kubernetes/KubeVirt, and audit events.
+
+## Phase 12 Security Hardening View
+
+```mermaid
+flowchart TB
+  Browser[Browser]
+  Traefik[Traefik ingress<br/>security header middleware]
+  Portal[React portal<br/>PKCE public client]
+  API[FastAPI<br/>JWT, CORS, rate limits, validation]
+  Keycloak[Keycloak<br/>restricted client policy]
+  DB[(VDIForge PostgreSQL<br/>audit hash chain)]
+  Provisioner[Provisioner<br/>narrow ServiceAccount]
+  Kube[Kubernetes API<br/>RBAC]
+  Guac[Guacamole / guacd]
+  VDI[VDI VM<br/>xrdp]
+  Prom[Prometheus/Grafana]
+
+  Browser --> Traefik
+  Traefik --> Portal
+  Traefik --> API
+  Traefik --> Keycloak
+  Traefik --> Guac
+  API --> Keycloak
+  API --> DB
+  API --> Kube
+  Provisioner --> DB
+  Provisioner --> Kube
+  Guac --> VDI
+  Prom --> API
+  Prom --> Provisioner
+```
+
+Phase 12 adds security headers, restricted CORS validation, input validation, redaction, API rate limiting, admin-only audit export, audit hash chaining, RBAC checks, NetworkPolicy checks, and dependency/container scans. It does not introduce a SIEM, external secrets manager, WAF, service mesh, or CI/CD workflow.

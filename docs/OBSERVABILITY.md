@@ -6,6 +6,8 @@ Phase 3 implements the Kubernetes resource-metrics foundation through Metrics Se
 
 Phase 11 deploys Prometheus, Grafana, Alertmanager, kube-state-metrics, VDIForge ServiceMonitors, alert rules, and the `VDIForge Overview` dashboard through Helm. The local baseline intentionally disables node-exporter to keep the `monitoring` namespace at baseline Pod Security; node health and capacity panels use kubelet and kube-state metrics. See [Prometheus and Grafana Observability](PROMETHEUS-GRAFANA.md) for operational details.
 
+Phase 12 adds security validation for observability data: metrics must not expose usernames, token subjects, desktop IDs, request IDs, raw URLs, or credentials, Grafana receives hardened local settings, and audit export is separated from troubleshooting logs.
+
 ## Observability Goals
 
 - Show current platform and desktop health.
@@ -170,6 +172,17 @@ IMAGE_PROMOTED
 
 Audit details must be structured JSON and must not contain secrets.
 
+Phase 12 adds tamper-evident audit fields:
+
+```text
+previous_event_hash
+event_hash
+```
+
+Each new event hash is computed over canonicalized audit metadata and the previous event hash. This is a local-lab integrity signal, not an immutable external log store. Admin-only JSON Lines export is available at `/api/v1/audit-events/export` for future SIEM ingestion.
+
+Application logging now uses centralized redaction for sensitive keys and bearer-token-like values. Audit logs and application logs remain separate: application logs explain system behavior, while audit records describe user or administrative security events.
+
 ## Correlation IDs
 
 Every user-triggered operation should receive a request ID.
@@ -244,5 +257,6 @@ The final demo should show:
 ## Open Questions
 
 - Should audit events be stored only in PostgreSQL for MVP or also written to append-only JSON logs?
-- Should Grafana authenticate through Keycloak OIDC in Phase 12, and how should Grafana roles map to VDIForge roles?
+- Should Grafana authenticate through Keycloak OIDC in a future phase, and how should Grafana roles map to VDIForge roles?
+- Should audit events be forwarded to a SIEM or immutable storage target in a future production design?
 - What application log collection path should be added before SIEM forwarding is considered?

@@ -287,12 +287,24 @@ class DesktopService:
         self.db.refresh(desktop)
         return desktop
 
-    def audit_events(self, *, user: AuthenticatedUser, limit: int = 50):
+    def audit_events(
+        self,
+        *,
+        user: AuthenticatedUser,
+        limit: int = 50,
+        action: str | None = None,
+        result: str | None = None,
+    ):
         if not user.is_admin:
             raise ApiError(403, "ADMIN_REQUIRED", "Only admins can read audit events.")
         from app.models.entities import AuditEvent
 
-        statement = select(AuditEvent).order_by(AuditEvent.timestamp.desc()).limit(limit)
+        statement = select(AuditEvent)
+        if action:
+            statement = statement.where(AuditEvent.action == action)
+        if result:
+            statement = statement.where(AuditEvent.result == result)
+        statement = statement.order_by(AuditEvent.timestamp.desc()).limit(limit)
         return list(self.db.scalars(statement))
 
     def _active_desktop_count(self, user: AuthenticatedUser) -> int:

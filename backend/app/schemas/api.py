@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 DesktopObservedState = Literal[
     "REQUESTED",
@@ -48,10 +48,22 @@ class ImageResponse(BaseModel):
 
 
 class DesktopCreateRequest(BaseModel):
-    image_id: str = Field(min_length=1, max_length=64)
-    image_version: str | None = Field(default=None, max_length=32)
-    resource_profile: str = Field(default="small", max_length=32)
+    image_id: str = Field(min_length=1, max_length=64, pattern=r"^[a-z0-9][a-z0-9-]{0,63}$")
+    image_version: str | None = Field(default=None, max_length=32, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$")
+    resource_profile: str = Field(default="small", max_length=32, pattern=r"^[a-z0-9][a-z0-9-]{0,31}$")
     display_name: str | None = Field(default=None, max_length=128)
+
+    @field_validator("display_name")
+    @classmethod
+    def display_name_must_be_safe_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        normalized = value.strip()
+        if not normalized:
+            return None
+        if any(ord(character) < 32 or ord(character) == 127 for character in normalized):
+            raise ValueError("display_name must not contain control characters")
+        return normalized
 
 
 class DesktopResponse(BaseModel):
@@ -99,6 +111,8 @@ class AuditEventResponse(BaseModel):
     source_ip: str | None
     result: str
     details: dict
+    previous_event_hash: str | None
+    event_hash: str | None
 
 
 class AuditEventListResponse(BaseModel):

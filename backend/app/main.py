@@ -14,6 +14,7 @@ from app.api.routes import metrics, router
 from app.config.settings import get_settings
 from app.observability.logging import configure_logging
 from app.observability.metrics import elapsed_since, monotonic_time, normalized_route, observe_api_request
+from app.security.headers import apply_security_headers
 
 API_PREFIX = "/api/v1"
 
@@ -54,6 +55,7 @@ def create_app() -> FastAPI:
             observe_api_request(request.method, route, 500, elapsed_since(started_at))
             raise
         response.headers["X-Request-ID"] = request_id
+        apply_security_headers(request, response, settings)
         return response
 
     @app.exception_handler(ApiError)

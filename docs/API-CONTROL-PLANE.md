@@ -1,8 +1,8 @@
 # FastAPI VDI Control Plane
 
-Phase 7 implements the first VDIForge application service: a FastAPI API, PostgreSQL persistence, and an asynchronous provisioner that reconciles VDIForge desktop records into KubeVirt resources. Phase 8 extends that API with remote desktop session brokering for Apache Guacamole. Phase 9 adds browser portal support, including CORS for `https://vdiforge.local` and the `ubuntu-devops:1.2.0` default image. Phase 10 adds API autoscaling support and a protected local-only load-test endpoint. Phase 11 adds Prometheus client instrumentation for the API and provisioner.
+Phase 7 implements the first VDIForge application service: a FastAPI API, PostgreSQL persistence, and an asynchronous provisioner that reconciles VDIForge desktop records into KubeVirt resources. Phase 8 extends that API with remote desktop session brokering for Apache Guacamole. Phase 9 adds browser portal support, including CORS for `https://vdiforge.local` and the `ubuntu-devops:1.2.0` default image. Phase 10 adds API autoscaling support and a protected local-only load-test endpoint. Phase 11 adds Prometheus client instrumentation for the API and provisioner. Phase 12 adds security and audit hardening.
 
-This document covers the backend control plane through Phase 11. Final production hardening remains a later phase.
+This document covers the backend control plane through Phase 12. Final CI/CD integration and production-grade external security services remain later phases.
 
 ## Version Pins
 
@@ -48,6 +48,7 @@ This document covers the backend control plane through Phase 11. Final productio
 | `POST` | `/api/v1/desktops/{id}/stop` | yes | request stop |
 | `DELETE` | `/api/v1/desktops/{id}` | yes | request deletion and cleanup |
 | `GET` | `/api/v1/audit-events` | admin | inspect audit events |
+| `GET` | `/api/v1/audit-events/export` | admin | export audit events as JSON Lines for SIEM-ready handoff |
 | `GET` | `/metrics` | no | Prometheus client metrics for API traffic, desktop lifecycle, provisioning, remote sessions, and reconciler state |
 
 API errors use:
@@ -221,7 +222,7 @@ Phase 11 enables Prometheus/Grafana observability by adding `values-phase11-loca
 bash scripts/phase11-install-monitoring.sh
 ```
 
-When Phase 11 values are applied, the API/provisioner image tag is `localhost/vdiforge-api:0.11.0`. The API exposes Prometheus metrics through `/metrics`; the provisioner exposes a separate metrics server on port `9102`. The Helm chart creates ServiceMonitors for both endpoints.
+When Phase 12 values are applied, the API/provisioner image tag is `localhost/vdiforge-api:0.12.0`. The API exposes Prometheus metrics through `/metrics`; the provisioner exposes a separate metrics server on port `9102`. The Helm chart creates ServiceMonitors for both endpoints.
 
 Implemented VDIForge metric families:
 
@@ -260,6 +261,30 @@ The Windows hosts-file helper includes `auth.vdiforge.local`, `api.vdiforge.loca
 - API Kubernetes API egress is enabled in Phase 8 for authorized remote credential reads.
 - Guacamole and `guacd` disable Kubernetes ServiceAccount token mounting.
 - The Phase 10 load-test endpoint is disabled by default and requires the same bearer-token authentication as other protected API endpoints.
+
+## Phase 12 Security Hardening
+
+Phase 12 adds these backend controls:
+
+- security headers on API responses through `backend/app/security/headers.py`
+- CORS restricted to configured portal origins rather than wildcard authenticated access
+- in-process rate limiting for desktop launch, connect, start, stop, and delete operations
+- UUID validation for desktop path parameters
+- format validation for image IDs, image versions, resource profiles, idempotency keys, and display names
+- centralized text redaction in application logging
+- audit-detail redaction before persistence
+- tamper-evident audit fields `previous_event_hash` and `event_hash`
+- admin-only JSON Lines audit export at `/api/v1/audit-events/export`
+
+The rate limiter is intentionally local to each API process. It demonstrates abuse resistance in the lab together with quotas and idempotency, but a production deployment with multiple API replicas would need a shared limiter, ingress policy, or gateway control.
+
+Phase 12 validation lives in:
+
+```text
+scripts/phase12-api-security-test.py
+scripts/validate-phase12.ps1
+scripts/validate-phase12-live.sh
+```
 
 ## Validation
 
@@ -326,6 +351,20 @@ Phase 11 live validation adds:
 - safe Phase 10 load visibility in Prometheus
 - controlled desktop lifecycle metrics and cleanup
 
+Phase 12 live validation adds:
+
+- API version `0.12.0` rollout
+- security header and CORS validation
+- missing/tampered token denial
+- unsafe input and malformed UUID denial
+- high-impact operation rate-limit tests
+- cross-user desktop and connect denial
+- admin-only audit read/export validation
+- audit hash-chain metadata and redaction checks
+- RBAC and NetworkPolicy negative tests
+- dependency and custom container scans
+- full browser VDI lifecycle regression after hardening
+
 The final Phase 7 live validation passed with Helm release revision `56`, KubeVirt hardware acceleration classified as `KUBEVIRT_KVM_VERIFIED`, and the disposable desktop VM scheduled on `vdi-worker-02` with a `devices.kubevirt.io/kvm` request. Phase 8 and later validators recheck the same KVM path for remote-enabled desktops and cluster regression.
 
 ## Limitations
@@ -333,6 +372,8 @@ The final Phase 7 live validation passed with Helm release revision `56`, KubeVi
 - Only `ubuntu-devops` is launchable in the current lab; Phase 9 defaults new launches to `ubuntu-devops:1.2.0`.
 - The source golden PVC consumes local-path storage and is not physically highly available.
 - The API and provisioner expose Phase 11 Prometheus metrics. Prometheus/Grafana do not replace persistent audit events or structured application logs.
+- Phase 12 audit hash chaining is tamper-evident within PostgreSQL, not an immutable external audit store.
+- Phase 12 rate limiting is per API pod under HPA.
 - Provisioner HPA remains deferred until reconciliation concurrency has leader election or database-backed work claiming.
 - Browser remote desktop delivery is available through Guacamole, and Phase 9 adds the React Connect UI.
 - The API image is a local lab image imported into containerd on `vdi-worker-01`; a registry workflow is deferred.

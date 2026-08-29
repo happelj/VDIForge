@@ -217,6 +217,16 @@ The VDIForge chart creates `PrometheusRule` `vdiforge-alerts` with:
 
 Alertmanager is deployed but no external notification receiver is configured in Phase 11. That keeps the lab free and avoids committing notification credentials.
 
+## Phase 12 Security Review
+
+Phase 12 does not replace the Phase 11 observability architecture. It hardens and validates it:
+
+- Grafana local values set security options for content-type protection, HSTS, CSP, secure cookies, and embedding prevention where compatible.
+- Traefik applies a Grafana security-header middleware at `grafana.vdiforge.local`.
+- Metrics are scanned to avoid usernames, token subjects, request IDs, desktop IDs, raw URLs, and credentials in labels.
+- Grafana remains a telemetry UI, not the source of audit truth.
+- Audit export remains in the VDIForge API as admin-only JSON Lines.
+
 ## Validation
 
 Static validation from the Windows repository checkout:
@@ -270,3 +280,4 @@ If Prometheus lacks VDIForge targets, verify the ServiceMonitors exist, the serv
 - Alertmanager has no external receiver in this phase.
 - Remote-session active metrics are approximate because Guacamole disconnect telemetry is not yet durable.
 - Prometheus/Grafana do not replace structured application logs or persistent audit events.
+- Phase 12 still does not deploy a SIEM or external log aggregation pipeline.

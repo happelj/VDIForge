@@ -1,0 +1,32 @@
+{{- if and .Values.securityHeaders.enabled .Values.securityHeaders.traefikMiddleware.enabled }}
+{{- $root := . }}
+{{- $defaults := .Values.securityHeaders.traefikMiddleware.defaults }}
+{{- range $service, $config := .Values.securityHeaders.traefikMiddleware.services }}
+{{- if $config.enabled }}
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ $config.name }}
+  namespace: {{ required (printf "securityHeaders.traefikMiddleware.services.%s.namespaceKey must reference a namespace value" $service) (get $root.Values.namespaces $config.namespaceKey) }}
+  labels:
+    {{- include "vdiforge.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: security-headers
+spec:
+  headers:
+    contentTypeNosniff: {{ $defaults.contentTypeNosniff }}
+    forceSTSHeader: {{ $defaults.forceSTSHeader }}
+    stsSeconds: {{ $defaults.stsSeconds }}
+    stsIncludeSubdomains: {{ $defaults.stsIncludeSubdomains }}
+    stsPreload: {{ $defaults.stsPreload }}
+    referrerPolicy: {{ $defaults.referrerPolicy | quote }}
+    permissionsPolicy: {{ default $defaults.permissionsPolicy $config.permissionsPolicy | quote }}
+    {{- with $config.customFrameOptionsValue }}
+    customFrameOptionsValue: {{ . | quote }}
+    {{- end }}
+    {{- with $config.contentSecurityPolicy }}
+    contentSecurityPolicy: {{ . | quote }}
+    {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
