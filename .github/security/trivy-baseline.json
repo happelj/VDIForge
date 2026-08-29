@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "vdiforge.io/ci/trivy-baseline/v1",
+  "source": "Phase 12 accepted vulnerability baseline for VDIForge-owned custom images",
+  "expires": "2026-12-31",
+  "policy": "Fail CI when a custom image has more critical or high vulnerabilities than the accepted Phase 12 baseline. The baseline must be reviewed before the expiration date.",
+  "components": {
+    "api": {
+      "critical": 7,
+      "high": 37
+    },
+    "frontend": {
+      "critical": 0,
+      "high": 12
+    }
+  }
+}

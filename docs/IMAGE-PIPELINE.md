@@ -165,6 +165,8 @@ Every promoted image must pass:
 - guest user and session behavior match the MVP design
 - image metadata includes name, version, source, build time, and commit reference
 
+Phase 13 adds CI-safe Packer validation through GitHub Actions. The pipeline runs `packer init`, `packer fmt -check`, and `packer validate` for the three image templates, but it does not build full QCOW2 artifacts on ordinary pull requests. Full image builds remain local/manual because they require KVM, large disk artifacts, and the VDIForge image build environment.
+
 Example validation commands for `ubuntu-devops`:
 
 ```bash
@@ -242,5 +244,5 @@ KUBEVIRT_KVM_VERIFIED
 ## Open Questions
 
 - Should the MVP support persistent home directories or treat desktops as disposable?
-- Which vulnerability scanner will be used in CI without requiring paid services?
+- Should Phase 14 use GHCR-published images for the final demo or continue the current local image import path?
 - Whether future image builds should move from `vdi-worker-02` to a dedicated Linux/KVM build host.

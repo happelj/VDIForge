@@ -1,6 +1,6 @@
 # VDIForge Architecture
 
-This document contains architecture views for VDIForge. The local VirtualBox infrastructure, Kubernetes/KubeVirt foundation, Helm platform foundation, Keycloak identity foundation, golden-image pipeline, FastAPI control plane, Guacamole remote desktop flow, React portal, API HPA autoscaling, and Prometheus/Grafana observability reflect Phases 2 through 11.
+This document contains architecture views for VDIForge. The local VirtualBox infrastructure, Kubernetes/KubeVirt foundation, Helm platform foundation, Keycloak identity foundation, golden-image pipeline, FastAPI control plane, Guacamole remote desktop flow, React portal, API HPA autoscaling, Prometheus/Grafana observability, security hardening, and CI/CD pipeline reflect Phases 2 through 13.
 
 ## System Context
 
@@ -492,3 +492,36 @@ flowchart TB
 ```
 
 Phase 12 adds security headers, restricted CORS validation, input validation, redaction, API rate limiting, admin-only audit export, audit hash chaining, RBAC checks, NetworkPolicy checks, and dependency/container scans. It does not introduce a SIEM, external secrets manager, WAF, service mesh, or CI/CD workflow.
+
+## CI/CD Pipeline
+
+```mermaid
+flowchart TB
+  Dev[Developer branch or pull request]
+  Main[main branch]
+  Tag[Semantic release tag<br/>vX.Y.Z]
+  CI[GitHub Actions CI]
+  Backend[Backend<br/>Ruff, pytest, Alembic]
+  Frontend[Frontend<br/>npm ci, lint, tests, build]
+  Infra[Static infrastructure<br/>Terraform, Ansible, Packer]
+  Helm[Helm render<br/>kubeconform manifests]
+  Security[Security scans<br/>Gitleaks, pip-audit, npm audit, Trivy]
+  Containers[Buildx images<br/>API and frontend]
+  SBOM[SBOM artifacts<br/>CycloneDX]
+  GHCR[GitHub Container Registry]
+  LocalLab[Developer-controlled local lab<br/>VirtualBox, Kubernetes, KubeVirt, Guacamole]
+
+  Dev --> CI
+  Main --> CI
+  CI --> Backend
+  CI --> Frontend
+  CI --> Infra
+  CI --> Helm
+  CI --> Security
+  CI --> Containers
+  Containers --> SBOM
+  Tag --> GHCR
+  CI -. no automatic deployment .-> LocalLab
+```
+
+Phase 13 GitHub Actions validates code, infrastructure definitions, Helm manifests, security posture, and custom container images without connecting to the home lab. Full KubeVirt VM lifecycle, Guacamole/xrdp browser sessions, local TLS/DNS, and QCOW2 golden-image builds remain explicit local/manual validation paths.

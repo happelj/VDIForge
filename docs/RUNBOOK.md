@@ -691,3 +691,23 @@ This runbook defines troubleshooting procedures for the VDIForge local lab and p
 | Diagnostics | Review [Security Hardening](SECURITY-HARDENING.md) secret inventory; list Secret metadata with `scripts/phase12-inventory.sh`; never decode and paste secret values into tickets or docs. |
 | Remediation | Generate replacements outside Git, update the matching Kubernetes Secret, restart affected pods, and rerun the relevant Phase 12 live checks. For per-desktop xrdp credentials, prefer deleting and relaunching the desktop. |
 | Logs/metrics | Pod rollout status, readiness checks, OIDC discovery, API readiness, Guacamole connection tests. |
+
+## GitHub Actions CI Failure
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | A pull request or push to `main` reports a failed `CI`, `Infrastructure validation`, `Security validation`, `Container images`, or `Phase 1 validation` workflow. |
+| Likely causes | Lint/test failure, migration issue, invalid workflow syntax, dependency advisory, secret-scan finding, image vulnerability above baseline, malformed Helm/Kubernetes manifest. |
+| Diagnostics | Open the failed GitHub Actions run, inspect the failed job summary, then reproduce locally with `.\scripts\ci-local.ps1` or the specific command shown in [CI/CD Pipeline](CI-CD.md). |
+| Remediation | Fix the failing source-controlled input and push a new commit. Do not disable a CI check or broaden an allowlist unless the false positive is documented and narrowly scoped. |
+| Logs/metrics | GitHub Actions job logs, uploaded scan reports, rendered Helm artifacts, local terminal output. |
+
+## Container Scan Baseline Failure
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | The `Container images` workflow fails in `check-trivy-baseline.py`. |
+| Likely causes | A new high/critical vulnerability was introduced, Trivy reclassified an existing finding, or the accepted Phase 12 baseline expired. |
+| Diagnostics | Download the Trivy JSON artifact, compare counts against `.github/security/trivy-baseline.json`, and review affected package versions. |
+| Remediation | Patch the base image or dependency where practical. If the finding is accepted temporarily, update the baseline with a clear reason and future review date. |
+| Logs/metrics | Trivy JSON artifact, GitHub Actions summary, Dependabot update PRs. |

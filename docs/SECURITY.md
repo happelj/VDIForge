@@ -1,6 +1,6 @@
 # Security Model
 
-This document defines the VDIForge threat model and security controls. Phase 2 local infrastructure controls, Phase 3 Kubernetes foundation controls, Phase 4 Helm platform controls, Phase 5 identity controls, Phase 6 image-pipeline controls, Phase 7 FastAPI control-plane controls, Phase 8 Guacamole remote desktop controls, Phase 9 React portal controls, Phase 10 API autoscaling controls, Phase 11 Prometheus/Grafana observability controls, and Phase 12 security/audit hardening controls apply to the current lab.
+This document defines the VDIForge threat model and security controls. Phase 2 local infrastructure controls, Phase 3 Kubernetes foundation controls, Phase 4 Helm platform controls, Phase 5 identity controls, Phase 6 image-pipeline controls, Phase 7 FastAPI control-plane controls, Phase 8 Guacamole remote desktop controls, Phase 9 React portal controls, Phase 10 API autoscaling controls, Phase 11 Prometheus/Grafana observability controls, Phase 12 security/audit hardening controls, and Phase 13 CI/CD controls apply to the current lab and repository.
 
 ## Security Objectives
 
@@ -42,6 +42,7 @@ This document defines the VDIForge threat model and security controls. Phase 2 l
 | Lateral movement | Desktop reaches Keycloak admin, database, monitoring admin, or platform APIs. | Default-deny NetworkPolicies and explicit allow paths. |
 | Denial of service | User launches too many desktops or load test creates desktops. | Quotas, resource profiles, admission checks, HPA load test isolated from provisioning. |
 | Audit-log tampering | Admin action deletes or modifies audit records. | Append-oriented public API behavior, admin-only audit read/export, tamper-evident hash chaining, restricted DB access, future SIEM forwarding. |
+| CI credential leakage | Workflow logs or artifacts expose tokens, kubeconfigs, CA keys, or local-lab credentials. | Read-only PR permissions, no live-lab credentials in GitHub Actions, secret scanning, short artifact retention, release-only package write permission. |
 
 ## Authentication Controls
 
@@ -338,6 +339,22 @@ Phase 12 adds these security-relevant controls:
 
 Phase 12 intentionally does not deploy a SIEM, external secret manager, enterprise WAF, cloud KMS, Vault cluster, final GitHub Actions CI/CD workflow, or Phase 14 demo polish.
 
+## Phase 13 CI/CD Security
+
+Phase 13 adds these repository and pipeline controls:
+
+- pull-request and `main` validation workflows use read-only repository permissions;
+- release publishing is the only workflow with `packages: write` and `id-token: write`;
+- workflows avoid `pull_request_target` so forked pull requests do not run with privileged credentials;
+- GitHub Actions does not receive local kubeconfigs, TLS private keys, local CA material, Keycloak secrets, database passwords, or home-lab SSH keys;
+- Gitleaks scans repository history and current content for committed secrets;
+- dependency and container scans run through pip-audit, npm audit, and Trivy;
+- custom image Trivy scans fail when high/critical findings exceed the accepted Phase 12 baseline;
+- SBOM artifacts are generated for VDIForge-owned custom container images with short retention;
+- normal CI builds and scans container images but does not push them to a registry.
+
+See [CI/CD Pipeline](CI-CD.md) and [ADR 0023](ADR/0023-github-actions-cicd-boundary.md).
+
 ## Secret Handling
 
 Secrets that must not be committed:
@@ -424,5 +441,6 @@ The MVP can store audit events in PostgreSQL with restricted write behavior. Fut
 - Detailed browser disconnect telemetry is not yet implemented.
 - Strong tenant isolation is limited in an MVP single-cluster design.
 - Local storage failures may affect desktop disk durability.
+- GitHub Actions CI cannot prove the live VirtualBox/KubeVirt/Guacamole path; live-lab validation remains manual and must be preserved for Phase 14.
 
 These risks are acceptable for the portfolio MVP if they remain documented and are validated during later phases.

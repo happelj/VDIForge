@@ -1,0 +1,114 @@
+name: Container images
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: containers-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  custom-images:
+    name: Build, scan, and SBOM for custom images
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build API image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: backend/Dockerfile
+          load: true
+          push: false
+          provenance: false
+          tags: vdiforge-api:ci-${{ github.sha }}
+
+      - name: Build frontend image
+        uses: docker/build-push-action@v7
+        with:
+          context: frontend
+          file: frontend/Dockerfile
+          load: true
+          push: false
+          provenance: false
+          tags: vdiforge-frontend:ci-${{ github.sha }}
+
+      - name: Create report directories
+        run: mkdir -p reports/trivy reports/sbom
+
+      - name: Scan API image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: vdiforge-api:ci-${{ github.sha }}
+          format: json
+          output: reports/trivy/vdiforge-api.json
+          severity: HIGH,CRITICAL
+          exit-code: "0"
+          ignore-unfixed: true
+
+      - name: Check API vulnerability baseline
+        run: python scripts/ci/check-trivy-baseline.py --component api --report reports/trivy/vdiforge-api.json --baseline .github/security/trivy-baseline.json
+
+      - name: Scan frontend image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: vdiforge-frontend:ci-${{ github.sha }}
+          format: json
+          output: reports/trivy/vdiforge-frontend.json
+          severity: HIGH,CRITICAL
+          exit-code: "0"
+          ignore-unfixed: true
+
+      - name: Check frontend vulnerability baseline
+        run: python scripts/ci/check-trivy-baseline.py --component frontend --report reports/trivy/vdiforge-frontend.json --baseline .github/security/trivy-baseline.json
+
+      - name: Generate API SBOM
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: vdiforge-api:ci-${{ github.sha }}
+          format: cyclonedx
+          output: reports/sbom/vdiforge-api.cdx.json
+          exit-code: "0"
+
+      - name: Generate frontend SBOM
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: vdiforge-frontend:ci-${{ github.sha }}
+          format: cyclonedx
+          output: reports/sbom/vdiforge-frontend.cdx.json
+          exit-code: "0"
+
+      - name: Upload container reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: container-security-and-sbom
+          path: |
+            reports/trivy
+            reports/sbom
+          retention-days: 14
+
+      - name: Write container summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "### Container Images"
+            echo
+            echo "- API and frontend images built with Docker Buildx."
+            echo "- PR/main jobs do not push images to a registry."
+            echo "- Trivy scans are checked against the Phase 12 accepted vulnerability baseline."
+            echo "- CycloneDX SBOMs are uploaded as short-retention artifacts."
+          } >> "$GITHUB_STEP_SUMMARY"

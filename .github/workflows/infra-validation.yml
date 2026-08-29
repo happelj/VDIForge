@@ -1,0 +1,152 @@
+name: Infrastructure validation
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: infra-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.13"
+  TERRAFORM_VERSION: "1.15.9"
+  PACKER_VERSION: "1.16.0"
+  HELM_VERSION: "v4.2.4"
+  KUBECONFORM_VERSION: "v0.7.0"
+  KUBERNETES_VERSION: "1.36.4"
+  ANSIBLE_CORE_VERSION: "2.21.3"
+  ANSIBLE_LINT_VERSION: "26.8.0"
+  ANSIBLE_CONFIG: ansible/ansible.cfg
+
+jobs:
+  infrastructure:
+    name: Terraform, Ansible, Packer, Helm, and manifests
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.25"
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Set up Packer
+        uses: hashicorp/setup-packer@v3
+        with:
+          version: ${{ env.PACKER_VERSION }}
+
+      - name: Install Ansible tools
+        run: |
+          python -m pip install ansible-core==${ANSIBLE_CORE_VERSION} ansible-lint==${ANSIBLE_LINT_VERSION}
+
+      - name: Install Helm
+        run: bash scripts/install-helm-client.sh
+
+      - name: Install kubeconform
+        run: go install github.com/yannh/kubeconform/cmd/kubeconform@${KUBECONFORM_VERSION}
+
+      - name: Terraform fmt
+        run: terraform fmt -check -recursive terraform
+
+      - name: Terraform validate local environment
+        run: |
+          terraform -chdir=terraform/environments/local init -backend=false
+          terraform -chdir=terraform/environments/local validate
+
+      - name: Ansible syntax checks
+        run: |
+          ansible-playbook -i ansible/inventory/local/hosts.yml ansible/playbooks/baseline.yml --syntax-check
+          ansible-playbook -i ansible/inventory/local/hosts.yml ansible/playbooks/kubernetes.yml --syntax-check
+          ansible-playbook -i ansible/inventory/local/hosts.yml ansible/playbooks/phase3.yml --syntax-check
+          ansible-playbook -i ansible/inventory/local/hosts.yml ansible/playbooks/cluster-addons.yml --syntax-check
+          ansible-playbook -i localhost, -c local ansible/playbooks/image-ubuntu-base.yml --syntax-check
+          ansible-playbook -i localhost, -c local ansible/playbooks/image-ubuntu-developer.yml --syntax-check
+          ansible-playbook -i localhost, -c local ansible/playbooks/image-ubuntu-devops.yml --syntax-check
+
+      - name: Ansible lint
+        run: ansible-lint ansible
+
+      - name: Packer fmt and validate
+        run: |
+          mkdir -p .local/phase13
+          key_path="${PWD}/.local/phase13/packer_ed25519"
+          touch "${key_path}"
+          for image in ubuntu-base ubuntu-developer ubuntu-devops; do
+            var_file=".local/phase13/${image}.pkrvars.hcl"
+            cat > "${var_file}" <<EOF
+          ssh_private_key_file = "${key_path}"
+          output_directory    = "${PWD}/.local/phase13/${image}"
+          headless            = true
+          EOF
+            packer init "packer/${image}"
+            packer fmt -check "packer/${image}"
+            packer validate -var-file="${var_file}" "packer/${image}"
+          done
+
+      - name: Helm lint and render
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          mkdir -p reports/helm
+          helm lint ./helm/vdiforge -f ./helm/vdiforge/values-local.yaml
+          helm lint ./helm/vdiforge -f ./helm/vdiforge/values-phase12-local.yaml
+          helm template vdiforge ./helm/vdiforge \
+            --namespace vdiforge-system \
+            --kube-version "${KUBERNETES_VERSION}" \
+            -f ./helm/vdiforge/values-phase12-local.yaml \
+            > reports/helm/vdiforge-rendered.yaml
+
+      - name: Kubernetes manifest validation
+        run: |
+          kubeconform \
+            -kubernetes-version "${KUBERNETES_VERSION}" \
+            -strict \
+            -summary \
+            -ignore-missing-schemas \
+            reports/helm/vdiforge-rendered.yaml
+          find kubernetes -type f \( -name '*.yaml' -o -name '*.yml' \) -print0 \
+            | xargs -0 kubeconform \
+                -kubernetes-version "${KUBERNETES_VERSION}" \
+                -strict \
+                -summary \
+                -ignore-missing-schemas
+
+      - name: Upload rendered manifests
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: helm-rendered-manifests
+          path: reports/helm
+          retention-days: 7
+
+      - name: Write infrastructure summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "### Infrastructure CI"
+            echo
+            echo "- Terraform ${TERRAFORM_VERSION}: fmt and validate completed."
+            echo "- Ansible ${ANSIBLE_CORE_VERSION} / ansible-lint ${ANSIBLE_LINT_VERSION}: syntax and lint completed."
+            echo "- Packer ${PACKER_VERSION}: fmt, init, and validate completed."
+            echo "- Helm ${HELM_VERSION}: lint and template completed."
+            echo "- kubeconform ${KUBECONFORM_VERSION}: rendered and raw manifest validation completed."
+          } >> "$GITHUB_STEP_SUMMARY"
