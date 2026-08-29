@@ -28,9 +28,16 @@ require_package ca-certificates
 require_package xfce4
 require_package xrdp
 require_package xorgxrdp
+require_command ss
 
 ip route get 1.1.1.1 >/dev/null || fail "network route validation failed"
 systemctl is-enabled qemu-guest-agent >/dev/null || fail "qemu-guest-agent is not enabled"
+systemctl is-enabled xrdp >/dev/null || fail "xrdp is not enabled"
+systemctl is-active xrdp >/dev/null || fail "xrdp is not active"
+ss -ltn | awk '{print $4}' | grep -Eq '(^|:|\])3389$' || fail "xrdp is not listening on TCP/3389"
+[[ -f /etc/skel/.xsession ]] || fail "/etc/skel/.xsession is missing"
+grep -qx "startxfce4" /etc/skel/.xsession || fail "XFCE skeleton session is not configured"
+! getent passwd vdiforge >/dev/null || fail "golden image must not include the runtime vdiforge desktop user"
 
 if [[ "${IMAGE_NAME}" == "ubuntu-developer" || "${IMAGE_NAME}" == "ubuntu-devops" ]]; then
   require_command git

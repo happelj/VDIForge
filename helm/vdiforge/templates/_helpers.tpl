@@ -55,6 +55,10 @@ app.kubernetes.io/part-of: vdiforge
 {{- required "namespaces.identity is required" .Values.namespaces.identity -}}
 {{- end -}}
 
+{{- define "vdiforge.namespace.remoteAccess" -}}
+{{- required "namespaces.remoteAccess is required" .Values.namespaces.remoteAccess -}}
+{{- end -}}
+
 {{- define "vdiforge.serviceAccount.apiName" -}}
 {{- required "serviceAccounts.api.name is required" .Values.serviceAccounts.api.name -}}
 {{- end -}}
@@ -192,5 +196,53 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{ toYaml .Values.keycloak.postgresql.volumeClaimTemplateLabels }}
 {{- else }}
 {{ include "vdiforge.keycloak.postgresqlLabels" . }}
+{{- end }}
+{{- end -}}
+
+{{- define "vdiforge.guacamole.name" -}}
+{{- required "guacamole.name is required" .Values.guacamole.name -}}
+{{- end -}}
+
+{{- define "vdiforge.guacamole.guacdName" -}}
+{{- required "guacamole.guacd.name is required" .Values.guacamole.guacd.name -}}
+{{- end -}}
+
+{{- define "vdiforge.guacamole.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "vdiforge.guacamole.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: remote-access
+app.kubernetes.io/part-of: vdiforge
+{{- end -}}
+
+{{- define "vdiforge.guacamole.labels" -}}
+helm.sh/chart: {{ include "vdiforge.chart" . }}
+app.kubernetes.io/name: {{ include "vdiforge.guacamole.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+app.kubernetes.io/component: remote-access
+app.kubernetes.io/part-of: vdiforge
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- with .Values.global.labels }}
+{{ toYaml . }}
+{{- end }}
+{{- end -}}
+
+{{- define "vdiforge.guacamole.guacdSelectorLabels" -}}
+app.kubernetes.io/name: {{ include "vdiforge.guacamole.guacdName" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: guacd
+app.kubernetes.io/part-of: vdiforge
+{{- end -}}
+
+{{- define "vdiforge.guacamole.guacdLabels" -}}
+helm.sh/chart: {{ include "vdiforge.chart" . }}
+app.kubernetes.io/name: {{ include "vdiforge.guacamole.guacdName" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+app.kubernetes.io/component: guacd
+app.kubernetes.io/part-of: vdiforge
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- with .Values.global.labels }}
+{{ toYaml . }}
 {{- end }}
 {{- end -}}

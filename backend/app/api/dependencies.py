@@ -10,6 +10,7 @@ from app.api.errors import ApiError
 from app.auth.claims import AuthenticatedUser
 from app.auth.jwt import JwtValidationError, JwtVerifier
 from app.config.settings import Settings, get_settings
+from app.services.remote_access import RemoteAccessService
 
 bearer_scheme = HTTPBearer(auto_error=False)
 BearerCredentials = Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)]
@@ -22,6 +23,10 @@ def get_jwt_verifier() -> JwtVerifier:
 
 def current_settings() -> Settings:
     return get_settings()
+
+
+def get_remote_access_service(settings: Annotated[Settings, Depends(current_settings)]) -> RemoteAccessService:
+    return RemoteAccessService(settings)
 
 
 def get_current_user(credentials: BearerCredentials) -> AuthenticatedUser:

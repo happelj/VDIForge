@@ -9,6 +9,9 @@ VERSION="${VDIFORGE_IMAGE_VERSION:-1.0.0}"
 ARTIFACT_ROOT="${VDIFORGE_ARTIFACT_ROOT:-${ROOT_DIR}/artifacts/images}"
 KEY_DIR="${ROOT_DIR}/.local/phase6"
 KEY_PATH="${KEY_DIR}/packer_ed25519"
+IMAGE_DISK_SIZE="${VDIFORGE_IMAGE_DISK_SIZE:-24G}"
+IMAGE_MEMORY="${VDIFORGE_IMAGE_MEMORY:-3072}"
+IMAGE_CPUS="${VDIFORGE_IMAGE_CPUS:-2}"
 
 fail() {
   echo "FAIL: $*" >&2
@@ -51,6 +54,9 @@ artifact_root = "${ARTIFACT_ROOT}"
 ssh_private_key_file = "${KEY_PATH}"
 ssh_public_key = "${SSH_PUBLIC_KEY}"
 build_username = "packer"
+disk_size = "${IMAGE_DISK_SIZE}"
+memory = ${IMAGE_MEMORY}
+cpus = ${IMAGE_CPUS}
 EOF
 
 cat >"${VALIDATE_VAR_FILE}" <<EOF
@@ -59,6 +65,9 @@ artifact_root = "${VALIDATE_ARTIFACT_ROOT}"
 ssh_private_key_file = "${KEY_PATH}"
 ssh_public_key = "${SSH_PUBLIC_KEY}"
 build_username = "packer"
+disk_size = "${IMAGE_DISK_SIZE}"
+memory = ${IMAGE_MEMORY}
+cpus = ${IMAGE_CPUS}
 EOF
 
 export PATH="${HOME}/.local/bin:${PATH}"

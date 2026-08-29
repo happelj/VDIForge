@@ -77,6 +77,25 @@ spec:
               value: /var/run/vdiforge/keycloak-ca/{{ .Values.api.env.keycloakCaKey }}
             - name: VDIFORGE_IMAGE_CATALOG_PATH
               value: {{ .Values.api.env.imageCatalogPath | quote }}
+            - name: VDIFORGE_DESKTOPS_NAMESPACE
+              value: {{ .Values.api.env.desktopsNamespace | quote }}
+            - name: VDIFORGE_GUACAMOLE_BASE_URL
+              value: {{ .Values.api.env.guacamoleBaseUrl | quote }}
+            - name: VDIFORGE_GUACAMOLE_JSON_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.api.env.guacamoleJsonSecretName }}
+                  key: {{ .Values.api.env.guacamoleJsonSecretKey }}
+            - name: VDIFORGE_REMOTE_SESSION_TTL_SECONDS
+              value: {{ .Values.api.env.remoteSessionTtlSeconds | quote }}
+            - name: VDIFORGE_REMOTE_DESKTOP_PROTOCOL
+              value: {{ .Values.api.env.remoteDesktopProtocol | quote }}
+            - name: VDIFORGE_REMOTE_DESKTOP_PORT
+              value: {{ .Values.api.env.remoteDesktopPort | quote }}
+            - name: VDIFORGE_GUACAMOLE_RDP_SECURITY
+              value: {{ .Values.api.env.guacamoleRdpSecurity | quote }}
+            - name: VDIFORGE_GUACAMOLE_RDP_SERVER_LAYOUT
+              value: {{ .Values.api.env.guacamoleRdpServerLayout | quote }}
           volumeMounts:
             - name: keycloak-ca
               mountPath: /var/run/vdiforge/keycloak-ca

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import base64
+import secrets
+import socket
 from typing import Any
 
 from kubernetes import client, config
@@ -20,6 +23,9 @@ class KubeVirtClient:
         self.custom = client.CustomObjectsApi()
         self.core = client.CoreV1Api()
 
+    def remote_secret_name(self, desktop: Desktop) -> str:
+        return f"{desktop.kubevirt_vm_name}-remote"
+
     def source_pvc_exists(self, name: str) -> bool:
         try:
             self.core.read_namespaced_persistent_volume_claim(name, self.settings.desktops_namespace)
@@ -28,6 +34,44 @@ class KubeVirtClient:
             if exc.status == 404:
                 return False
             raise
+
+    def ensure_remote_access_secret(self, desktop: Desktop) -> None:
+        name = self.remote_secret_name(desktop)
+        try:
+            self.core.read_namespaced_secret(name, self.settings.desktops_namespace)
+            return
+        except ApiException as exc:
+            if exc.status != 404:
+                raise
+
+        username = self.settings.default_vm_user
+        password = secrets.token_urlsafe(32)
+        secret = client.V1Secret(
+            metadata=client.V1ObjectMeta(
+                name=name,
+                namespace=self.settings.desktops_namespace,
+                labels={**self._labels(desktop), "app.kubernetes.io/component": "desktop-credential"},
+            ),
+            type="Opaque",
+            string_data={
+                "username": username,
+                "password": password,
+                "userdata": self._cloud_init(username, password),
+            },
+        )
+        self.core.create_namespaced_secret(self.settings.desktops_namespace, secret)
+
+    def read_remote_credentials(self, desktop: Desktop):
+        from app.services.remote_access import RemoteCredentials
+
+        secret = self.core.read_namespaced_secret(self.remote_secret_name(desktop), self.settings.desktops_namespace)
+        data = secret.data or {}
+        try:
+            username = base64.b64decode(data["username"]).decode("utf-8")
+            password = base64.b64decode(data["password"]).decode("utf-8")
+        except KeyError as exc:
+            raise RuntimeError("remote access secret is missing required data") from exc
+        return RemoteCredentials(username=username, password=password)
 
     def ensure_data_volume(self, desktop: Desktop, profile: ResourceProfile) -> None:
         if self._object_exists("cdi.kubevirt.io", "v1beta1", "datavolumes", desktop.kubevirt_data_volume_name):
@@ -70,6 +114,7 @@ class KubeVirtClient:
         return any(condition.get("type") == "Ready" and condition.get("status") == "True" for condition in conditions)
 
     def ensure_vm(self, desktop: Desktop, profile: ResourceProfile) -> None:
+        self.ensure_remote_access_secret(desktop)
         if self._object_exists("kubevirt.io", "v1", "virtualmachines", desktop.kubevirt_vm_name):
             return
         self.custom.create_namespaced_custom_object(
@@ -120,6 +165,14 @@ class KubeVirtClient:
         conditions = vmi.get("status", {}).get("conditions", [])
         return any(condition.get("type") == "Ready" and condition.get("status") == "True" for condition in conditions)
 
+    def remote_desktop_reachable(self, desktop: Desktop) -> bool:
+        host = f"{desktop.kubevirt_service_name}.{self.settings.desktops_namespace}.svc.cluster.local"
+        try:
+            with socket.create_connection((host, self.settings.remote_desktop_port), timeout=2):
+                return True
+        except OSError:
+            return False
+
     def vmi_exists(self, name: str) -> bool:
         return self._object_exists("kubevirt.io", "v1", "virtualmachineinstances", name)
 
@@ -128,12 +181,14 @@ class KubeVirtClient:
         self._delete_custom_object("kubevirt.io", "v1", "virtualmachines", desktop.kubevirt_vm_name)
         self._delete_custom_object("cdi.kubevirt.io", "v1beta1", "datavolumes", desktop.kubevirt_data_volume_name)
         self._delete_pvc(desktop.kubevirt_data_volume_name)
+        self._delete_secret(self.remote_secret_name(desktop))
 
     def desktop_resources_deleted(self, desktop: Desktop) -> bool:
         return (
             not self._object_exists("kubevirt.io", "v1", "virtualmachines", desktop.kubevirt_vm_name)
             and not self._object_exists("cdi.kubevirt.io", "v1beta1", "datavolumes", desktop.kubevirt_data_volume_name)
             and not self._pvc_exists(desktop.kubevirt_data_volume_name)
+            and not self._secret_exists(self.remote_secret_name(desktop))
         )
 
     def _vm_body(self, desktop: Desktop, profile: ResourceProfile) -> dict[str, Any]:
@@ -172,7 +227,7 @@ class KubeVirtClient:
                             },
                             {
                                 "name": "cloudinitdisk",
-                                "cloudInitNoCloud": {"userData": self._cloud_init()},
+                                "cloudInitNoCloud": {"secretRef": {"name": self.remote_secret_name(desktop)}},
                             },
                         ],
                     },
@@ -180,20 +235,33 @@ class KubeVirtClient:
             },
         }
 
-    def _cloud_init(self) -> str:
+    def _cloud_init(self, username: str, password: str) -> str:
         return f"""#cloud-config
 users:
-  - name: {self.settings.default_vm_user}
+  - name: {username}
+    gecos: VDIForge Desktop User
     groups:
       - sudo
     shell: /bin/bash
-    lock_passwd: true
+    lock_passwd: false
     sudo:
-      - ALL=(ALL) NOPASSWD:ALL
+      - ALL=(ALL) ALL
     ssh_authorized_keys:
       - {self.settings.default_ssh_public_key}
+chpasswd:
+  expire: false
+  list: |
+    {username}:{password}
 ssh_pwauth: false
 disable_root: true
+write_files:
+  - path: /home/{username}/.xsession
+    owner: {username}:{username}
+    permissions: '0644'
+    content: |
+      startxfce4
+runcmd:
+  - [systemctl, enable, --now, xrdp]
 """
 
     def _labels(self, desktop: Desktop) -> dict[str, str]:
@@ -257,9 +325,25 @@ disable_root: true
                 return False
             raise
 
+    def _secret_exists(self, name: str) -> bool:
+        try:
+            self.core.read_namespaced_secret(name, self.settings.desktops_namespace)
+            return True
+        except ApiException as exc:
+            if exc.status == 404:
+                return False
+            raise
+
     def _delete_pvc(self, name: str) -> None:
         try:
             self.core.delete_namespaced_persistent_volume_claim(name, self.settings.desktops_namespace)
+        except ApiException as exc:
+            if exc.status != 404:
+                raise
+
+    def _delete_secret(self, name: str) -> None:
+        try:
+            self.core.delete_namespaced_secret(name, self.settings.desktops_namespace)
         except ApiException as exc:
             if exc.status != 404:
                 raise

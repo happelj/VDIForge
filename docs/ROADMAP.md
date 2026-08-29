@@ -13,7 +13,7 @@ This roadmap defines planned implementation phases. Do not begin a future phase 
 | 5 | Keycloak/OIDC/RBAC | Complete | Keycloak, PostgreSQL persistence, Traefik ingress, local TLS, realm import, demo users, PKCE/JWT/RBAC validation. |
 | 6 | Ubuntu/Packer image pipeline | Complete | Packer/QEMU image templates, Ansible image roles, image catalog, QCOW2 artifacts, CDI import, and KubeVirt boot validation. |
 | 7 | FastAPI VDI control plane | Complete | API, database models, desktop lifecycle, asynchronous provisioner, audit persistence, KubeVirt reconciliation. |
-| 8 | Guacamole remote desktop | Planned | Guacamole deployment, secure dynamic connection handling, RDP/VNC validation. |
+| 8 | Guacamole remote desktop | Complete | Guacamole deployment, secure dynamic connection handling, RDP validation. |
 | 9 | React self-service portal | Planned | Authenticated portal, image catalog, desktop launch, lifecycle, connect/delete UI. |
 | 10 | HPA/autoscaling | Planned | API/provisioner HPA, controlled load demo, capacity failure handling. |
 | 11 | Prometheus/Grafana | Planned | Metrics, dashboards, alerts, logging correlation. |
@@ -128,7 +128,26 @@ Completed outcomes:
 - validated unauthorized image access, idempotency, quota enforcement, ownership checks, admin audit access, KubeVirt placement on `vdi-worker-02`, KVM requests, stop/start/delete lifecycle, cleanup, and audit persistence
 - confirmed Phase 7 does not deploy Guacamole, React, Prometheus/Grafana, HPA, or browser remote desktop sessions
 
-Phase 7 validation requires the API/provisioner deployment to preserve Phase 3-6 health while proving a backend-requested `ubuntu-devops:1.0.0` desktop reaches KubeVirt `READY` on `vdi-worker-02` with KVM and cleans up after deletion.
+Phase 7 validation required the API/provisioner deployment to preserve Phase 3-6 health while proving a backend-requested `ubuntu-devops:1.0.0` desktop reaches KubeVirt `READY` on `vdi-worker-02` with KVM and cleans up after deletion.
+
+## Phase 8 - Guacamole Remote Desktop
+
+Completed outcomes:
+
+- selected Apache Guacamole `1.6.0` and `guacd` `1.6.0`
+- selected RDP through `xrdp` as the MVP remote desktop protocol
+- documented VNC as a fallback rather than an equivalent commercial VDI protocol
+- deployed Guacamole and `guacd` through the VDIForge Helm chart using `values-phase8-local.yaml`
+- exposed Guacamole at `https://remote.vdiforge.local` with generated local TLS
+- added `POST /api/v1/desktops/{id}/connect`
+- implemented short-lived encrypted Guacamole JSON-auth session brokering
+- created per-desktop generated remote credentials through Kubernetes Secrets consumed by KubeVirt cloud-init
+- promoted `ubuntu-devops:1.1.0` as the current remote-enabled launchable DevOps image version
+- validated internal RDP reachability from the `guacd` network position
+- validated cross-user and guessed-ID connection denial
+- validated stop, restart, reconnect, delete, and Secret cleanup behavior
+- recorded connection request and denial audit events without exposing passwords
+- confirmed Phase 8 does not implement React, Prometheus/Grafana, HPA, Guacamole user self-service connection management, or final CI/CD
 
 ## Future Enhancements
 
@@ -156,9 +175,9 @@ Potential future work after the MVP:
 The following are intentionally deferred:
 
 - exact Ansible controller path for routine operations after Phase 3
-- Guacamole dynamic connection implementation strategy for Phase 8
 - whether future image builds should move from `vdi-worker-02` to a dedicated Linux/KVM build host
 - remote desktop clipboard/file-transfer policy
+- detailed Guacamole connect/disconnect telemetry beyond API-side connection request audit events
 - exact security and dependency scanning tools
 - refresh-token handling strategy for the future React portal
 - whether the future API needs a separate confidential admin/service client

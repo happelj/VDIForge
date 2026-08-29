@@ -21,7 +21,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="VDIForge API",
         version=__version__,
-        description="FastAPI VDI control plane for VDIForge Phase 7.",
+        description="FastAPI VDI control plane and Guacamole session broker for VDIForge Phase 8.",
     )
 
     @app.middleware("http")

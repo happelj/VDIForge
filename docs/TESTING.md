@@ -14,7 +14,7 @@ VDIForge will use requirements-driven testing. Later phases should trace tests b
 
 ## Backend Tests
 
-Phase 7 Python tests cover:
+Phase 7 and Phase 8 Python tests cover:
 
 - model validation
 - API request validation
@@ -27,11 +27,14 @@ Phase 7 Python tests cover:
 - error response format
 - audit event creation
 - metrics output
+- Guacamole JSON-auth token generation
+- remote connection authorization and state denial
+- remote credential non-disclosure in API responses
 
-Run the Phase 7 backend checks through the repository validator:
+Run the current backend checks through the repository validator:
 
 ```powershell
-.\scripts\validate-phase7.ps1
+.\scripts\validate-phase8.ps1
 ```
 
 ## Frontend Tests
@@ -86,7 +89,7 @@ Required cases:
 - admin can view all desktops
 - frontend-supplied user ID or role is ignored
 
-Phase 5 implements the identity-provider side of these tests with `scripts/phase5-oidc-pkce-test.py`. Phase 7 adds backend API authorization tests and a live OIDC/API/KubeVirt workflow through `scripts/phase7-api-e2e-test.py`.
+Phase 5 implements the identity-provider side of these tests with `scripts/phase5-oidc-pkce-test.py`. Phase 7 adds backend API authorization tests and a live OIDC/API/KubeVirt workflow through `scripts/phase7-api-e2e-test.py`. Phase 8 adds remote-session ownership, READY-state, and Guacamole-token negative tests through `scripts/phase8-remote-desktop-e2e-test.py`.
 
 ## Kubernetes and KubeVirt Tests
 
@@ -116,10 +119,19 @@ Phase 7 VDIForge application tests:
 - active desktop quota rejects a second launch for the same non-admin user
 - admin-only audit access is enforced
 
-Later remote desktop tests:
+Phase 8 remote desktop tests:
 
 - NetworkPolicies allow Guacamole to desktop remote port
 - NetworkPolicies deny direct unauthorized access
+- per-desktop remote credential Secret is created
+- KubeVirt cloud-init consumes the Secret through `secretRef`
+- desktop RDP Service remains `ClusterIP`
+- Guacamole JSON auth accepts the brokered connection token
+- owner/admin connection is allowed
+- non-owner connection is denied
+- guessed desktop ID is denied
+- stopped or deleted desktop cannot create a new connection
+- connection audit events do not expose credentials
 - failed scheduling transitions desktop to `FAILED` after timeout
 
 ## Infrastructure Validation
@@ -269,6 +281,21 @@ bash scripts/validate-phase7-live.sh
 
 The Phase 7 live validator checks cluster regression health, Helm lint/render/server dry-run, runtime-only secrets, app PostgreSQL, API/provisioner rollout, trusted HTTPS API health/readiness, least-privilege RBAC, NetworkPolicy denial from an unauthorized namespace, Keycloak-issued token acceptance, image RBAC, idempotency, quota enforcement, ownership checks, KubeVirt `DataVolume`/`VirtualMachine`/Service reconciliation, `vdi-worker-02` placement, KVM resource requests, stop/start/delete lifecycle, cleanup, audit events, and API restart persistence.
 
+Phase 8 static validation:
+
+```powershell
+.\scripts\validate-phase8.ps1
+```
+
+Phase 8 live validation from `vdi-control-01`:
+
+```bash
+cd ~/vdiforge-phase8-validation
+bash scripts/validate-phase8-live.sh
+```
+
+The Phase 8 live validator checks cluster regression health, Helm lint/render/server dry-run, runtime-only Guacamole secrets, `ubuntu-devops:1.1.0` source PVC, API image `localhost/vdiforge-api:0.8.0`, Guacamole/`guacd` rollout, trusted HTTPS access to `remote.vdiforge.local`, Guacamole restart persistence, Guacamole NetworkPolicy allow/deny behavior, OIDC-backed connect authorization, internal RDP reachability from the `guacd` network position, provisioner RDP reachability before `READY`, Guacamole JSON-auth token exchange, stop/restart/reconnect/delete lifecycle, cleanup of the per-desktop remote Secret, and connection audit events.
+
 ## Image Validation
 
 Phase 6 static validation:
@@ -318,14 +345,23 @@ Packer completion alone is not image validation. At least one versioned artifact
 
 ## Remote Desktop Integration Tests
 
-Planned checks:
+Implemented Phase 8 checks:
 
 - Guacamole can connect to a READY desktop
 - non-owner cannot connect
 - guessed desktop ID or connection ID fails
-- remote session can disconnect and reconnect
-- clipboard policy behaves as configured
+- stopped and deleted desktops cannot connect
+- remote session can be requested again after restart
+- Guacamole JSON authentication accepts the encrypted handoff token
+- RDP port 3389 is reachable only from the intended Guacamole network position
+- per-desktop remote credentials are created and cleaned up
 - remote desktop ports are not externally exposed
+
+Still planned:
+
+- clipboard policy behavior
+- browser UX tests for a React Connect button
+- detailed connect/disconnect session telemetry
 
 ## End-to-End Test
 

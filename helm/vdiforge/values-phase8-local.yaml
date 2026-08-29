@@ -1,0 +1,53 @@
+platformConfig:
+  validationMarker: phase8-guacamole-remote-desktop
+
+serviceAccounts:
+  api:
+    automountServiceAccountToken: true
+
+rbac:
+  apiRemoteAccess:
+    enabled: true
+
+api:
+  image:
+    tag: "0.8.0"
+  env:
+    guacamoleBaseUrl: https://remote.vdiforge.local
+    guacamoleJsonSecretName: vdiforge-guacamole-json-secret
+    guacamoleJsonSecretKey: JSON_SECRET_KEY
+    remoteSessionTtlSeconds: "300"
+    remoteDesktopProtocol: rdp
+    remoteDesktopPort: "3389"
+    guacamoleRdpSecurity: any
+    guacamoleRdpServerLayout: en-us-qwerty
+
+provisioner:
+  image:
+    tag: "0.8.0"
+
+guacamole:
+  enabled: true
+  ingress:
+    enabled: true
+    host: remote.vdiforge.local
+    tlsSecretName: vdiforge-guacamole-tls
+
+resourceGovernance:
+  quotas:
+    desktops:
+      hard:
+        persistentvolumeclaims: "16"
+        requests.storage: "180Gi"
+    remoteAccess:
+      enabled: true
+  limitRanges:
+    remoteAccess:
+      enabled: true
+
+networkPolicy:
+  system:
+    allowApiKubernetesApi:
+      enabled: true
+    allowProvisionerRemoteDesktop:
+      enabled: true

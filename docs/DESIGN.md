@@ -4,7 +4,7 @@ This document is the authoritative technical design for VDIForge. Later implemen
 
 ## Status
 
-Phase 2 local infrastructure foundation is documented and host-validated. Phase 3 establishes the Kubernetes and KubeVirt foundation on that lab with kubeadm, containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, namespace/RBAC foundations, NetworkPolicy validation, and a disposable KubeVirt test VM. Phase 4 establishes the Helm platform foundation with a `vdiforge` release that manages VDIForge ConfigMap conventions, ServiceAccounts, provisioner RBAC, ResourceQuotas, a LimitRange, and baseline NetworkPolicies. Phase 5 adds Keycloak, PostgreSQL persistence, Traefik ingress, local TLS, realm import, demo identities, Authorization Code Flow with PKCE validation, JWT validation, RBAC claim validation, and identity NetworkPolicies. Phase 6 establishes the Packer/Ansible Ubuntu golden-image pipeline, image catalog foundation, QCOW2 artifact format, CDI import path, and KubeVirt boot validation. Phase 7 adds the FastAPI VDI control plane, application PostgreSQL, Alembic migrations, API/provisioner Helm resources, server-side authorization, audit persistence, and KubeVirt desktop lifecycle reconciliation. Guacamole, React application code, full Prometheus/Grafana observability, and browser remote desktop sessions remain planned.
+Phase 2 local infrastructure foundation is documented and host-validated. Phase 3 establishes the Kubernetes and KubeVirt foundation on that lab with kubeadm, containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, namespace/RBAC foundations, NetworkPolicy validation, and a disposable KubeVirt test VM. Phase 4 establishes the Helm platform foundation with a `vdiforge` release that manages VDIForge ConfigMap conventions, ServiceAccounts, provisioner RBAC, ResourceQuotas, a LimitRange, and baseline NetworkPolicies. Phase 5 adds Keycloak, PostgreSQL persistence, Traefik ingress, local TLS, realm import, demo identities, Authorization Code Flow with PKCE validation, JWT validation, RBAC claim validation, and identity NetworkPolicies. Phase 6 establishes the Packer/Ansible Ubuntu golden-image pipeline, image catalog foundation, QCOW2 artifact format, CDI import path, and KubeVirt boot validation. Phase 7 adds the FastAPI VDI control plane, application PostgreSQL, Alembic migrations, API/provisioner Helm resources, server-side authorization, audit persistence, and KubeVirt desktop lifecycle reconciliation. Phase 8 adds Apache Guacamole, `guacd`, RDP/xrdp session delivery, short-lived JSON-auth connection brokering, per-desktop remote credentials, and remote-session validation. React application code, full Prometheus/Grafana observability, and the polished browser portal remain planned.
 
 ## Goals
 
@@ -63,6 +63,8 @@ Sources reviewed during Phase 1:
 - Phase 6 image pipeline implementation: [Golden Images](GOLDEN-IMAGES.md)
 - Packer and image references: [Packer install documentation](https://developer.hashicorp.com/packer/install), [Packer QEMU plugin](https://developer.hashicorp.com/packer/integrations/hashicorp/qemu), [Packer Ansible plugin](https://developer.hashicorp.com/packer/integrations/hashicorp/ansible), [Ubuntu 26.04 cloud images](https://cloud-images.ubuntu.com/releases/resolute/release/), [CDI DataVolumes](https://github.com/kubevirt/containerized-data-importer/blob/main/doc/datavolumes.md), and [KubeVirt VM access](https://kubevirt.io/user-guide/user_workloads/accessing_virtual_machines/)
 - Phase 7 control plane implementation: [FastAPI VDI Control Plane](API-CONTROL-PLANE.md)
+- Phase 8 remote desktop implementation: [Remote Desktop Delivery](REMOTE-DESKTOP.md)
+- Apache Guacamole JSON authentication: [Guacamole JSON authentication](https://guacamole.apache.org/doc/gug/json-auth.html)
 
 ## Selected Platform Version Pins
 
@@ -89,8 +91,10 @@ These pins are Phase 3 implementation inputs as of 2026-08-27. Later phases must
 | kubectl in DevOps image | v1.36.4 | Matches the local cluster minor/patch version. |
 | Helm in DevOps image | v4.2.4 | Matches the Phase 4/5 administrative Helm client. |
 | Terraform local lab | Terraform 1.15.8 with built-in `terraform_data` | Actual Phase 2 host uses VirtualBox; Terraform validates the lab specification without depending on an alpha VirtualBox provider. |
-| Apache Guacamole | 1.6.0 | Current documented Guacamole release with RDP, VNC, SSH, WebSocket, and container deployment support. |
-| Python runtime | 3.14.4 slim | Phase 7 API/provisioner container runtime. |
+| Apache Guacamole | 1.6.0 | Phase 8 browser remote desktop gateway with JSON authentication enabled. |
+| guacd | 1.6.0 | Phase 8 protocol proxy between Guacamole web and desktop RDP services. |
+| Remote desktop protocol | RDP through xrdp | MVP remote protocol for Ubuntu/XFCE desktops; VNC remains fallback. |
+| Python runtime | 3.14.4 slim | API/provisioner container runtime. |
 | FastAPI | 0.141.1 | Phase 7 API framework. |
 | Pydantic | 2.13.4 | Phase 7 schema validation. |
 | SQLAlchemy | 2.0.52 | Phase 7 ORM. |
@@ -316,7 +320,7 @@ Phase 4 chart resources:
 - LimitRange for future small platform containers
 - NetworkPolicies for `vdiforge-system` default deny, DNS egress, and future provisioner Kubernetes API egress
 
-With `values-local.yaml` alone, the Helm chart does not create application Deployments, Services, Ingress, HPA, Keycloak, Guacamole, Prometheus, Grafana, or VDI desktops. Phase 5 enables only the identity stack through `values-phase5-local.yaml`.
+With `values-local.yaml` alone, the Helm chart does not create application Deployments, Services, Ingress, HPA, Keycloak, Guacamole, Prometheus, Grafana, or VDI desktops. Phase 5 enables only the identity stack through `values-phase5-local.yaml`, Phase 7 enables the API/provisioner stack through `values-phase7-local.yaml`, and Phase 8 enables Guacamole through `values-phase8-local.yaml`.
 
 Planned later chart resources:
 
@@ -336,6 +340,7 @@ Initial image catalog:
 | `ubuntu-base:1.0.0` | Minimal XFCE Ubuntu desktop suitable for future remote access. |
 | `ubuntu-developer:1.0.0` | Developer desktop with Git, Python, build tools, CLI utilities, and Geany. |
 | `ubuntu-devops:1.0.0` | Infrastructure desktop with Terraform, Ansible, kubectl, Helm, Git, Python, and useful infrastructure CLIs. |
+| `ubuntu-devops:1.1.0` | Phase 8 remote-enabled DevOps desktop source PVC used for Guacamole/RDP validation. |
 
 The catalog is implemented as [../images/catalog.json](../images/catalog.json). It expresses image policy and role eligibility as data; Phase 7 enforces that policy server-side in the FastAPI control plane.
 
@@ -387,7 +392,7 @@ Primary Phase 7 entities:
 - `ProvisioningOperation`
 - `AuditEvent`
 
-Implemented Phase 7 API surface:
+Implemented API surface after Phase 8:
 
 ```text
 POST   /api/v1/desktops
@@ -395,6 +400,7 @@ GET    /api/v1/desktops
 GET    /api/v1/desktops/{id}
 POST   /api/v1/desktops/{id}/start
 POST   /api/v1/desktops/{id}/stop
+POST   /api/v1/desktops/{id}/connect
 DELETE /api/v1/desktops/{id}
 
 GET    /api/v1/images
@@ -411,7 +417,7 @@ Desktop lifecycle:
 REQUESTED -> PROVISIONING -> BOOTING -> READY -> STOPPING -> STOPPED -> TERMINATING -> TERMINATED
 ```
 
-Any appropriate stage may transition to `FAILED`. `CONNECTED` remains reserved for Phase 8 remote-session integration.
+Any appropriate stage may transition to `FAILED`. Phase 8 treats `READY` as both KubeVirt VMI readiness and successful TCP reachability to the configured remote desktop port through the internal Service. It does not infer a durable `CONNECTED` lifecycle state from URL creation alone; it records `last_connected_at` and audit events when a brokered Guacamole connection is requested. More detailed session telemetry is deferred.
 
 Provisioning is asynchronous. The API records desired state and returns `202 Accepted`; a separate provisioner reconciles desired state against Kubernetes/KubeVirt observed state using idempotent operations, request IDs, bounded retries, backoff, timeouts, and cleanup logic. The provisioner uses the Kubernetes Python client and does not shell out to `kubectl` or `virtctl`.
 
@@ -422,7 +428,7 @@ Phase 7 deploys the backend through Helm as:
 - `vdiforge-app-postgres`
 - `vdiforge-api-migrations`
 
-Only `ubuntu-devops:1.0.0` is launchable in Phase 7. `ubuntu-base` and `ubuntu-developer` remain catalog candidates until later promotion.
+Only `ubuntu-devops` is launchable in the current lab. Phase 8 promotes `ubuntu-devops:1.1.0` as the default version for new launches so remote desktop prerequisites are validated without replacing the earlier `1.0.0` artifact record. `ubuntu-base` and `ubuntu-developer` remain catalog candidates until later promotion.
 
 Authoritative sources of truth:
 
@@ -546,6 +552,15 @@ Phase 5 adds identity namespace NetworkPolicies:
 - PostgreSQL ingress only from Keycloak
 - future API ingress path to Keycloak discovery/JWKS
 
+Phase 8 adds Guacamole namespace NetworkPolicies:
+
+- default deny for `guacamole`
+- DNS egress to CoreDNS
+- Traefik ingress to Guacamole web
+- Guacamole web egress to `guacd`
+- `guacd` ingress from Guacamole web
+- `guacd` egress to VDI desktop pods on TCP 3389
+
 ## Storage Design
 
 MVP storage should be simple local storage suitable for a lab. The design must distinguish image artifacts, PVCs used by KubeVirt desktops, PostgreSQL storage, and monitoring storage.
@@ -593,6 +608,19 @@ Security requirements:
 - Do not let users access desktops by guessing IDs, VM names, Guacamole connection IDs, IP addresses, or URLs.
 - Connection creation must be scoped to the authenticated user and desktop ownership.
 - Remote desktop ports should not be exposed directly outside the cluster.
+
+Phase 8 implementation:
+
+- Guacamole and `guacd` run in the `guacamole` namespace.
+- `remote.vdiforge.local` exposes Guacamole through Traefik and local TLS.
+- The provisioner creates a per-desktop Kubernetes Secret containing remote user credentials and cloud-init user data.
+- KubeVirt mounts that Secret as `cloudInitNoCloud.secretRef`.
+- `POST /api/v1/desktops/{id}/connect` validates JWT, owner/admin access, and desktop state before creating a Guacamole handoff.
+- FastAPI signs and encrypts a Guacamole JSON-auth token with a runtime-only 128-bit key stored in Kubernetes Secret data.
+- The frontend receives only a short-lived encrypted Guacamole URL, not the plaintext RDP password.
+- The desktop RDP Service is `ClusterIP` and is reachable only inside the cluster through the controlled Guacamole path.
+
+See [ADR 0018](ADR/0018-guacamole-json-session-brokering.md).
 
 ## Thin Client Design
 
@@ -759,7 +787,7 @@ Phase 2 produced local infrastructure that can host the planned three-node clust
 7. Terraform specification and outputs under `terraform/environments/local`.
 8. Ansible baseline inventory and roles under `ansible`.
 
-Phase 3 installs Kubernetes prerequisites, kubeadm/containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, namespace/RBAC foundations, and validation scripts. Phase 4 installs the Helm deployment client on `vdi-control-01` and deploys the VDIForge foundation release. Phase 5 installs Traefik ingress, Keycloak, PostgreSQL persistence, local TLS, the `vdiforge` realm, OIDC clients, demo identities, and identity validation scripts. Phase 6 adds the Packer/Ansible golden-image pipeline and KubeVirt boot validation for the DevOps image. Phase 7 installs the FastAPI API, provisioner, application PostgreSQL, migrations, and validates KubeVirt desktop launch/stop/restart/delete for the DevOps image. React, Guacamole, Prometheus/Grafana, browser remote sessions, and application autoscaling remain later phases.
+Phase 3 installs Kubernetes prerequisites, kubeadm/containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, namespace/RBAC foundations, and validation scripts. Phase 4 installs the Helm deployment client on `vdi-control-01` and deploys the VDIForge foundation release. Phase 5 installs Traefik ingress, Keycloak, PostgreSQL persistence, local TLS, the `vdiforge` realm, OIDC clients, demo identities, and identity validation scripts. Phase 6 adds the Packer/Ansible golden-image pipeline and KubeVirt boot validation for the DevOps image. Phase 7 installs the FastAPI API, provisioner, application PostgreSQL, migrations, and validates KubeVirt desktop launch/stop/restart/delete for the DevOps image. Phase 8 installs Guacamole/guacd, adds API session brokering, and validates RDP access to a remote-enabled DevOps desktop. React, Prometheus/Grafana, and application autoscaling remain later phases.
 
 ## Future Cloud or Bare-Metal Deployment
 
@@ -794,6 +822,8 @@ These are not required for the MVP.
 - `auth.vdiforge.local` requires a local hosts-file entry, equivalent local DNS, or explicit resolver mapping for automated tests.
 - The control plane needed 4 vCPU and 6 GiB RAM for reliable Phase 3 validation on this host; lower sizing caused API-server pressure during add-on reconciliation.
 - Remote desktop performance will not match commercial proprietary protocols.
+- Phase 8 validates Guacamole/RDP connectivity and token handoff, but the user-facing React Connect workflow remains Phase 9.
+- The API needs namespace-scoped read access to per-desktop remote credential Secrets; application authorization and audit logging are compensating controls until a narrower credential broker exists.
 - Windows desktops are excluded from the free MVP.
 - Version pins must be revalidated during implementation.
 - Helm now owns selected VDIForge platform resources; ad hoc `kubectl edit` changes against those objects create drift.
@@ -801,7 +831,7 @@ These are not required for the MVP.
 ## Open Questions
 
 - Should routine Ansible operations remain on `vdi-control-01`, move to WSL, or use another Linux controller?
-- Should Guacamole connection handling use its REST/API integration, a custom extension, or short-lived generated connection records for the MVP?
 - What exact resource profiles should be exposed first?
 - How should the future React portal handle refresh tokens while minimizing browser token exposure?
 - Does the future API need a separate confidential service/admin client beyond the current `vdiforge-api` audience marker?
+- Should Phase 12 replace per-desktop static passwords with one-time or frequently rotated remote-session credentials?

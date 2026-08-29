@@ -12,8 +12,9 @@ from app.auth.claims import AuthenticatedUser
 from app.auth.policy import TERMINAL_STATES, can_access_owned_resource, can_view_all_desktops, max_desktops_for_user
 from app.config.settings import Settings
 from app.models.entities import Desktop, ProvisioningOperation
-from app.schemas.api import DesktopCreateRequest
+from app.schemas.api import DesktopConnectionResponse, DesktopCreateRequest
 from app.services.image_catalog import ImageCatalogService
+from app.services.remote_access import RemoteAccessService
 from app.services.resource_profiles import get_resource_profile
 
 
@@ -126,6 +127,69 @@ class DesktopService:
         if not can_access_owned_resource(user, desktop.owner_subject):
             raise ApiError(403, "DESKTOP_ACCESS_DENIED", "You are not authorized to access this desktop.")
         return desktop
+
+    def connect_desktop(
+        self,
+        *,
+        desktop_id: str,
+        user: AuthenticatedUser,
+        request_id: str,
+        source_ip: str | None,
+        remote_access: RemoteAccessService | None = None,
+    ) -> DesktopConnectionResponse:
+        desktop = self.db.get(Desktop, desktop_id)
+        if desktop is None:
+            raise ApiError(404, "DESKTOP_NOT_FOUND", "Desktop was not found.")
+        if not can_access_owned_resource(user, desktop.owner_subject):
+            record_audit_event(
+                self.db,
+                request_id=request_id,
+                user=user,
+                action="DESKTOP_CONNECTION_DENIED",
+                resource_type="Desktop",
+                resource_id=desktop.id,
+                source_ip=source_ip,
+                result="DENIED",
+                details={"reason": "ownership"},
+            )
+            self.db.commit()
+            raise ApiError(403, "DESKTOP_ACCESS_DENIED", "You are not authorized to access this desktop.")
+        if desktop.observed_state not in {"READY", "CONNECTED"}:
+            record_audit_event(
+                self.db,
+                request_id=request_id,
+                user=user,
+                action="DESKTOP_CONNECTION_DENIED",
+                resource_type="Desktop",
+                resource_id=desktop.id,
+                source_ip=source_ip,
+                result="DENIED",
+                details={"reason": "state", "observed_state": desktop.observed_state},
+            )
+            self.db.commit()
+            raise ApiError(409, "DESKTOP_NOT_READY", "Desktop must be READY before a remote session can be created.")
+
+        connection = (remote_access or RemoteAccessService(self.settings)).connection_for(desktop=desktop, user=user)
+        desktop.last_connected_at = _now()
+        desktop.updated_at = _now()
+        self._operation(desktop, "DESKTOP_CONNECTION_REQUESTED", "SUCCESS", request_id, None)
+        record_audit_event(
+            self.db,
+            request_id=request_id,
+            user=user,
+            action="DESKTOP_CONNECTION_REQUESTED",
+            resource_type="Desktop",
+            resource_id=desktop.id,
+            source_ip=source_ip,
+            result="SUCCESS",
+            details={
+                "protocol": connection.protocol,
+                "expires_at": connection.expires_at.isoformat(),
+                "kubevirt_service": desktop.kubevirt_service_name,
+            },
+        )
+        self.db.commit()
+        return connection
 
     def start_desktop(
         self,

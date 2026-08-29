@@ -96,10 +96,10 @@ This runbook defines troubleshooting procedures for the VDIForge local lab and p
 
 | Area | Detail |
 | --- | --- |
-| Symptoms | Phase 6 DataVolume does not reach Ready; importer pod fails; PVC remains Pending. |
-| Likely causes | Temporary HTTP artifact endpoint unreachable, checksum mismatch, insufficient storage, local-path provisioner issue, or CDI pod failure. |
-| Diagnostics | `kubectl get datavolume,pvc -n vdiforge-desktops`; `kubectl describe datavolume <name> -n vdiforge-desktops`; `kubectl get pods -n cdi`; check `curl -I http://192.168.56.12:18080/<artifact>`. |
-| Remediation | Restart the temporary artifact HTTP server, verify the artifact checksum, confirm `vdiforge-local-path` exists, free space on `vdi-worker-02`, delete only the disposable Phase 6 DataVolume/PVC, and rerun `scripts/phase6-cdi-kubevirt-test.sh`. |
+| Symptoms | Phase 6 or Phase 8 DataVolume does not reach Ready; importer pod fails; PVC remains Pending; DataVolume condition says `scratch space required and none found`. |
+| Likely causes | Temporary HTTP artifact endpoint unreachable, checksum mismatch, insufficient storage, local-path provisioner issue, CDI pod failure, or CDI scratch storage class not configured for qcow2 conversion. |
+| Diagnostics | `kubectl get datavolume,pvc -n vdiforge-desktops`; `kubectl describe datavolume <name> -n vdiforge-desktops`; `kubectl get cdiconfig config -o jsonpath='{.status.scratchSpaceStorageClass}'`; `kubectl get pods -n cdi`; check `curl -I http://192.168.56.12:18080/<artifact>` or the Phase 8 import port. |
+| Remediation | Restart the temporary artifact HTTP server, verify the artifact checksum, confirm `vdiforge-local-path` exists, free space on `vdi-worker-02`, configure CDI scratch storage with `kubectl patch cdi cdi -n cdi --type merge --patch '{"spec":{"config":{"scratchSpaceStorageClass":"vdiforge-local-path"}}}'`, delete only the incomplete DataVolume/PVC, and rerun the relevant Phase 6 or Phase 8 import script. |
 | Logs/metrics | CDI importer pod logs, DataVolume conditions, local-path provisioner logs, `/tmp/vdiforge-phase6-image-http.log` on `vdi-worker-02`. |
 
 ## Phase 6 KubeVirt Boot Validation Failure
@@ -329,7 +329,7 @@ This runbook defines troubleshooting procedures for the VDIForge local lab and p
 | Symptoms | `scripts/phase7-build-load-image.sh` fails before the Helm deployment; `podman` or `buildah` is missing on `vdi-worker-01`; API pods later report `ImagePullBackOff`. |
 | Likely causes | Phase 7 build tools were not installed on the platform worker, local image was not imported into containerd, temporary importer pod was blocked, or outbound image pull failed. |
 | Diagnostics | On `vdi-worker-01`, run `command -v podman`, `podman --version`, `ctr --version`; from `vdi-control-01`, run `kubectl get pod -n vdiforge-desktops phase7-image-importer`; inspect `kubectl describe pod -n vdiforge-system -l app.kubernetes.io/component=api`. |
-| Remediation | Prefer installing a persistent builder with `sudo apt-get update && sudo apt-get install -y podman` on `vdi-worker-01`. If Podman/Buildah is unavailable, rerun `scripts/phase7-build-load-image.sh` from `vdi-control-01`; it can use a temporary BuildKit validation pod and importer pod in `vdiforge-desktops`. Confirm API/provisioner images use `localhost/vdiforge-api:0.7.0`, restart the Deployments after same-tag image import, then rerun Phase 7 live validation. |
+| Remediation | Prefer installing a persistent builder with `sudo apt-get update && sudo apt-get install -y podman` on `vdi-worker-01`. If Podman/Buildah is unavailable, rerun `scripts/phase7-build-load-image.sh` from `vdi-control-01`; it can use a temporary BuildKit validation pod and importer pod in `vdiforge-desktops`. Confirm API/provisioner images use the phase-selected `localhost/vdiforge-api` tag, restart the Deployments after same-tag image import, then rerun the relevant live validation. |
 | Logs/metrics | Podman build output, importer pod logs, kubelet image pull events, containerd image list. |
 
 ## VDIForge API Unavailable
@@ -347,9 +347,9 @@ This runbook defines troubleshooting procedures for the VDIForge local lab and p
 | Area | Detail |
 | --- | --- |
 | Symptoms | `vdiforge-app-postgres-0` is not Ready; API readiness reports database failure; migration job fails to connect. |
-| Likely causes | missing `vdiforge-app-secrets`, PVC not bound, local-path storage pressure, wrong database password key, resource quota, or PostgreSQL image pull issue. |
-| Diagnostics | `kubectl -n vdiforge-system get statefulset,pod,pvc,secret vdiforge-app-secrets`; `kubectl -n vdiforge-system logs statefulset/vdiforge-app-postgres`; `kubectl -n vdiforge-system describe pod vdiforge-app-postgres-0`; `kubectl describe resourcequota -n vdiforge-system`. |
-| Remediation | Recreate runtime secrets with `scripts/phase7-create-local-secrets.sh`, restore local-path storage, fix quota or image pull issues, and rerun Helm upgrade. Do not delete the PostgreSQL PVC unless intentionally resetting application state. |
+| Likely causes | missing `vdiforge-app-secrets`, PVC not bound, local-path storage pressure, wrong database password key, accidental password rotation after PostgreSQL initialized, resource quota, or PostgreSQL image pull issue. |
+| Diagnostics | `kubectl -n vdiforge-system get statefulset,pod,pvc,secret vdiforge-app-secrets`; `kubectl -n vdiforge-system logs statefulset/vdiforge-app-postgres`; `kubectl -n vdiforge-system logs job/vdiforge-api-migrations`; `kubectl -n vdiforge-system describe pod vdiforge-app-postgres-0`; `kubectl describe resourcequota -n vdiforge-system`. |
+| Remediation | Preserve the existing app DB password when rerunning `scripts/phase7-create-local-secrets.sh`; if the Secret was accidentally rotated, restore it from the running PostgreSQL pod environment without printing the value, then rerun Helm upgrade. Restore local-path storage, fix quota or image pull issues, and do not delete the PostgreSQL PVC unless intentionally resetting application state. |
 | Logs/metrics | PostgreSQL logs, PVC events, ResourceQuota usage, local-path provisioner logs. |
 
 ## VDIForge Migration Job Failure
@@ -416,30 +416,40 @@ This runbook defines troubleshooting procedures for the VDIForge local lab and p
 
 | Area | Detail |
 | --- | --- |
-| Symptoms | Connect button fails; browser cannot load remote session. |
-| Likely causes | Guacamole pod down, guacd down, database issue, ingress/WebSocket issue. |
-| Diagnostics | `kubectl get pods -n guacamole`; `kubectl logs -n guacamole deploy/guacamole`; `kubectl logs -n guacamole deploy/guacd`; inspect ingress controller logs. |
-| Remediation | Restart failed pods, fix database, correct WebSocket ingress settings, roll back chart values. |
-| Logs/metrics | Guacamole logs, guacd logs, ingress logs, active remote sessions. |
+| Symptoms | `https://remote.vdiforge.local` fails, the API returns a Guacamole URL but the browser cannot load the gateway, or Guacamole returns a token/auth error. |
+| Likely causes | Guacamole pod down, `guacd` pod down, missing `vdiforge-guacamole-json-secret`, wrong JSON auth key, TLS Secret missing, ingress or hosts-file issue, NetworkPolicy denial, or image pull failure. |
+| Diagnostics | `kubectl -n guacamole get deploy,pod,svc,ingress,secret`; `kubectl -n guacamole logs deploy/vdiforge-guacamole`; `kubectl -n guacamole logs deploy/vdiforge-guacd`; `kubectl -n guacamole describe ingress vdiforge-guacamole`; `curl --cacert .local/phase5/tls/vdiforge-local-ca.crt --resolve remote.vdiforge.local:443:192.168.56.11 https://remote.vdiforge.local/`; inspect Traefik logs in `ingress-traefik`. |
+| Remediation | Rerun `scripts/phase8-create-local-secrets.sh`, rerun the Helm upgrade with `values-phase8-local.yaml`, confirm Guacamole and `guacd` rollouts, verify `remote.vdiforge.local` maps to `192.168.56.11`, and rerun `scripts/phase8-networkpolicy-test.sh`. Do not switch to direct RDP exposure to bypass Guacamole. |
+| Logs/metrics | Guacamole logs, `guacd` logs, Traefik logs, Kubernetes events, Phase 8 validation output. |
 
 ## VDI Connection Failure
 
 | Area | Detail |
 | --- | --- |
-| Symptoms | Desktop is READY but Guacamole cannot connect. |
-| Likely causes | xrdp/VNC not running, wrong service selector, NetworkPolicy denial, VM firewall, stale connection target. |
-| Diagnostics | `kubectl get svc,pod -n vdiforge-desktops`; `kubectl describe networkpolicy -n vdiforge-desktops`; VM console logs; Guacamole connection logs. |
-| Remediation | Restart remote service in VM if policy allows, fix Service labels, correct NetworkPolicy, recreate connection context. |
-| Logs/metrics | guacd logs, VM boot logs, service endpoints, network policy test results. |
+| Symptoms | Desktop is `READY` but Guacamole displays a connection failure, the Phase 8 E2E test cannot reach TCP 3389 from the `guacd` network position, or `/connect` returns `DESKTOP_NOT_READY`. |
+| Likely causes | xrdp not running in the guest, image version missing Phase 8 remote prerequisites, per-desktop remote Secret missing, wrong Service selector, NetworkPolicy denial from `guacd` or the provisioner readiness probe, VMI not actually running, VM firewall, or stale connection token. |
+| Diagnostics | `kubectl -n vdiforge-desktops get vm,vmi,dv,pvc,svc,secret`; `kubectl -n vdiforge-desktops describe svc <desktop-service>`; `kubectl -n vdiforge-desktops describe vmi <desktop-vmi>`; `kubectl -n vdiforge-system get networkpolicy vdiforge-system-provisioner-to-desktop-rdp`; `kubectl -n guacamole logs deploy/vdiforge-guacd`; run `python3 scripts/phase8-remote-desktop-e2e-test.py --env ~/vdiforge-phase5-validation/.local/phase5/phase5.env --ca ~/vdiforge-phase5-validation/.local/phase5/tls/vdiforge-local-ca.crt --resolve-ip 192.168.56.11`. |
+| Remediation | Confirm the desktop uses `ubuntu-devops:1.1.0`, rebuild/import the source PVC if needed, restore the per-desktop Secret through provisioner reconciliation, fix the Service or the Helm-managed `guacd`/provisioner NetworkPolicies, stop/start the desktop through the API, and delete/relaunch failed test desktops through the API. |
+| Logs/metrics | `guacd` logs, VMI conditions, VM boot logs, service endpoints, NetworkPolicy test results, API audit events. |
+
+## Guacamole JSON Token Rejected
+
+| Area | Detail |
+| --- | --- |
+| Symptoms | `/api/v1/desktops/{id}/connect` succeeds but Guacamole rejects the returned URL or `/api/tokens` does not return `authToken`. |
+| Likely causes | API and Guacamole use different `JSON_SECRET_KEY` values, the key is not 32 hex characters, token expired, system clocks differ, or the URL was copied after its TTL. |
+| Diagnostics | Confirm `vdiforge-guacamole-json-secret` exists in both `vdiforge-system` and `guacamole`; compare Secret checksums without printing secret values; inspect API and Guacamole logs; rerun `scripts/phase8-create-local-secrets.sh` if the secret is missing. |
+| Remediation | Regenerate Phase 8 runtime secrets, restart `vdiforge-api` and `vdiforge-guacamole`, request a fresh connection URL, and avoid extending TTL unless a real demo need justifies it. |
+| Logs/metrics | API logs, Guacamole logs, Kubernetes Secret metadata, Phase 8 E2E output. |
 
 ## Desktop Stuck PROVISIONING
 
 | Area | Detail |
 | --- | --- |
 | Symptoms | Desktop remains `PROVISIONING` beyond expected time. |
-| Likely causes | provisioner down, Kubernetes API denied request, NetworkPolicy blocking `10.96.0.1:443` or `192.168.56.10:6443`, `vdiforge-golden-ubuntu-devops-1-0-0` source PVC unavailable, CDI clone pending, `WaitForFirstConsumer` has no schedulable VM consumer, storage quota exhausted, or image artifact import failure. |
+| Likely causes | provisioner down, Kubernetes API denied request, NetworkPolicy blocking `10.96.0.1:443` or `192.168.56.10:6443`, selected source PVC unavailable, CDI clone pending, `WaitForFirstConsumer` has no schedulable VM consumer, storage quota exhausted, or image artifact import failure. |
 | Diagnostics | `kubectl logs deploy/vdiforge-provisioner -n vdiforge-system`; `kubectl get dv,vm,vmi,pvc,svc -n vdiforge-desktops`; `kubectl describe datavolume <desktop-root-dv> -n vdiforge-desktops`; inspect audit and operation records. |
-| Remediation | Restore the source PVC with `scripts/phase7-prepare-golden-source.sh`, fix CDI/storage/RBAC, verify the `vdiforge-system-provisioner-kubernetes-api` egress endpoints, make sure the VM resource is created so local-path storage can bind, rerun the provisioner validation, and delete failed desktop resources through the API where possible. |
+| Remediation | Restore the source PVC with `scripts/phase7-prepare-golden-source.sh` for `1.0.0` or `scripts/phase8-prepare-remote-source.sh` for `1.1.0`, fix CDI/storage/RBAC, verify the `vdiforge-system-provisioner-kubernetes-api` egress endpoints, make sure the VM resource is created so local-path storage can bind, rerun the provisioner validation, and delete failed desktop resources through the API where possible. |
 | Logs/metrics | Provisioner retries, KubeVirt events, DataVolume/PVC events. |
 
 ## Desktop Stuck BOOTING
@@ -447,7 +457,7 @@ This runbook defines troubleshooting procedures for the VDIForge local lab and p
 | Area | Detail |
 | --- | --- |
 | Symptoms | VM exists but never reaches READY. |
-| Likely causes | guest boot failure, remote desktop service not started, cloud-init issue, no `/dev/kvm`, insufficient resources. |
+| Likely causes | guest boot failure, remote desktop service not started, cloud-init issue, no `/dev/kvm`, insufficient resources, or NetworkPolicy blocking the provisioner readiness probe to TCP 3389. |
 | Diagnostics | `kubectl get vmi -n vdiforge-desktops`; `kubectl describe vmi <name> -n vdiforge-desktops`; `virtctl console <name>` where available; VM serial console logs. |
 | Remediation | Fix image, validate KVM/nested virtualization, increase resources, rebuild image, transition failed desktop after timeout. |
 | Logs/metrics | VMI conditions, virt-launcher logs, guest logs, provisioning latency. |
@@ -487,17 +497,17 @@ This runbook defines troubleshooting procedures for the VDIForge local lab and p
 | Area | Detail |
 | --- | --- |
 | Symptoms | Services cannot resolve Keycloak, API, database, or Guacamole. |
-| Likely causes | CoreDNS down for cluster services; wrong Service name or namespace; Windows hosts file missing `auth.vdiforge.local` or `api.vdiforge.local`; future thin client lacks local DNS entry. |
-| Diagnostics | `kubectl get pods -n kube-system -l k8s-app=kube-dns`; `kubectl logs -n kube-system deployment/coredns`; run `nslookup vdiforge-keycloak.keycloak.svc.cluster.local` or `nslookup vdiforge-api.vdiforge-system.svc.cluster.local` from a debug pod; on Windows run `Resolve-DnsName auth.vdiforge.local` and `Resolve-DnsName api.vdiforge.local`. |
-| Remediation | Restore CoreDNS for cluster DNS. For browser access, map `192.168.56.11 auth.vdiforge.local api.vdiforge.local vdiforge.local grafana.vdiforge.local` in the client hosts file or local DNS. Use `scripts/phase5-windows-hosts-and-trust.ps1` from an elevated PowerShell prompt on Windows. |
+| Likely causes | CoreDNS down for cluster services; wrong Service name or namespace; Windows hosts file missing `auth.vdiforge.local`, `api.vdiforge.local`, or `remote.vdiforge.local`; future thin client lacks local DNS entry. |
+| Diagnostics | `kubectl get pods -n kube-system -l k8s-app=kube-dns`; `kubectl logs -n kube-system deployment/coredns`; run `nslookup vdiforge-keycloak.keycloak.svc.cluster.local`, `nslookup vdiforge-api.vdiforge-system.svc.cluster.local`, or `nslookup vdiforge-guacamole.guacamole.svc.cluster.local` from a debug pod; on Windows run `Resolve-DnsName auth.vdiforge.local`, `Resolve-DnsName api.vdiforge.local`, and `Resolve-DnsName remote.vdiforge.local`. |
+| Remediation | Restore CoreDNS for cluster DNS. For browser access, map `192.168.56.11 auth.vdiforge.local api.vdiforge.local remote.vdiforge.local vdiforge.local grafana.vdiforge.local` in the client hosts file or local DNS. Use `scripts/phase5-windows-hosts-and-trust.ps1` from an elevated PowerShell prompt on Windows. |
 | Logs/metrics | CoreDNS logs, Traefik logs, browser DNS errors, future API dependency failures. |
 
 ## TLS Problems
 
 | Area | Detail |
 | --- | --- |
-| Symptoms | Browser certificate warnings, OIDC redirect failure, API calls rejected. |
+| Symptoms | Browser certificate warnings, OIDC redirect failure, API calls rejected, or `remote.vdiforge.local` certificate errors. |
 | Likely causes | expired local certificate, wrong hostname/SAN, missing local CA trust, wrong Kubernetes TLS secret, Traefik ingress issue. |
-| Diagnostics | `kubectl -n keycloak describe ingress vdiforge-keycloak`; `kubectl -n vdiforge-system describe ingress vdiforge-api`; `kubectl -n keycloak get secret vdiforge-keycloak-tls`; `kubectl -n vdiforge-system get secret vdiforge-api-tls`; `openssl x509 -in .local/phase5/tls/auth.vdiforge.local.crt -noout -text`; `openssl x509 -in .local/phase7/tls/api.vdiforge.local.crt -noout -text`; trusted `curl --resolve` checks for both hosts. |
-| Remediation | Regenerate identity TLS with `scripts/phase5-create-local-secrets.sh` and API TLS with `scripts/phase7-create-local-secrets.sh`, refresh Kubernetes TLS Secrets, trust the local CA on the browser client, and rerun Phase 5/7 validation. Do not use `curl -k` as final validation evidence. |
+| Diagnostics | `kubectl -n keycloak describe ingress vdiforge-keycloak`; `kubectl -n vdiforge-system describe ingress vdiforge-api`; `kubectl -n guacamole describe ingress vdiforge-guacamole`; `kubectl -n keycloak get secret vdiforge-keycloak-tls`; `kubectl -n vdiforge-system get secret vdiforge-api-tls`; `kubectl -n guacamole get secret vdiforge-guacamole-tls`; `openssl x509 -in .local/phase5/tls/auth.vdiforge.local.crt -noout -text`; `openssl x509 -in .local/phase7/tls/api.vdiforge.local.crt -noout -text`; `openssl x509 -in .local/phase8/tls/remote.vdiforge.local.crt -noout -text`; trusted `curl --resolve` checks for all browser-facing hosts. |
+| Remediation | Regenerate identity TLS with `scripts/phase5-create-local-secrets.sh`, API TLS with `scripts/phase7-create-local-secrets.sh`, and Guacamole TLS with `scripts/phase8-create-local-secrets.sh`; refresh Kubernetes TLS Secrets, trust the local CA on the browser client, and rerun Phase 5/7/8 validation. Do not use `curl -k` as final validation evidence. |
 | Logs/metrics | Ingress TLS errors, browser error, API request failures. |

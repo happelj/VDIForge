@@ -1,6 +1,6 @@
 # VDIForge Architecture
 
-This document contains architecture views for VDIForge. The local VirtualBox infrastructure, Kubernetes/KubeVirt foundation, Helm platform foundation, Keycloak identity foundation, golden-image pipeline, and FastAPI control-plane views reflect Phases 2 through 7. Diagrams that include the React portal, Guacamole remote desktop flow, and full observability flows remain planned until their later implementation phases.
+This document contains architecture views for VDIForge. The local VirtualBox infrastructure, Kubernetes/KubeVirt foundation, Helm platform foundation, Keycloak identity foundation, golden-image pipeline, FastAPI control plane, and Guacamole remote desktop flow reflect Phases 2 through 8. Diagrams that include the React portal and full observability flows remain planned until their later implementation phases.
 
 ## System Context
 
@@ -163,7 +163,8 @@ flowchart TB
   Limit[LimitRange<br/>system namespace]
   NP[NetworkPolicies<br/>default deny, DNS, Kubernetes API egress]
   Identity[Phase 5 identity resources<br/>Keycloak, PostgreSQL, identity policies]
-  Future[Future application charts<br/>API, portal, Guacamole, monitoring]
+  Remote[Phase 8 remote desktop<br/>Guacamole and guacd]
+  Future[Future application charts<br/>portal and monitoring]
 
   Git --> Helm
   Helm --> Release
@@ -174,6 +175,7 @@ flowchart TB
   Release --> Limit
   Release --> NP
   Release --> Identity
+  Release --> Remote
   Release -. later phases .-> Future
 ```
 
@@ -210,7 +212,7 @@ flowchart TB
   W1 --> PG
 ```
 
-The identity foundation proves OIDC discovery, JWKS, Authorization Code Flow with PKCE, signed JWT validation, expected role claims, unauthorized role absence, negative security cases, and persistence after Keycloak pod recreation. Phase 7 consumes those Keycloak access tokens from the FastAPI API. React remains planned.
+The identity foundation proves OIDC discovery, JWKS, Authorization Code Flow with PKCE, signed JWT validation, expected role claims, unauthorized role absence, negative security cases, and persistence after Keycloak pod recreation. Phase 7 and Phase 8 consume those Keycloak access tokens from the FastAPI API. React remains planned.
 
 ## API Control Plane
 
@@ -225,15 +227,18 @@ flowchart LR
   K8s[Kubernetes API]
   CDI[CDI DataVolume]
   VM[KubeVirt VirtualMachine]
+  Secret[Per-desktop remote Secret]
 
   Browser -->|HTTPS + bearer token| Ingress
   Ingress --> API
   API -->|JWKS fetch| Keycloak
   API -->|desktop/audit state| DB
+  API -->|authorized connect read| Secret
   Provisioner -->|desired state| DB
   Provisioner -->|Kubernetes Python client| K8s
   K8s --> CDI
   K8s --> VM
+  K8s --> Secret
 ```
 
 The API validates the external issuer claim `https://auth.vdiforge.local/realms/vdiforge` while using an internal Keycloak Service URL for JWKS retrieval from inside the cluster. This avoids relying on workstation hosts-file DNS from pods.
@@ -289,7 +294,7 @@ sequenceDiagram
   R->>K: Observe VM state
   R->>DB: Update observed state and audit events
   P->>A: Poll or subscribe to desktop status
-  A-->>P: READY when KubeVirt VM is boot-ready
+  A-->>P: READY when KubeVirt VM is running and RDP is reachable
 ```
 
 Provisioning is asynchronous. The HTTP request is not held open while a VM boots.
@@ -319,31 +324,30 @@ stateDiagram-v2
 ## Remote Connection
 
 ```mermaid
-flowchart LR
-  Browser[Browser]
-  Portal[VDIForge portal]
-  API[FastAPI connect endpoint]
-  AuthZ[Ownership and RBAC check]
-  Guac[Apache Guacamole]
-  Guacd[guacd]
-  Service[Kubernetes Service for desktop]
-  VM[Ubuntu desktop VM]
-  XRDP[xrdp MVP protocol]
+sequenceDiagram
+  autonumber
+  participant B as Browser or validation client
+  participant A as FastAPI
+  participant D as PostgreSQL
+  participant K as Kubernetes API
+  participant G as Guacamole web
+  participant GD as guacd
+  participant S as Desktop Service
+  participant VM as Ubuntu VM xrdp
 
-  Browser -->|HTTPS| Portal
-  Portal -->|request connect| API
-  API --> AuthZ
-  AuthZ -->|short-lived connection context| Guac
-  Browser -->|HTTPS / WebSocket| Guac
-  Guac --> Guacd
-  Guacd -->|RDP or VNC| Service
-  Service --> VM
-  VM --> XRDP
+  B->>A: POST /api/v1/desktops/{id}/connect with bearer token
+  A->>A: Validate JWT, owner/admin access, READY state
+  A->>K: Read per-desktop remote Secret
+  A->>D: Record connection request audit event
+  A-->>B: Short-lived encrypted Guacamole JSON URL
+  B->>G: Open https://remote.vdiforge.local/?data=...
+  G->>G: Validate and decrypt JSON token
+  G->>GD: Create one RDP connection
+  GD->>S: RDP 3389 inside cluster
+  S->>VM: Forward to xrdp
 ```
 
-Remote desktop credentials and backend connection details are not exposed to frontend JavaScript.
-
-The remote connection flow remains planned for Phase 8. Phase 7 creates the internal per-desktop Service for future SSH/RDP reachability but does not expose Guacamole or reusable remote desktop credentials.
+Remote desktop credentials are not returned by the API response. The browser receives only an encrypted Guacamole JSON-auth token with a 300-second TTL. Direct RDP is not exposed outside the cluster.
 
 ## Image Pipeline
 
@@ -375,7 +379,7 @@ flowchart TB
   VM --> KVM
 ```
 
-Phase 6 builds `ubuntu-base`, `ubuntu-developer`, and `ubuntu-devops` image definitions. The required integration proof imports the generated `ubuntu-devops:1.0.0` QCOW2 through CDI, schedules a disposable VM by `vdiforge.io/node-role=vdi`, verifies it runs on `vdi-worker-02`, verifies the KVM request, validates DevOps tooling inside the guest, and cleans up the disposable VM resources.
+Phase 6 builds `ubuntu-base`, `ubuntu-developer`, and `ubuntu-devops` image definitions. The required integration proof imports the generated `ubuntu-devops:1.0.0` QCOW2 through CDI, schedules a disposable VM by `vdiforge.io/node-role=vdi`, verifies it runs on `vdi-worker-02`, verifies the KVM request, validates DevOps tooling inside the guest, and cleans up the disposable VM resources. Phase 8 builds/imports `ubuntu-devops:1.1.0` as the current launchable DevOps image for remote desktop validation.
 
 Image rollback changes the promoted version for new launches only. Running desktops are not silently modified by rollback.
 
@@ -389,6 +393,8 @@ flowchart TB
   Kube[Kubernetes events]
   KubeVirt[KubeVirt VM conditions]
   Audit[(Audit events)]
+  Guac[Guacamole logs]
+  Guacd[guacd logs]
   Prom[Prometheus]
   Grafana[Grafana dashboards]
 
@@ -398,6 +404,8 @@ flowchart TB
   Kube --> KubeVirt
   API --> Audit
   Provisioner --> Audit
+  Browser --> Guac
+  Guac --> Guacd
   API --> Prom
   Provisioner --> Prom
   Kube --> Prom

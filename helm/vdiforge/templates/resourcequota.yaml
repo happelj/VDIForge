@@ -44,4 +44,20 @@ spec:
   hard:
     {{- toYaml .Values.resourceGovernance.quotas.identity.hard | nindent 4 }}
 {{- end }}
+{{- if and .Values.resourceGovernance.quotas.remoteAccess.enabled (or .Values.resourceGovernance.quotas.system.enabled .Values.resourceGovernance.quotas.desktops.enabled .Values.resourceGovernance.quotas.identity.enabled) }}
+---
+{{- end }}
+{{- if .Values.resourceGovernance.quotas.remoteAccess.enabled }}
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: {{ .Values.resourceGovernance.quotas.remoteAccess.name }}
+  namespace: {{ include "vdiforge.namespace.remoteAccess" . }}
+  labels:
+    {{- include "vdiforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: resource-governance
+spec:
+  hard:
+    {{- toYaml .Values.resourceGovernance.quotas.remoteAccess.hard | nindent 4 }}
+{{- end }}
 {{- end }}

@@ -39,6 +39,9 @@ rbac:
   provisioner:
     enabled: true
     roleName: vdiforge-provisioner-vdi-manager
+  apiRemoteAccess:
+    enabled: false
+    roleName: vdiforge-api-remote-session-reader
 
 resourceGovernance:
   enabled: true
@@ -84,6 +87,18 @@ resourceGovernance:
         requests.memory: "3Gi"
         limits.cpu: "2500m"
         limits.memory: "4Gi"
+    remoteAccess:
+      enabled: false
+      name: guacamole-quota
+      hard:
+        pods: "10"
+        services: "6"
+        configmaps: "8"
+        secrets: "12"
+        requests.cpu: "800m"
+        requests.memory: "1536Mi"
+        limits.cpu: "3"
+        limits.memory: "3Gi"
   limitRanges:
     system:
       enabled: true
@@ -94,6 +109,15 @@ resourceGovernance:
       default:
         cpu: 500m
         memory: 512Mi
+    remoteAccess:
+      enabled: false
+      name: guacamole-defaults
+      defaultRequest:
+        cpu: 50m
+        memory: 128Mi
+      default:
+        cpu: 500m
+        memory: 768Mi
 
 networkPolicy:
   enabled: true
@@ -109,6 +133,21 @@ networkPolicy:
       name: vdiforge-system-provisioner-kubernetes-api
       apiServerCidr: 10.96.0.1/32
       apiServerPort: 443
+      endpoints:
+        - cidr: 10.96.0.1/32
+          port: 443
+        - cidr: 192.168.56.10/32
+          port: 6443
+    allowProvisionerRemoteDesktop:
+      enabled: false
+      name: vdiforge-system-provisioner-to-desktop-rdp
+      desktopNamespace: vdiforge-desktops
+      desktopPodSelector:
+        app.kubernetes.io/component: desktop-vm
+      port: 3389
+    allowApiKubernetesApi:
+      enabled: false
+      name: vdiforge-system-api-kubernetes-api
       endpoints:
         - cidr: 10.96.0.1/32
           port: 443
@@ -171,7 +210,7 @@ api:
   enabled: false
   image:
     repository: localhost/vdiforge-api
-    tag: "0.7.0"
+    tag: "0.8.0"
     pullPolicy: IfNotPresent
   replicas: 1
   service:
@@ -188,6 +227,15 @@ api:
     imageCatalogPath: /app/images/catalog.json
     databaseName: vdiforge
     databaseUser: vdiforge
+    desktopsNamespace: vdiforge-desktops
+    guacamoleBaseUrl: https://remote.vdiforge.local
+    guacamoleJsonSecretName: vdiforge-guacamole-json-secret
+    guacamoleJsonSecretKey: JSON_SECRET_KEY
+    remoteSessionTtlSeconds: "300"
+    remoteDesktopProtocol: rdp
+    remoteDesktopPort: "3389"
+    guacamoleRdpSecurity: any
+    guacamoleRdpServerLayout: en-us-qwerty
   resources:
     requests:
       cpu: 100m
@@ -207,7 +255,7 @@ provisioner:
   enabled: false
   image:
     repository: localhost/vdiforge-api
-    tag: "0.7.0"
+    tag: "0.8.0"
     pullPolicy: IfNotPresent
   replicas: 1
   env:
@@ -346,7 +394,63 @@ keycloak:
 
 guacamole:
   enabled: false
-  externalChart: true
+  name: vdiforge-guacamole
+  guacd:
+    name: vdiforge-guacd
+    image:
+      repository: guacamole/guacd
+      tag: "1.6.0"
+      pullPolicy: IfNotPresent
+    service:
+      port: 4822
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+  image:
+    repository: guacamole/guacamole
+    tag: "1.6.0"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  existingJsonSecret: vdiforge-guacamole-json-secret
+  jsonSecretKey: JSON_SECRET_KEY
+  service:
+    port: 8080
+  ingress:
+    enabled: false
+    className: traefik
+    host: remote.vdiforge.local
+    tlsSecretName: vdiforge-guacamole-tls
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1024Mi
+  networkPolicy:
+    enabled: true
+    defaultDeny:
+      name: guacamole-default-deny
+    allowDns:
+      name: guacamole-allow-dns
+    allowIngressToWeb:
+      name: guacamole-allow-ingress-controller
+      namespace: ingress-traefik
+      podSelector:
+        app.kubernetes.io/name: traefik
+    allowWebToGuacd:
+      egressName: guacamole-web-to-guacd
+      ingressName: guacamole-guacd-from-web
+    allowGuacdToDesktops:
+      name: guacamole-guacd-to-vdi-rdp
+      desktopNamespace: vdiforge-desktops
+      desktopPodSelector:
+        app.kubernetes.io/component: desktop-vm
+      port: 3389
 
 monitoring:
   enabled: false

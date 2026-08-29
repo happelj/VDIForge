@@ -1,6 +1,6 @@
 # Security Model
 
-This document defines the VDIForge threat model and security controls. Phase 2 local infrastructure controls, Phase 3 Kubernetes foundation controls, Phase 4 Helm platform controls, Phase 5 identity controls, Phase 6 image-pipeline controls, and Phase 7 FastAPI control-plane controls apply to the current lab. Guacamole, browser remote desktop sessions, full Prometheus/Grafana observability, and the React portal remain later-phase work.
+This document defines the VDIForge threat model and security controls. Phase 2 local infrastructure controls, Phase 3 Kubernetes foundation controls, Phase 4 Helm platform controls, Phase 5 identity controls, Phase 6 image-pipeline controls, Phase 7 FastAPI control-plane controls, and Phase 8 Guacamole remote desktop controls apply to the current lab. Full Prometheus/Grafana observability and the React portal remain later-phase work.
 
 ## Security Objectives
 
@@ -100,6 +100,7 @@ Conceptual Role scope:
 | `kubevirt.io` | `virtualmachines`, `virtualmachineinstances` | `get`, `list`, `watch`, `create`, `patch`, `update`, `delete` |
 | `cdi.kubevirt.io` | `datavolumes` | `get`, `list`, `watch`, `create`, `patch`, `delete` |
 | core | `persistentvolumeclaims`, `services`, `events` | `get`, `list`, `watch`, `create`, `patch`, `update`, `delete` |
+| core | `secrets` | `get`, `create`, `patch`, `update`, `delete` for per-desktop remote credentials |
 | core | `pods` | `get`, `list`, `watch` |
 
 Rules:
@@ -108,6 +109,7 @@ Rules:
 - Prefer namespace-scoped Roles in `vdiforge-desktops`.
 - Use ClusterRole only when KubeVirt APIs require cluster-scoped resource access, and keep verbs narrow.
 - Do not permit arbitrary Secret listing across namespaces.
+- Do not grant Secret access to frontend or Guacamole pods.
 
 ## Network Controls
 
@@ -136,11 +138,13 @@ Calico and Kubernetes NetworkPolicies will enforce namespace and workload-level 
 
 Phase 3 proves standard Kubernetes NetworkPolicy enforcement with `scripts/phase3-networkpolicy-test.sh`. The test uses disposable pods to confirm initial traffic, deny ingress, restore an explicit allow rule, and clean up the validation namespace.
 
-Phase 4 adds Helm-managed baseline policies in `vdiforge-system`: default deny for future platform pods, DNS egress, and provisioner-labeled pod egress to the Kubernetes API. It intentionally does not apply a broad default deny to `vdiforge-desktops` yet because Guacamole and VM labels/ports are not implemented.
+Phase 4 adds Helm-managed baseline policies in `vdiforge-system`: default deny for future platform pods, DNS egress, and provisioner-labeled pod egress to the Kubernetes API. It intentionally does not apply a broad default deny to `vdiforge-desktops` yet because KubeVirt VMI networking and remote desktop paths need explicit validation before stronger desktop namespace isolation.
 
 Phase 5 adds Helm-managed identity policies in `keycloak`: default deny, DNS egress, Traefik-to-Keycloak ingress, Keycloak-to-PostgreSQL egress, PostgreSQL ingress from Keycloak only, and a reserved future API-to-Keycloak discovery/JWKS path. The live validation includes an allow/deny test proving arbitrary pods cannot reach Keycloak or PostgreSQL.
 
 Phase 7 enables the API/provisioner policies in `vdiforge-system`: Traefik-to-API ingress, API-to-Keycloak JWKS access, API/provisioner/migration-to-application-PostgreSQL, and PostgreSQL ingress from only those clients. Validation proves an unauthorized namespace cannot reach the API ClusterIP or application PostgreSQL.
+
+Phase 8 enables Guacamole policies in `guacamole`: default deny, DNS egress, Traefik-to-Guacamole web ingress, Guacamole web-to-`guacd`, `guacd` ingress from Guacamole web, and `guacd` egress to VDI desktop pods on TCP 3389. It also enables a narrow `vdiforge-system` egress policy from the provisioner to desktop pods on TCP 3389 so the provisioner can verify the remote desktop port before marking a desktop `READY`. Validation proves the intended Guacamole paths work and unlabeled or unauthorized pods cannot use those paths.
 
 ## Phase 2 Local Infrastructure Security
 
@@ -231,12 +235,33 @@ Phase 7 adds these security-relevant controls:
 - The API ignores client-supplied ownership or role data.
 - Desktop launch requires an idempotency key and enforces a bounded per-user active desktop quota.
 - Audit events for desktop requests, lifecycle changes, failures, and admin audit access are stored in application PostgreSQL.
-- `vdiforge-api` does not mount a Kubernetes ServiceAccount token.
-- `vdiforge-provisioner` uses the namespace-scoped `vdiforge-provisioner-vdi-manager` Role and does not receive Secret access or cluster-admin.
+- `vdiforge-api` does not mount a Kubernetes ServiceAccount token until Phase 8 requires narrowly scoped Kubernetes reads for remote session brokering.
+- `vdiforge-provisioner` uses the namespace-scoped `vdiforge-provisioner-vdi-manager` Role and does not receive cluster-admin.
 - Runtime database passwords and API TLS private keys are generated under ignored `.local/phase7` paths and applied as Kubernetes Secrets.
 - API/provisioner containers run as non-root where practical with dropped Linux capabilities and read-only root filesystems.
 
 Phase 7 does not expose browser remote desktop credentials and does not deploy Guacamole.
+
+## Phase 8 Remote Desktop Security
+
+Phase 8 adds these security-relevant controls:
+
+- Apache Guacamole `1.6.0` and `guacd` `1.6.0` run in the `guacamole` namespace.
+- Guacamole JSON authentication is enabled with a runtime-only 128-bit secret generated outside Git.
+- `remote.vdiforge.local` is exposed through Traefik using a generated local TLS certificate signed by the Phase 5 local CA.
+- `POST /api/v1/desktops/{id}/connect` requires a valid Keycloak bearer token, owner/admin authorization, and a desktop state of `READY` or `CONNECTED`.
+- Non-owners are denied before any Guacamole token is issued.
+- Unknown desktop IDs are denied without revealing connection metadata.
+- The API returns a short-lived encrypted Guacamole URL and never returns the plaintext RDP password.
+- The provisioner creates per-desktop remote credential Secrets and deletes them during desktop cleanup.
+- The API ServiceAccount receives only namespace-scoped `get` access to Secrets and Services in `vdiforge-desktops`.
+- The provisioner ServiceAccount receives namespace-scoped Secret lifecycle permissions only for per-desktop remote credential management.
+- No VDIForge component receives `cluster-admin` or a ClusterRoleBinding.
+- Guacamole and `guacd` disable automatic Kubernetes ServiceAccount token mounting.
+- The desktop RDP Service remains `ClusterIP`; direct external RDP exposure is not created.
+- Connection requests and denials are recorded as audit events without passwords or raw tokens.
+
+Residual Phase 8 security note: Kubernetes RBAC cannot restrict Secret `get` permissions by dynamic name prefix. The MVP compensates with server-side application authorization, explicit audit events, NetworkPolicies, and generated per-desktop credentials. A narrower credential broker or one-time credential flow is a future hardening candidate.
 
 ## Secret Handling
 
@@ -245,6 +270,8 @@ Secrets that must not be committed:
 - Keycloak admin passwords
 - database passwords
 - Guacamole database credentials
+- Guacamole JSON authentication secret
+- per-desktop remote access passwords
 - OIDC client secrets
 - TLS private keys
 - SSH private keys
@@ -303,6 +330,8 @@ DESKTOP_REQUESTED
 DESKTOP_CREATED
 DESKTOP_STARTED
 DESKTOP_CONNECTED
+DESKTOP_CONNECTION_REQUESTED
+DESKTOP_CONNECTION_DENIED
 DESKTOP_STOPPED
 DESKTOP_DELETED
 DESKTOP_FAILED
@@ -315,7 +344,8 @@ The MVP can store audit events in PostgreSQL with restricted write behavior. Fut
 
 - A local single-host lab cannot demonstrate physical failure-domain isolation.
 - KubeVirt software emulation may be too slow for a convincing desktop demo.
-- Guacamole dynamic connection handling requires careful design to avoid exposing backend credentials.
+- The Phase 8 API Secret-read permission is broader than ideal because Kubernetes RBAC cannot select dynamic per-desktop Secret names by prefix.
+- Detailed browser disconnect telemetry is not yet implemented.
 - Strong tenant isolation is limited in an MVP single-cluster design.
 - Local storage failures may affect desktop disk durability.
 

@@ -1,6 +1,6 @@
 # Helm Platform Foundation
 
-This document records the Helm foundation for VDIForge. Phase 4 established repeatable deployment mechanics, resource ownership, platform guardrails, and extension points. Phase 5 extends the same chart with the Keycloak identity foundation. Phase 6 adds the separate Packer/Ansible image pipeline. Phase 7 enables the FastAPI API, asynchronous provisioner, application PostgreSQL, migration job, API ingress, and API-specific NetworkPolicies through `values-phase7-local.yaml`. Guacamole, React, Prometheus/Grafana, and browser remote desktop sessions remain future work.
+This document records the Helm foundation for VDIForge. Phase 4 established repeatable deployment mechanics, resource ownership, platform guardrails, and extension points. Phase 5 extends the same chart with the Keycloak identity foundation. Phase 6 adds the separate Packer/Ansible image pipeline. Phase 7 enables the FastAPI API, asynchronous provisioner, application PostgreSQL, migration job, API ingress, and API-specific NetworkPolicies through `values-phase7-local.yaml`. Phase 8 enables Apache Guacamole, `guacd`, remote desktop TLS, Guacamole NetworkPolicies, and API remote-session RBAC through `values-phase8-local.yaml`. React and Prometheus/Grafana remain future work.
 
 ## Status
 
@@ -12,12 +12,13 @@ Helm runs from the administrative environment, currently `vdi-control-01`.
 | Helm Kubernetes client | `v1.36` |
 | Kubernetes cluster | `v1.36.4` |
 | Chart | `helm/vdiforge` |
-| Chart version | `0.7.0` |
+| Chart version | `0.8.0` |
 | Release | `vdiforge` |
 | Release namespace | `vdiforge-system` |
 | Foundation values | `helm/vdiforge/values-local.yaml` |
 | Identity values | `helm/vdiforge/values-phase5-local.yaml` |
 | API/provisioner values | `helm/vdiforge/values-phase7-local.yaml` |
+| Remote desktop values | `helm/vdiforge/values-phase8-local.yaml` |
 | Final live validation state | Deployed; revision advances when validation is rerun |
 
 Helm v4.2.x is pinned for the Kubernetes 1.36.4 local lab.
@@ -56,6 +57,8 @@ helm/vdiforge
       +-- api.yaml
       +-- provisioner.yaml
       +-- migrations.yaml
+      +-- guacamole.yaml
+      +-- guacamole-networkpolicies.yaml
       +-- NOTES.txt
 ```
 
@@ -80,8 +83,12 @@ Chart-managed resources:
 | Deployment `vdiforge-provisioner` | `vdiforge-system` | Phase 7 asynchronous KubeVirt reconciler, enabled only by Phase 7 values. |
 | StatefulSet/Service `vdiforge-app-postgres` | `vdiforge-system` | Phase 7 application database, enabled only by Phase 7 values. |
 | Job `vdiforge-api-migrations` | `vdiforge-system` | Phase 7 Alembic migration job, enabled only by Phase 7 values. |
+| Deployment/Service `vdiforge-guacamole` | `guacamole` | Phase 8 Guacamole web application, enabled only by Phase 8 values. |
+| Deployment/Service `vdiforge-guacd` | `guacamole` | Phase 8 Guacamole protocol proxy, enabled only by Phase 8 values. |
+| Ingress `vdiforge-guacamole` | `guacamole` | HTTPS ingress for `remote.vdiforge.local`, enabled only by Phase 8 values. |
+| NetworkPolicies `guacamole-*` | `guacamole` | Phase 8 Guacamole isolation and RDP allow paths. |
 
-With `values-local.yaml` alone, the chart still renders no application workloads. With `values-phase5-local.yaml`, the chart deploys Keycloak and PostgreSQL only. With `values-phase7-local.yaml`, the chart deploys the backend API/provisioner stack. It does not deploy Guacamole, React, Prometheus, Grafana, HPA objects, image builds, or browser remote desktop sessions. Phase 6 image builds remain outside Helm because they produce VM disk artifacts rather than Kubernetes application releases.
+With `values-local.yaml` alone, the chart still renders no application workloads. With `values-phase5-local.yaml`, the chart deploys Keycloak and PostgreSQL. With `values-phase7-local.yaml`, the chart deploys the backend API/provisioner stack. With `values-phase8-local.yaml`, the chart deploys Guacamole remote desktop delivery. It does not deploy React, Prometheus, Grafana, HPA objects, image builds, or final browser portal code. Phase 6 image builds remain outside Helm because they produce VM disk artifacts rather than Kubernetes application releases.
 
 ## Helm Toolchain
 
@@ -108,7 +115,7 @@ Phase 3 created foundational namespaces:
 | `vdiforge-system` | Phase 3 raw namespace manifest | Helm release namespace and platform resources. |
 | `vdiforge-desktops` | Phase 3 raw namespace manifest | Helm manages VDI quotas and provisioner Role/RoleBinding. |
 | `keycloak` | Phase 3 raw namespace manifest | Helm manages Phase 5 identity resources inside the namespace. |
-| `guacamole` | Phase 3 raw namespace manifest | Reserved for Phase 8. |
+| `guacamole` | Phase 3 raw namespace manifest | Helm manages Phase 8 Guacamole resources inside the namespace. |
 | `monitoring` | Phase 3 raw namespace manifest | Reserved for Phase 11. |
 
 The chart defaults to:
@@ -130,7 +137,9 @@ serviceAccounts:
     automountServiceAccountToken: false
 ```
 
-The future provisioner uses a namespace-scoped Role in `vdiforge-desktops`. It does not receive `cluster-admin`, a ClusterRoleBinding, or broad Secret access.
+Phase 8 enables token mounting for the API ServiceAccount so the API can read per-desktop remote credential Secrets and Services after owner/admin authorization succeeds. The read Role is namespace-scoped to `vdiforge-desktops`.
+
+The provisioner uses a namespace-scoped Role in `vdiforge-desktops`. It does not receive `cluster-admin` or a ClusterRoleBinding. Phase 8 adds Secret create/get/update/delete verbs so the provisioner can manage per-desktop remote credential Secrets.
 
 Keycloak and PostgreSQL ServiceAccounts set `automountServiceAccountToken: false` because they do not need to call the Kubernetes API.
 
@@ -149,10 +158,11 @@ Helm-managed quotas:
 | Namespace | Important caps |
 | --- | --- |
 | `vdiforge-system` | 20 pods, 1500m requested CPU, 3 GiB requested memory, 3 CPU limit, 5 GiB memory limit. |
-| `vdiforge-desktops` | 20 pods, 10 PVCs, 80 GiB requested storage, 4 VMs, 4 VMIs, 8 DataVolumes. |
+| `vdiforge-desktops` | Base values: 20 pods, 10 PVCs, 80 GiB requested storage, 4 VMs, 4 VMIs, 8 DataVolumes. Phase 8 local values raise this to 16 PVCs and 180 GiB declared storage quota for source, scratch, and clone validation objects. |
 | `keycloak` | 8 pods, 2 PVCs, 10 GiB requested storage, 1200m requested CPU, 3 GiB requested memory. |
+| `guacamole` | 8 pods, 6 Services, 12 Secrets, 800m requested CPU, 1536 MiB requested memory. |
 
-Keycloak requests 250m CPU and 768 MiB memory. Each PostgreSQL instance requests 100m CPU and 256 MiB memory. The Phase 7 API and provisioner each request 100m CPU and 256 MiB memory.
+Keycloak requests 250m CPU and 768 MiB memory. Each PostgreSQL instance requests 100m CPU and 256 MiB memory. The API and provisioner each request 100m CPU and 256 MiB memory. Guacamole requests 200m CPU and 512 MiB memory; `guacd` requests 100m CPU and 128 MiB memory.
 
 ## NetworkPolicy Foundation
 
@@ -179,7 +189,18 @@ keycloak default deny
     +-- API -> Keycloak discovery/JWKS
 ```
 
-The chart does not yet impose the full VDI desktop namespace policy because Guacamole connection routing and final desktop port policies are Phase 8 concerns. Phase 7 validates that an unauthorized namespace cannot reach the API ClusterIP or application PostgreSQL.
+Remote access namespace model:
+
+```text
+guacamole default deny
+    |
+    +-- DNS egress to CoreDNS
+    +-- Traefik -> Guacamole web
+    +-- Guacamole web -> guacd
+    +-- guacd -> VDI desktop pods on TCP 3389
+```
+
+Phase 7 validates that an unauthorized namespace cannot reach the API ClusterIP or application PostgreSQL. Phase 8 validates that the intended Guacamole paths work while unauthorized or unlabeled pods cannot use the remote-access path.
 
 ## Configuration and Secrets
 
@@ -192,6 +213,8 @@ Do not place these values in `values.yaml`, `values-local.yaml`, `values-phase5-
 - TLS private keys
 - database credentials
 - Guacamole credentials
+- Guacamole JSON authentication secret
+- per-desktop remote access passwords
 - kubeconfigs
 - tokens
 
@@ -211,9 +234,17 @@ bash scripts/phase7-create-local-secrets.sh
 
 Generated files live under ignored `.local/phase7/` paths.
 
+Runtime Phase 8 Guacamole JSON and remote TLS secrets are generated by:
+
+```bash
+bash scripts/phase8-create-local-secrets.sh
+```
+
+Generated files live under ignored `.local/phase8/` paths and Kubernetes Secrets in `vdiforge-system` and `guacamole`.
+
 ## Node Placement Conventions
 
-Platform workloads, including the Phase 7 API/provisioner stack, target:
+Platform workloads, including the API, provisioner, Guacamole, and `guacd`, target:
 
 ```yaml
 vdiforge.io/node-role: platform
@@ -250,6 +281,7 @@ Local hostnames:
 auth.vdiforge.local
 vdiforge.local
 api.vdiforge.local
+remote.vdiforge.local
 grafana.vdiforge.local
 ```
 
@@ -288,6 +320,18 @@ helm template vdiforge ./helm/vdiforge \
   --kube-version 1.36.4
 ```
 
+Render with identity, API/provisioner, and remote desktop enabled:
+
+```bash
+helm template vdiforge ./helm/vdiforge \
+  --namespace vdiforge-system \
+  --values ./helm/vdiforge/values-local.yaml \
+  --values ./helm/vdiforge/values-phase5-local.yaml \
+  --values ./helm/vdiforge/values-phase7-local.yaml \
+  --values ./helm/vdiforge/values-phase8-local.yaml \
+  --kube-version 1.36.4
+```
+
 Install or upgrade with identity enabled:
 
 ```bash
@@ -316,9 +360,34 @@ helm upgrade --install vdiforge ./helm/vdiforge \
 kubectl rollout restart deployment/vdiforge-api deployment/vdiforge-provisioner -n vdiforge-system
 ```
 
-The migration Job deletion is intentional for Phase 7 local upgrades because Kubernetes treats Job pod templates as immutable. The rollout restart is also intentional because the lab reuses the local image tag `localhost/vdiforge-api:0.7.0`; after a same-tag containerd import, restarting the Deployments ensures pods run the current image content.
+Install or upgrade with remote desktop enabled:
+
+```bash
+bash scripts/phase8-create-local-secrets.sh
+kubectl delete job vdiforge-api-migrations -n vdiforge-system --ignore-not-found=true --wait=true
+helm upgrade --install vdiforge ./helm/vdiforge \
+  --namespace vdiforge-system \
+  --values ./helm/vdiforge/values-local.yaml \
+  --values ./helm/vdiforge/values-phase5-local.yaml \
+  --values ./helm/vdiforge/values-phase7-local.yaml \
+  --values ./helm/vdiforge/values-phase8-local.yaml \
+  --take-ownership \
+  --force-conflicts \
+  --wait \
+  --wait-for-jobs
+kubectl rollout restart deployment/vdiforge-api deployment/vdiforge-provisioner -n vdiforge-system
+kubectl rollout restart deployment/vdiforge-guacd -n guacamole
+kubectl rollout status deployment/vdiforge-guacd -n guacamole --timeout=600s
+kubectl rollout restart deployment/vdiforge-guacamole -n guacamole
+kubectl rollout status deployment/vdiforge-guacamole -n guacamole --timeout=600s
+```
+
+The migration Job deletion is intentional for Phase 7 and later local upgrades because Kubernetes treats Job pod templates as immutable. The rollout restart is also intentional because the lab reuses local image tags; after a same-tag containerd import, restarting the Deployments ensures pods run the current image content.
 
 Phase 7 provisioner NetworkPolicy egress is configured as a list of Kubernetes API endpoints. The current kubeadm lab allows `10.96.0.1:443` and `192.168.56.10:6443`, covering the in-cluster service address and direct control-plane endpoint.
+
+Phase 8 adds matching API Kubernetes API egress for authorized remote Secret and Service reads.
+`values-phase8-local.yaml` also increases the desktop namespace storage/PVC quota for the local lab because Phase 8 validates a second source image, CDI scratch space, and one cloned desktop volume concurrently.
 
 Inspect:
 
@@ -373,6 +442,7 @@ Static validation:
 ```powershell
 .\scripts\validate-phase4.ps1
 .\scripts\validate-phase5.ps1
+.\scripts\validate-phase8.ps1
 ```
 
 Live validation from `vdi-control-01`:
@@ -380,6 +450,7 @@ Live validation from `vdi-control-01`:
 ```bash
 bash scripts/validate-phase4-live.sh
 bash scripts/validate-phase5-live.sh
+bash scripts/validate-phase8-live.sh
 ```
 
 Phase 5 live validation checks:
@@ -394,6 +465,8 @@ Phase 5 live validation checks:
 - persistence after Keycloak pod recreation
 - NetworkPolicy enforcement
 - previous phase regression health
+
+Phase 8 live validation checks Guacamole/`guacd` rollout, trusted remote HTTPS, NetworkPolicy allow/deny behavior, internal RDP reachability, Guacamole JSON-auth token exchange, connection authorization, cleanup, and connection audit events.
 
 ## Troubleshooting
 
@@ -429,19 +502,26 @@ curl --cacert .local/phase5/tls/vdiforge-local-ca.crt \
   https://auth.vdiforge.local/realms/vdiforge/.well-known/openid-configuration
 ```
 
+If `remote.vdiforge.local` fails:
+
+```bash
+kubectl -n guacamole get pods,svc,ingress
+kubectl -n guacamole logs deploy/vdiforge-guacamole
+kubectl -n guacamole logs deploy/vdiforge-guacd
+curl --cacert .local/phase5/tls/vdiforge-local-ca.crt \
+  --resolve remote.vdiforge.local:443:192.168.56.11 \
+  https://remote.vdiforge.local/
+```
+
 ## Scope Boundary
 
-Phase 5 deploys Keycloak, PostgreSQL, Traefik ingress, the `vdiforge` realm, OIDC clients, and demo identities.
+Phase 8 deploys Guacamole, `guacd`, remote desktop TLS, API remote-session RBAC, and Guacamole NetworkPolicies.
 
-Phase 5 does not deploy:
+Phase 8 does not deploy:
 
-- FastAPI
-- provisioner application code
 - React
-- Guacamole
 - Prometheus
 - Grafana
 - HPA objects
-- Packer image builds
-- Ubuntu desktop images
-- production VDI desktops
+- a final React Connect button
+- production VDI desktop image promotion beyond the lab DevOps image

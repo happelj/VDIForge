@@ -30,3 +30,5 @@ Use RDP through `xrdp` as the MVP protocol. Keep VNC as a documented fallback if
 - Guacamole connection handling must be secured so users cannot guess another user's connection.
 - The design must not claim RDP/VNC is equivalent to PCoIP.
 - Remote desktop credentials must not be exposed to frontend JavaScript.
+
+Phase 8 implements this decision with Guacamole JSON authentication, RDP through `xrdp`, and server-side FastAPI session brokering. See [ADR 0018](0018-guacamole-json-session-brokering.md).
