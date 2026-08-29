@@ -91,13 +91,12 @@ jobs:
         run: |
           mkdir -p .local/phase13
           key_path="${PWD}/.local/phase13/packer_ed25519"
-          touch "${key_path}"
+          ssh-keygen -t ed25519 -N "" -C "vdiforge-ci@local" -f "${key_path}"
           for image in ubuntu-base ubuntu-developer ubuntu-devops; do
             var_file=".local/phase13/${image}.pkrvars.hcl"
             cat > "${var_file}" <<EOF
           ssh_private_key_file = "${key_path}"
-          output_directory    = "${PWD}/.local/phase13/${image}"
-          headless            = true
+          ssh_public_key       = "$(cat "${key_path}.pub")"
           EOF
             packer init "packer/${image}"
             packer fmt -check "packer/${image}"
