@@ -173,6 +173,38 @@ def token_for(ca_file: str, env: dict[str, str], username: str) -> str:
     return exchange_code(opener, code, verifier)
 
 
+def token_valid_for(token: str, seconds: int) -> bool:
+    try:
+        payload_segment = token.split(".")[1]
+        padded = payload_segment + "=" * (-len(payload_segment) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(padded.encode("ascii")))
+        return int(payload.get("exp", 0)) > int(time.time()) + seconds
+    except (IndexError, ValueError, TypeError, json.JSONDecodeError):
+        return False
+
+
+class TokenCache:
+    def __init__(self, ca_file: str, env: dict[str, str]) -> None:
+        self.ca_file = ca_file
+        self.env = env
+        self._tokens: dict[str, str] = {}
+
+    def __getitem__(self, username: str) -> str:
+        token = self._tokens.get(username)
+        if token and token_valid_for(token, 60):
+            return token
+        return self.refresh(username)
+
+    def refresh(self, username: str) -> str:
+        token = token_for(self.ca_file, self.env, username)
+        self._tokens[username] = token
+        return token
+
+    def prefetch_all(self) -> None:
+        for username in PASSWORD_ENV:
+            self.refresh(username)
+
+
 def request_json(
     opener: urllib.request.OpenerDirector,
     method: str,
@@ -213,7 +245,8 @@ def api_request(
 
 def wait_desktop_state(
     opener: urllib.request.OpenerDirector,
-    token: str,
+    tokens: TokenCache,
+    username: str,
     desktop_id: str,
     expected: set[str],
     timeout_seconds: int,
@@ -222,7 +255,14 @@ def wait_desktop_state(
     last_payload = {}
     last_reported_state = ""
     while time.monotonic() < deadline:
-        status, payload = api_request(opener, "GET", f"/api/v1/desktops/{desktop_id}", token)
+        status, payload = api_request(opener, "GET", f"/api/v1/desktops/{desktop_id}", tokens[username])
+        if status == 401:
+            status, payload = api_request(
+                opener,
+                "GET",
+                f"/api/v1/desktops/{desktop_id}",
+                tokens.refresh(username),
+            )
         if status != 200:
             raise RuntimeError(f"desktop status returned HTTP {status}: {payload}")
         last_payload = payload
@@ -238,8 +278,8 @@ def wait_desktop_state(
     raise RuntimeError(f"timed out waiting for {expected}; last payload: {last_payload}")
 
 
-def cleanup_previous_test_desktops(opener: urllib.request.OpenerDirector, token: str) -> None:
-    status, payload = api_request(opener, "GET", "/api/v1/desktops", token)
+def cleanup_previous_test_desktops(opener: urllib.request.OpenerDirector, tokens: TokenCache) -> None:
+    status, payload = api_request(opener, "GET", "/api/v1/desktops", tokens["demo-devops"])
     if status != 200:
         raise RuntimeError(f"could not list existing demo-devops desktops: {status} {payload}")
     stale = [
@@ -249,10 +289,10 @@ def cleanup_previous_test_desktops(opener: urllib.request.OpenerDirector, token:
         and desktop.get("observed_state") != "TERMINATED"
     ]
     for desktop in stale:
-        status, delete_payload = api_request(opener, "DELETE", f"/api/v1/desktops/{desktop['id']}", token)
+        status, delete_payload = api_request(opener, "DELETE", f"/api/v1/desktops/{desktop['id']}", tokens["demo-devops"])
         if status not in {200, 202}:
             raise RuntimeError(f"could not delete stale test desktop {desktop['id']}: {status} {delete_payload}")
-        wait_desktop_state(opener, token, desktop["id"], {"TERMINATED"}, 900)
+        wait_desktop_state(opener, tokens, "demo-devops", desktop["id"], {"TERMINATED"}, 900)
     if stale:
         print(f"PASS: cleaned up {len(stale)} previous Phase 9 test desktop(s)")
 
@@ -316,26 +356,18 @@ def main() -> int:
         raise AssertionError(f"API health failed: {status} {health}")
     print("PASS: API health")
 
-    devops_token = token_for(args.ca, env, "demo-devops")
-    user_token = token_for(args.ca, env, "demo-user")
-    developer_token = token_for(args.ca, env, "demo-developer")
-    admin_token = token_for(args.ca, env, "demo-admin")
+    tokens = TokenCache(args.ca, env)
+    tokens.prefetch_all()
     print("PASS: OIDC Authorization Code + PKCE tokens acquired")
 
     if args.cleanup_only:
-        cleanup_previous_test_desktops(opener, devops_token)
+        cleanup_previous_test_desktops(opener, tokens)
         print("Phase 9 cleanup-only validation: PASS")
         return 0
 
-    role_tokens = {
-        "demo-user": user_token,
-        "demo-developer": developer_token,
-        "demo-devops": devops_token,
-        "demo-admin": admin_token,
-    }
     role_images: dict[str, set[str]] = {}
-    for username, token in role_tokens.items():
-        status, payload = api_request(opener, "GET", "/api/v1/images", token)
+    for username in PASSWORD_ENV:
+        status, payload = api_request(opener, "GET", "/api/v1/images", tokens[username])
         if status != 200:
             raise AssertionError(f"image list failed for {username}: {status} {payload}")
         role_images[username] = {str(item.get("id")) for item in payload}
@@ -345,7 +377,7 @@ def main() -> int:
         raise AssertionError(f"authorized roles cannot see ubuntu-devops: {role_images}")
     print("PASS: role-specific image visibility enforced through API responses")
 
-    status, images = api_request(opener, "GET", "/api/v1/images", devops_token)
+    status, images = api_request(opener, "GET", "/api/v1/images", tokens["demo-devops"])
     if status != 200:
         raise AssertionError(f"authorized image list failed: {status} {images}")
     ubuntu_devops = next((item for item in images if item.get("id") == "ubuntu-devops"), None)
@@ -353,13 +385,13 @@ def main() -> int:
         raise AssertionError(f"ubuntu-devops:1.2.0 is not the default image: {images}")
     print("PASS: devops user sees ubuntu-devops:1.2.0")
 
-    cleanup_previous_test_desktops(opener, devops_token)
+    cleanup_previous_test_desktops(opener, tokens)
 
     status, denied = api_request(
         opener,
         "POST",
         "/api/v1/desktops",
-        user_token,
+        tokens["demo-user"],
         {"image_id": "ubuntu-devops", "resource_profile": "small", "display_name": "Phase 9 Portal Desktop Test"},
         {"Idempotency-Key": f"phase9-denied-{secrets.token_hex(4)}"},
     )
@@ -371,7 +403,7 @@ def main() -> int:
         opener,
         "POST",
         "/api/v1/desktops",
-        devops_token,
+        tokens["demo-devops"],
         {"image_id": "ubuntu-devops", "resource_profile": "small", "display_name": "Phase 9 Portal Desktop Test"},
         {"Idempotency-Key": f"phase9-launch-{int(time.time())}-{secrets.token_hex(4)}"},
     )
@@ -379,12 +411,12 @@ def main() -> int:
         raise AssertionError(f"desktop launch failed: {status} {desktop}")
     print("PASS: portal-equivalent desktop launch accepted asynchronously")
 
-    ready = wait_desktop_state(opener, devops_token, desktop["id"], {"READY"}, 1200)
+    ready = wait_desktop_state(opener, tokens, "demo-devops", desktop["id"], {"READY"}, 1200)
     if ready["image_version"] != "1.2.0":
         raise AssertionError(f"expected ubuntu-devops:1.2.0, got {ready['image_version']}")
     print("PASS: default Phase 9 desktop reached READY")
 
-    status, connection = api_request(opener, "POST", f"/api/v1/desktops/{desktop['id']}/connect", devops_token)
+    status, connection = api_request(opener, "POST", f"/api/v1/desktops/{desktop['id']}/connect", tokens["demo-devops"])
     if status != 200:
         raise AssertionError(f"owner connect failed: {status} {connection}")
     if not connection.get("connection_url", "").startswith(f"https://{REMOTE_HOST}/?data="):
@@ -394,7 +426,7 @@ def main() -> int:
     print("PASS: Connect returns exact opaque Guacamole handoff URL without plaintext credentials")
     write_browser_artifact(args.browser_artifact, connection, ready)
 
-    status, audit = api_request(opener, "GET", "/api/v1/audit-events", admin_token)
+    status, audit = api_request(opener, "GET", "/api/v1/audit-events", tokens["demo-admin"])
     if status != 200:
         raise AssertionError(f"admin audit endpoint failed: {status} {audit}")
     actions = {item["action"] for item in audit.get("audit_events", [])}
@@ -407,10 +439,10 @@ def main() -> int:
         print(f"Open this URL in a browser: {connection['connection_url']}")
         return 0
 
-    status, payload = api_request(opener, "DELETE", f"/api/v1/desktops/{desktop['id']}", devops_token)
+    status, payload = api_request(opener, "DELETE", f"/api/v1/desktops/{desktop['id']}", tokens["demo-devops"])
     if status != 202:
         raise AssertionError(f"delete request failed: {status} {payload}")
-    wait_desktop_state(opener, devops_token, desktop["id"], {"TERMINATED"}, 900)
+    wait_desktop_state(opener, tokens, "demo-devops", desktop["id"], {"TERMINATED"}, 900)
     print("PASS: desktop deleted after portal validation")
 
     print("Phase 9 portal E2E validation: PASS")
