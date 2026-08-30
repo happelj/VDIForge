@@ -58,6 +58,8 @@ Run these before an interview or recording.
    | Ubuntu Developer | `1.0.0` | `vdiforge-golden-ubuntu-developer-1-0-0` |
    | Ubuntu DevOps | `1.2.0` | `vdiforge-golden-ubuntu-devops-1-2-0` |
 
+   On the current 60 GiB VDI worker, repeated demo validation may require freeing superseded generated DevOps `1.0.0` and `1.1.0` QCOW2 artifacts from the ignored Phase 6 build directory after those versions are no longer active source PVCs. The `PHASE14_CLEANUP_SUPERSEDED_DEVOPS=true` validation path removes only those superseded generated artifacts and preserves the current DevOps `1.2.0` source PVC.
+
 6. Confirm API image catalog authorization:
 
    ```bash

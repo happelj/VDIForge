@@ -26,6 +26,8 @@ Phase 14 promotes the final image catalog as follows:
 
 `ubuntu-devops:1.0.0` and `ubuntu-devops:1.1.0` are retained as catalog history with deprecated lifecycle status and are not advertised as current launchable sources. Phase 14 validation prepares source DataVolumes/PVCs for Base and Developer, preserves DevOps `1.2.0`, validates role-specific catalog visibility, and runs the full browser VDI lifecycle against DevOps `1.2.0`.
 
+On the current 60 GiB VDI worker, repeated final-demo validation may remove superseded generated DevOps `1.0.0` and `1.1.0` QCOW2 files from the ignored Phase 6 build artifact directory when `PHASE14_CLEANUP_SUPERSEDED_DEVOPS=true` is used. This does not remove the active DevOps `1.2.0` source PVC and does not change the catalog contract. The removed files are generated artifacts and can be rebuilt from the Packer pipeline if needed.
+
 ## Alternatives Considered
 
 1. Launch and connect to all three images during final validation.

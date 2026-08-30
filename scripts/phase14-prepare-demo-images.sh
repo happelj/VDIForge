@@ -13,6 +13,7 @@ HTTP_BIND="${PHASE14_HTTP_BIND:-${BUILD_HOST}}"
 STORAGE_CLASS="${PHASE14_STORAGE_CLASS:-vdiforge-local-path}"
 SCRATCH_STORAGE_CLASS="${PHASE14_SCRATCH_STORAGE_CLASS:-vdiforge-local-path}"
 CLEANUP_SUPERSEDED_DEVOPS="${PHASE14_CLEANUP_SUPERSEDED_DEVOPS:-false}"
+CLEANUP_SUPERSEDED_DEVOPS_ARTIFACTS="${PHASE14_CLEANUP_SUPERSEDED_DEVOPS_ARTIFACTS:-${CLEANUP_SUPERSEDED_DEVOPS}}"
 
 IMAGE_DEFINITIONS=(
   "ubuntu-base|1.0.0|vdiforge-golden-ubuntu-base-1-0-0|24Gi|18083"
@@ -83,6 +84,24 @@ cleanup_superseded_devops_sources() {
     echo "Deleting superseded DevOps source DataVolume/PVC ${name}; ubuntu-devops:1.2.0 is preserved."
     kubectl delete datavolume "${name}" -n "${NS}" --ignore-not-found=true --wait=true >/dev/null
     kubectl delete pvc "${name}" -n "${NS}" --ignore-not-found=true --wait=true >/dev/null
+  done
+}
+
+cleanup_superseded_devops_artifacts() {
+  [[ "${CLEANUP_SUPERSEDED_DEVOPS_ARTIFACTS}" == "true" ]] || return 0
+
+  local artifact_root="${BUILD_WORKDIR}/artifacts/images/ubuntu-devops"
+  local version
+  local artifact_dir
+
+  for version in 1.0.0 1.1.0; do
+    artifact_dir="${artifact_root}/${version}"
+    case "${artifact_dir}" in
+      "${BUILD_WORKDIR}/artifacts/images/ubuntu-devops/"*) ;;
+      *) fail "refusing to delete unexpected artifact path: ${artifact_dir}" ;;
+    esac
+    echo "Deleting superseded generated DevOps image artifact ${artifact_dir}; it can be rebuilt from Packer if needed."
+    ssh_build_host "rm -rf -- '${artifact_dir}'"
   done
 }
 
@@ -159,6 +178,7 @@ EOF
 
 ensure_cdi_scratch_storage
 cleanup_superseded_devops_sources
+cleanup_superseded_devops_artifacts
 
 for definition in "${IMAGE_DEFINITIONS[@]}"; do
   IFS="|" read -r image_id version source_name storage_size http_port <<<"${definition}"

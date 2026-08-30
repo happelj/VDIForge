@@ -22,6 +22,7 @@ This document records known limitations so VDIForge is presented accurately as a
 - VM disks and source PVCs are tied to local node storage.
 - No distributed storage, backup, restore, snapshot, or live migration storage design is implemented.
 - The final demo retains the source PVCs needed for the current image catalog and avoids launching every image concurrently to protect the small VDI worker disk.
+- Repeated final-demo validation may remove superseded generated QCOW2 files from the ignored Phase 6 artifact directory after the active source PVCs have been imported. This is a local disk-pressure control, not an image-registry or backup strategy.
 
 ## Images
 
