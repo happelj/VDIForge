@@ -360,6 +360,26 @@ Requirement -> Implementation -> Test -> Evidence -> PASS / FAIL
 | CI-025 | The repository shall provide a local CI-safe validation command that approximates GitHub Actions without running live-lab tests by default. | `scripts/ci-local.ps1` execution. |
 | CI-026 | GitHub Actions workflow syntax shall be validated before merge where practical. | actionlint result or Phase 13 validation. |
 
+## Final Demo Requirements
+
+| ID | Requirement | Verification approach |
+| --- | --- | --- |
+| DEMO-001 | Phase 14 shall provide a numbered final demo runbook that can be followed during an interview or recording. | `docs/DEMO.md` review. |
+| DEMO-002 | The final demo shall disclose that the portfolio project was created with AI-assisted engineering tools under human direction and validation. | README and portfolio summary review. |
+| DEMO-003 | The final image catalog shall expose Ubuntu Base `1.0.0`, Ubuntu Developer `1.0.0`, and Ubuntu DevOps `1.2.0` as the current role-authorized demo images. | Catalog validation and API role-image test. |
+| DEMO-004 | `demo-user` shall see only Ubuntu Base in the final demo catalog. | `scripts/phase14-role-image-test.py`. |
+| DEMO-005 | `demo-developer` shall see Ubuntu Base and Ubuntu Developer, but not Ubuntu DevOps, in the final demo catalog. | `scripts/phase14-role-image-test.py`. |
+| DEMO-006 | `demo-devops` and `demo-admin` shall see Ubuntu Base, Ubuntu Developer, and Ubuntu DevOps in the final demo catalog. | `scripts/phase14-role-image-test.py`. |
+| DEMO-007 | The final demo shall use Ubuntu DevOps `1.2.0` as the primary browser remote-desktop proof image. | Phase 14 live validation and manual demo checklist. |
+| DEMO-008 | The final demo shall prove a desktop VM schedules on `vdi-worker-02` with KubeVirt/KVM capability intact. | Phase 8/14 live remote desktop regression. |
+| DEMO-009 | The final demo shall prove browser-based Guacamole access without exposing reusable xrdp credentials to frontend JavaScript. | Phase 8/14 live remote desktop regression and browser proof. |
+| DEMO-010 | The final demo shall show API HPA behavior using a safe load endpoint that does not launch desktops. | `scripts/load-test-api.py` and HPA observation. |
+| DEMO-011 | The final demo shall show Prometheus/Grafana observability for API, desktop lifecycle, HPA, and worker-node signals. | Grafana dashboard and Phase 14 live validation. |
+| DEMO-012 | The final demo shall show security/audit evidence including role denials, connection events, event hashes, and no secret leakage. | Phase 12/14 security and audit validation. |
+| DEMO-013 | The final demo shall delete the launched desktop and verify per-desktop Kubernetes resources are cleaned up while source image PVCs remain. | Portal/API delete workflow and Kubernetes resource checks. |
+| DEMO-014 | Phase 14 shall provide a concise portfolio summary, interview talking points, and limitations document. | Documentation review. |
+| DEMO-015 | Phase 14 validation shall produce explicit static and live PASS/FAIL results. | `scripts/validate-phase14.ps1` and `scripts/validate-phase14-live.sh`. |
+
 ## Operations Requirements
 
 | ID | Requirement | Verification approach |
@@ -796,3 +816,32 @@ Requirement -> Implementation -> Test -> Evidence -> PASS / FAIL
 | `CI-025` | [scripts/ci-local.ps1](../scripts/ci-local.ps1) | Local CI-safe validation. | PASS | Local parity command excludes live-lab tests by default. |
 | `CI-026` | [.github/workflows/ci.yml](../.github/workflows/ci.yml), [scripts/validate-phase13.ps1](../scripts/validate-phase13.ps1) | actionlint and Phase 13 static validation. | PASS | GitHub Actions YAML syntax is validated before merge where tooling is available. |
 | `SEC-008` | [.gitleaks.toml](../.gitleaks.toml), [.github/workflows/security.yml](../.github/workflows/security.yml), [scripts/validate-phase13.ps1](../scripts/validate-phase13.ps1) | Secret scan and tracked-artifact scan. | PASS | No local-lab secrets, kubeconfigs, TLS keys, tokens, or generated artifacts are committed. |
+
+## Phase 14 Traceability
+
+| Requirement | Implementation reference | Test or evidence | Status | Notes |
+| --- | --- | --- | --- | --- |
+| `FR-005` | [images/catalog.json](../images/catalog.json), [scripts/phase14-role-image-test.py](../scripts/phase14-role-image-test.py) | Role-specific API image catalog validation. | PASS | Final demo catalog returns only authorized images for each demo role. |
+| `FR-019` | [backend/app/services/remote_access.py](../backend/app/services/remote_access.py), [scripts/phase8-remote-desktop-e2e-test.py](../scripts/phase8-remote-desktop-e2e-test.py) | Remote desktop connection response inspection. | PASS | Browser handoff URL does not contain reusable xrdp credentials. |
+| `FR-020` | [backend/app/services/desktops.py](../backend/app/services/desktops.py), [scripts/phase8-remote-desktop-e2e-test.py](../scripts/phase8-remote-desktop-e2e-test.py) | Delete lifecycle cleanup validation. | PASS | Per-desktop KubeVirt, Service, PVC, and Secret resources are cleaned up. |
+| `FR-026` | [docs/DEMO.md](DEMO.md), [docs/PORTFOLIO-SUMMARY.md](PORTFOLIO-SUMMARY.md) | Manual browser desktop proof. | PASS | Demo script verifies DevOps tools inside the remote Ubuntu DevOps VM. |
+| `IMG-011` | [images/catalog.json](../images/catalog.json), [scripts/validate-image-catalog.py](../scripts/validate-image-catalog.py) | Image catalog schema validation. | PASS | Catalog records all final demo images, versions, source PVCs, lifecycle state, and role policy. |
+| `WEB-014` | [images/catalog.json](../images/catalog.json), [docs/DEMO.md](DEMO.md) | Portal launch and catalog validation. | PASS | Ubuntu DevOps `1.2.0` remains the primary browser VDI proof image. |
+| `HPA-008` | [scripts/load-test-api.py](../scripts/load-test-api.py), [docs/DEMO.md](DEMO.md) | Safe load-test and HPA observation. | PASS | Final demo keeps HPA proof separate from desktop provisioning. |
+| `MON-015` | [docs/DEMO.md](DEMO.md), [scripts/validate-phase14-live.sh](../scripts/validate-phase14-live.sh) | Grafana and Prometheus final-demo validation. | PASS | Final demo shows the `VDIForge Overview` dashboard and API/HPA/desktop metrics. |
+| `SEC-029` | [scripts/phase12-api-security-test.py](../scripts/phase12-api-security-test.py), [docs/DEMO.md](DEMO.md) | Audit export and admin-only audit access validation. | PASS | Final demo has an audit proof path with no secret leakage. |
+| `DEMO-001` | [docs/DEMO.md](DEMO.md) | Documentation review. | PASS | The runbook uses numbered steps suitable for manual testing references. |
+| `DEMO-002` | [README.md](../README.md), [docs/PORTFOLIO-SUMMARY.md](PORTFOLIO-SUMMARY.md) | Disclosure review. | PASS | AI-assisted tooling is explicitly disclosed. |
+| `DEMO-003` | [images/catalog.json](../images/catalog.json), [scripts/phase14-prepare-demo-images.sh](../scripts/phase14-prepare-demo-images.sh) | Catalog and source PVC validation. | PASS | Base `1.0.0`, Developer `1.0.0`, and DevOps `1.2.0` are the current demo images. |
+| `DEMO-004` | [scripts/phase14-role-image-test.py](../scripts/phase14-role-image-test.py) | API catalog validation. | PASS | `demo-user` sees only Ubuntu Base. |
+| `DEMO-005` | [scripts/phase14-role-image-test.py](../scripts/phase14-role-image-test.py) | API catalog validation and denied launch tests. | PASS | `demo-developer` sees Base and Developer; DevOps launch is denied. |
+| `DEMO-006` | [scripts/phase14-role-image-test.py](../scripts/phase14-role-image-test.py) | API catalog validation. | PASS | `demo-devops` and `demo-admin` see all three images. |
+| `DEMO-007` | [scripts/phase8-remote-desktop-e2e-test.py](../scripts/phase8-remote-desktop-e2e-test.py), [docs/ADR/0024-final-demo-image-promotion.md](ADR/0024-final-demo-image-promotion.md) | Phase 14 live validation and manual browser proof. | PASS | DevOps `1.2.0` remains the validated primary remote desktop image. |
+| `DEMO-008` | [scripts/validate-phase14-live.sh](../scripts/validate-phase14-live.sh) | KubeVirt VM placement and KVM resource checks. | PASS | The DevOps desktop schedules on `vdi-worker-02` with KVM available. |
+| `DEMO-009` | [scripts/phase8-remote-desktop-e2e-test.py](../scripts/phase8-remote-desktop-e2e-test.py) | Guacamole JSON-auth and response inspection. | PASS | Guacamole accepts the brokered connection and credentials remain server-side. |
+| `DEMO-010` | [scripts/load-test-api.py](../scripts/load-test-api.py), [docs/DEMO.md](DEMO.md) | Safe HPA load test. | PASS | The load endpoint is separate from desktop launch. |
+| `DEMO-011` | [docs/PROMETHEUS-GRAFANA.md](PROMETHEUS-GRAFANA.md), [docs/DEMO.md](DEMO.md) | Dashboard review and live validation. | PASS | Grafana dashboard remains the portfolio observability proof. |
+| `DEMO-012` | [scripts/phase12-api-security-test.py](../scripts/phase12-api-security-test.py), [docs/SECURITY-HARDENING.md](SECURITY-HARDENING.md) | Security/audit regression validation. | PASS | Audit hash-chain and admin-only export remain part of the final demo. |
+| `DEMO-013` | [scripts/phase8-remote-desktop-e2e-test.py](../scripts/phase8-remote-desktop-e2e-test.py), [docs/DEMO.md](DEMO.md) | Desktop delete and resource cleanup check. | PASS | Source PVCs remain while per-desktop resources are removed. |
+| `DEMO-014` | [docs/PORTFOLIO-SUMMARY.md](PORTFOLIO-SUMMARY.md), [docs/INTERVIEW-TALKING-POINTS.md](INTERVIEW-TALKING-POINTS.md), [docs/LIMITATIONS.md](LIMITATIONS.md) | Documentation review. | PASS | Phase 14 adds concise portfolio-facing materials. |
+| `DEMO-015` | [scripts/validate-phase14.ps1](../scripts/validate-phase14.ps1), [scripts/validate-phase14-live.sh](../scripts/validate-phase14-live.sh) | Static and live validation. | PASS | Phase 14 validators emit explicit PASS/FAIL. |

@@ -582,6 +582,42 @@ GitHub Actions does not run the full live-lab workflow. The following remain loc
 
 This split keeps pull-request CI safe and reproducible while preserving the higher-fidelity local lab tests for phase acceptance and demos.
 
+## Final Demo Validation
+
+Phase 14 validates the portfolio-ready end-to-end story without adding new platform subsystems. It combines automated repository checks, live-lab checks, role/image authorization proof, browser workflow proof, autoscaling evidence, observability evidence, security/audit regression, and cleanup.
+
+Phase 14 static validation:
+
+```powershell
+.\scripts\validate-phase14.ps1
+```
+
+Phase 14 live validation from `vdi-control-01`:
+
+```bash
+bash scripts/validate-phase14-live.sh
+```
+
+Role/image authorization proof:
+
+```bash
+python3 scripts/phase14-role-image-test.py \
+  --env ~/vdiforge-phase5-validation/.local/phase5/phase5.env \
+  --ca ~/vdiforge-phase5-validation/.local/phase5/tls/vdiforge-local-ca.crt \
+  --resolve-ip 192.168.56.11
+```
+
+Expected image visibility:
+
+| Identity | Expected images |
+| --- | --- |
+| `demo-user` | Ubuntu Base |
+| `demo-developer` | Ubuntu Base, Ubuntu Developer |
+| `demo-devops` | Ubuntu Base, Ubuntu Developer, Ubuntu DevOps |
+| `demo-admin` | Ubuntu Base, Ubuntu Developer, Ubuntu DevOps |
+
+The final browser VDI proof should launch Ubuntu DevOps `1.2.0`, wait for `READY`, connect through Guacamole, prove the remote Ubuntu desktop opens, run the DevOps tool checks inside the remote VM, then stop/delete the desktop and confirm Kubernetes resource cleanup.
+
 ## Traceability
 
 Later phases should add a traceability matrix with columns:

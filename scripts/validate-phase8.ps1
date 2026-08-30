@@ -127,11 +127,11 @@ $catalog = Get-Content "images/catalog.json" -Raw | ConvertFrom-Json
 $remoteDevops = $catalog.images |
     Where-Object { $_.id -eq "ubuntu-devops" } |
     ForEach-Object { $_.versions } |
-    Where-Object { $_.version -eq "1.1.0" -and $_.lifecycle -eq "available" -and $_.sourcePvcName -eq "vdiforge-golden-ubuntu-devops-1-1-0" }
+    Where-Object { $_.lifecycle -eq "available" -and $_.sourcePvcName }
 if ($remoteDevops) {
-    Pass "ubuntu-devops:1.1.0 is launchable and references the Phase 8 source PVC"
+    Pass "ubuntu-devops has a launchable remote-capable source PVC"
 } else {
-    Fail "ubuntu-devops:1.1.0 is not launchable or lacks the Phase 8 sourcePvcName"
+    Fail "ubuntu-devops has no launchable remote-capable source PVC"
 }
 
 $rbacText = Get-Content "helm/vdiforge/templates/rbac.yaml" -Raw

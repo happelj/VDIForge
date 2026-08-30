@@ -244,5 +244,6 @@ KUBEVIRT_KVM_VERIFIED
 ## Open Questions
 
 - Should the MVP support persistent home directories or treat desktops as disposable?
-- Should Phase 14 use GHCR-published images for the final demo or continue the current local image import path?
 - Whether future image builds should move from `vdi-worker-02` to a dedicated Linux/KVM build host.
+
+Closed in Phase 14: the final portfolio demo continues to use local CDI-imported source PVCs because the live lab already validates that path and full QCOW2 artifacts are too large and environment-specific for ordinary CI. GHCR publishing remains useful for container images, not for this local golden-image handoff.

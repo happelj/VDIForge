@@ -4,9 +4,11 @@ VDIForge is a portfolio platform project for a small, open-source, self-service 
 
 ## Project Status
 
-Phase 1 established the architecture, requirements, roadmap, standards, and documentation structure. Phase 2 added the local VirtualBox infrastructure foundation. Phase 3 established the Kubernetes and KubeVirt foundation. Phase 4 added the Helm deployment foundation. Phase 5 established the Keycloak/OIDC/RBAC identity foundation. Phase 6 established the Ubuntu/Packer golden-image pipeline. Phase 7 established the FastAPI VDI control plane, PostgreSQL application persistence, and asynchronous KubeVirt provisioning. Phase 8 established Apache Guacamole remote desktop delivery through server-brokered RDP sessions. Phase 9 added the React self-service portal. Phase 10 added Kubernetes HPA autoscaling for the API. Phase 11 added Prometheus and Grafana observability. Phase 12 added security and audit hardening. Phase 13 adds GitHub Actions CI/CD.
+Phase 1 established the architecture, requirements, roadmap, standards, and documentation structure. Phase 2 added the local VirtualBox infrastructure foundation. Phase 3 established the Kubernetes and KubeVirt foundation. Phase 4 added the Helm deployment foundation. Phase 5 established the Keycloak/OIDC/RBAC identity foundation. Phase 6 established the Ubuntu/Packer golden-image pipeline. Phase 7 established the FastAPI VDI control plane, PostgreSQL application persistence, and asynchronous KubeVirt provisioning. Phase 8 established Apache Guacamole remote desktop delivery through server-brokered RDP sessions. Phase 9 added the React self-service portal. Phase 10 added Kubernetes HPA autoscaling for the API. Phase 11 added Prometheus and Grafana observability. Phase 12 added security and audit hardening. Phase 13 added GitHub Actions CI/CD. Phase 14 finalizes the portfolio demonstration, promotes the complete image catalog, and adds final validation/demo documentation.
 
-The current local lab is three manually created Ubuntu Server VirtualBox VMs with Terraform infrastructure specifications, Ansible host configuration, kubeadm/containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, a Helm v4.2.4 foundation chart, Traefik ingress, Keycloak, PostgreSQL persistence, source-controlled realm configuration, Packer/Ansible golden-image definitions, image catalog policy, FastAPI API/provisioner services, application PostgreSQL persistence, Apache Guacamole, `guacd`, RDP/xrdp session brokering, a React/TypeScript browser portal, API HPA autoscaling, kube-prometheus-stack, Prometheus, Grafana, Alertmanager, VDIForge ServiceMonitors, alert rules, dashboard-as-code, security headers, restricted CORS, RBAC/NetworkPolicy validation, audit hash chaining/export, dependency/container scan automation, GitHub Actions workflows, Dependabot configuration, CI-safe validation scripts, and verified `/dev/kvm` exposure on the VDI worker.
+The current local lab is three manually created Ubuntu Server VirtualBox VMs with Terraform infrastructure specifications, Ansible host configuration, kubeadm/containerd, Calico, Metrics Server, KubeVirt, CDI, local-path storage, a Helm v4.2.4 foundation chart, Traefik ingress, Keycloak, PostgreSQL persistence, source-controlled realm configuration, Packer/Ansible golden-image definitions, a three-image launch catalog, FastAPI API/provisioner services, application PostgreSQL persistence, Apache Guacamole, `guacd`, RDP/xrdp session brokering, a React/TypeScript browser portal, API HPA autoscaling, kube-prometheus-stack, Prometheus, Grafana, Alertmanager, VDIForge ServiceMonitors, alert rules, dashboard-as-code, security headers, restricted CORS, RBAC/NetworkPolicy validation, audit hash chaining/export, dependency/container scan automation, GitHub Actions workflows, Dependabot configuration, CI-safe validation scripts, final demo runbooks, and verified `/dev/kvm` exposure on the VDI worker.
+
+This portfolio project was built with AI-assisted engineering tools under human direction, review, and validation. The repository documents the design decisions, implementation boundaries, and validation evidence so the work can be reviewed on its technical merits.
 
 ## Goals
 
@@ -84,6 +86,7 @@ The client does not download or boot Ubuntu locally. Applications run on the rem
 | Observability | Metrics Server for HPA, kube-prometheus-stack `88.6.1`, Prometheus Operator `v0.93.1`, Prometheus, Grafana, Alertmanager, ServiceMonitors, PrometheusRule alerts, structured logs, audit events |
 | Security validation | Keycloak hardening, Traefik/FastAPI security headers, restricted CORS, `kubectl auth can-i`, NetworkPolicy probes, pip-audit, npm audit, Trivy |
 | CI/CD | GitHub Actions, Dependabot, Gitleaks, pip-audit, npm audit, Trivy, Docker Buildx, kubeconform, actionlint |
+| Portfolio demonstration | Numbered manual demo, final validation scripts, role/image catalog proof, browser VDI proof, portfolio summary |
 
 ## Local Development Concept
 
@@ -126,6 +129,10 @@ Phase 12 upgrades the API/provisioner image tag to `localhost/vdiforge-api:0.12.
 
 Phase 13 adds GitHub Actions CI/CD for pull requests, feature-branch validation pushes, pushes to `main`, releases, and manual validation. CI runs backend lint/tests/migration checks, frontend lint/tests/build checks, Terraform/Ansible/Packer/Helm/Kubernetes manifest validation, secret and dependency scans, custom container builds, Trivy image scans, SBOM generation, and workflow validation. Full KubeVirt, Guacamole, xrdp, and QCOW2 image-build tests remain local/manual because they require the live VirtualBox/KVM lab. See [CI/CD Pipeline](docs/CI-CD.md).
 
+Phase 14 promotes the final demo image catalog: `demo-user` sees Ubuntu Base, `demo-developer` sees Ubuntu Base and Ubuntu Developer, and `demo-devops` plus `demo-admin` see all three images. The primary browser VDI demonstration still launches Ubuntu DevOps `1.2.0` because it contains the validated remote desktop and DevOps toolchain path. See [Demo Plan](docs/DEMO.md), [Portfolio Summary](docs/PORTFOLIO-SUMMARY.md), and [Limitations](docs/LIMITATIONS.md).
+
+Phase 14 also upgrades the API/provisioner image tag to `localhost/vdiforge-api:0.14.0` for the final validation run. The React frontend remains `localhost/vdiforge-frontend:0.9.0`; no new portal features are required beyond proving the full role/image catalog and browser VDI workflow.
+
 ## Repository Organization
 
 | Path | Purpose |
@@ -146,6 +153,9 @@ Phase 13 adds GitHub Actions CI/CD for pull requests, feature-branch validation 
 | [docs/PROMETHEUS-GRAFANA.md](docs/PROMETHEUS-GRAFANA.md) | Phase 11 Prometheus, Grafana, Alertmanager, dashboards, alerts, and validation |
 | [docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md) | Phase 12 security controls, audit integrity, secret inventory, scanning, and validation |
 | [docs/CI-CD.md](docs/CI-CD.md) | Phase 13 GitHub Actions, validation checks, security scans, container builds, SBOMs, releases, and branch protection |
+| [docs/PORTFOLIO-SUMMARY.md](docs/PORTFOLIO-SUMMARY.md) | Concise project summary, resume bullets, and interview positioning |
+| [docs/INTERVIEW-TALKING-POINTS.md](docs/INTERVIEW-TALKING-POINTS.md) | Technical talking points and likely interview questions |
+| [docs/LIMITATIONS.md](docs/LIMITATIONS.md) | Honest local-lab, production, security, and operational limitations |
 | [docs/SSO-RBAC.md](docs/SSO-RBAC.md) | Keycloak, OIDC, roles, and authorization |
 | [docs/AUTOSCALING.md](docs/AUTOSCALING.md) | HPA, capacity, and future node autoscaling |
 | [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md) | Metrics, logs, dashboards, and audit design |
@@ -183,6 +193,9 @@ Phase 13 adds GitHub Actions CI/CD for pull requests, feature-branch validation 
 - [Prometheus and Grafana](docs/PROMETHEUS-GRAFANA.md)
 - [Security Hardening](docs/SECURITY-HARDENING.md)
 - [CI/CD Pipeline](docs/CI-CD.md)
+- [Portfolio Summary](docs/PORTFOLIO-SUMMARY.md)
+- [Interview Talking Points](docs/INTERVIEW-TALKING-POINTS.md)
+- [Limitations](docs/LIMITATIONS.md)
 - [SSO and RBAC](docs/SSO-RBAC.md)
 - [Autoscaling](docs/AUTOSCALING.md)
 - [Observability](docs/OBSERVABILITY.md)
@@ -193,7 +206,8 @@ Phase 13 adds GitHub Actions CI/CD for pull requests, feature-branch validation 
 
 ## Limitations
 
-- The current lab includes infrastructure, Kubernetes/KubeVirt, Helm, ingress, identity, the golden-image pipeline, the FastAPI API/provisioner foundation, Guacamole remote desktop delivery, the React self-service portal, API HPA autoscaling, Prometheus/Grafana observability, Phase 12 security/audit hardening, and Phase 13 CI/CD.
+- The current lab includes infrastructure, Kubernetes/KubeVirt, Helm, ingress, identity, the golden-image pipeline, the FastAPI API/provisioner foundation, Guacamole remote desktop delivery, the React self-service portal, API HPA autoscaling, Prometheus/Grafana observability, Phase 12 security/audit hardening, Phase 13 CI/CD, and Phase 14 final demo validation.
+- The final demo catalog exposes three images by role, but the main browser remote-desktop proof intentionally uses Ubuntu DevOps `1.2.0`.
 - Generated QCOW2 image artifacts are local build outputs and are intentionally excluded from Git.
 - The Helm chart deploys foundation, identity, API, provisioner, application PostgreSQL, Guacamole, `guacd`, and frontend resources when phase values are enabled. Disabled future values remain extension points, not implemented services.
 - The local three-node lab is not production HA.
@@ -211,11 +225,12 @@ Phase 13 adds GitHub Actions CI/CD for pull requests, feature-branch validation 
 - Phase 12 audit hash chaining is tamper-evident inside the application database, not an immutable external audit sink.
 - Phase 13 GitHub Actions does not connect to the home lab, run live KubeVirt/Guacamole/browser VDI tests, or build full QCOW2 golden images on normal pull requests.
 - Phase 13 release publishing targets GHCR only from semantic version tag or manual workflows; pull-request container jobs build and scan but do not push images.
+- Phase 14 remains a local-lab portfolio validation phase; it does not turn the lab into a production VDI platform.
 - True Kubernetes node autoscaling is future cloud or bare-metal functionality, not part of the fixed local lab.
 - Windows desktops are out of scope for the free MVP because they require licensing.
 
 ## Roadmap
 
-The next planned task after Phase 13 is Phase 14 - Final End-to-End Validation & Portfolio Demo.
+The planned implementation roadmap is complete through Phase 14. Future work is tracked as enhancements rather than required MVP phases.
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for the full roadmap.

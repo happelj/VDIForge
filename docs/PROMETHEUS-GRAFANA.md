@@ -18,7 +18,7 @@ Metrics Server remains the resource-metrics source for Kubernetes HPA. Prometheu
 | StorageClass | `vdiforge-local-path` |
 | Retention | 3 days / 3 GiB in the local lab |
 | Node exporter | Disabled in the local baseline to keep `monitoring` at baseline Pod Security |
-| VDIForge chart version | `0.11.0` |
+| VDIForge chart version | `0.14.0` |
 
 References used for the version and integration decisions:
 
@@ -94,8 +94,8 @@ The installer:
 - creates or refreshes local Grafana admin and TLS Secrets;
 - installs or upgrades `kube-prometheus-stack` with `monitoring/kube-prometheus-stack-values-local.yaml`;
 - patches the KubeVirt CR so KubeVirt creates Prometheus Operator monitoring resources in `monitoring`;
-- builds and loads `localhost/vdiforge-api:0.11.0`;
-- upgrades the existing `vdiforge` release with Phase 1-11 values.
+- builds and loads the current VDIForge API image for the active phase;
+- upgrades the existing `vdiforge` release with Phase 1-11 values and later compatible overlays when validating a newer phase.
 
 The Windows hosts file must include:
 

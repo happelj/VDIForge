@@ -19,7 +19,7 @@ This roadmap defines planned implementation phases. Do not begin a future phase 
 | 11 | Prometheus/Grafana | Complete | Prometheus, Grafana, Alertmanager, application metrics, dashboards, alerts, and validation. |
 | 12 | Security/audit hardening | Complete | Secret inventory, RBAC/NetworkPolicy validation, Keycloak/session hardening, security headers, audit integrity, scan automation. |
 | 13 | CI/CD | Complete | GitHub Actions workflows for code, IaC, images, charts, security scans, container builds, SBOMs, and releases. |
-| 14 | End-to-end validation/demo | Planned | Final E2E test, demo script, cleanup, portfolio readiness. |
+| 14 | End-to-end validation/demo | Complete | Final E2E test, demo script, cleanup, portfolio readiness, and three-image catalog proof. |
 
 ## Phase 2 - Local Infrastructure
 

@@ -43,13 +43,23 @@ def test_image_catalog_returns_only_authorized_available_images(
     override_user(client, users["user"])
     response = client.get("/api/v1/images")
     assert response.status_code == 200
-    assert response.json() == []
+    assert [item["id"] for item in response.json()] == ["ubuntu-base"]
+
+    override_user(client, users["developer"])
+    response = client.get("/api/v1/images")
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()] == ["ubuntu-base", "ubuntu-developer"]
 
     override_user(client, users["devops"])
     response = client.get("/api/v1/images")
     assert response.status_code == 200
     payload = response.json()
-    assert [item["id"] for item in payload] == ["ubuntu-devops"]
+    assert [item["id"] for item in payload] == ["ubuntu-base", "ubuntu-developer", "ubuntu-devops"]
+
+    override_user(client, users["admin"])
+    response = client.get("/api/v1/images")
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()] == ["ubuntu-base", "ubuntu-developer", "ubuntu-devops"]
 
 
 def test_launch_requires_idempotency_key(client: TestClient) -> None:
@@ -210,7 +220,7 @@ def test_app_factory_exposes_health() -> None:
     with TestClient(app) as client:
         response = client.get("/api/v1/health")
     assert response.status_code == 200
-    assert response.json()["version"] == "0.12.0"
+    assert response.json()["version"] == "0.14.0"
     assert response.headers["x-content-type-options"] == "nosniff"
     assert response.headers["referrer-policy"] == "strict-origin-when-cross-origin"
     assert "max-age=" in response.headers["strict-transport-security"]
