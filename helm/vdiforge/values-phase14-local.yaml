@@ -1,0 +1,10 @@
+platformConfig:
+  validationMarker: phase14-final-demo
+
+api:
+  image:
+    tag: "0.14.0"
+
+provisioner:
+  image:
+    tag: "0.14.0"

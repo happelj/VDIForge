@@ -254,7 +254,13 @@ middleware_resources_exist() {
 api_version_is_phase12() {
   local body
   body="$(curl -fsS --cacert "${CA_CERT}" --resolve "${API_HOST}:443:${INGRESS_IP}" "https://${API_HOST}/api/v1/health")"
-  grep -q '"version":"0.12.0"' <<<"${body}"
+  python3 - "${body}" <<'PY'
+import json
+import sys
+
+version = tuple(int(part) for part in json.loads(sys.argv[1])["version"].split("."))
+raise SystemExit(0 if version >= (0, 12, 0) else 1)
+PY
 }
 
 portal_https_works() {
@@ -402,7 +408,7 @@ check "API rollout" kubectl -n "${RELEASE_NAMESPACE}" rollout status deployment/
 check "provisioner rollout" kubectl -n "${RELEASE_NAMESPACE}" rollout status deployment/vdiforge-provisioner --timeout=600s
 check "frontend rollout" kubectl -n "${RELEASE_NAMESPACE}" rollout status deployment/vdiforge-frontend --timeout=600s
 check "Guacamole rollout" kubectl -n guacamole rollout status deployment/vdiforge-guacamole --timeout=600s
-check "API reports version 0.12.0" api_version_is_phase12
+check "API reports at least the Phase 12 API version" api_version_is_phase12
 check "Phase 12 security middleware resources exist" middleware_resources_exist
 check "Keycloak Phase 12 hardening applied" apply_keycloak_hardening
 

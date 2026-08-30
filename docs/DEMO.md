@@ -1,62 +1,124 @@
-# Portfolio Demo Plan
+# VDIForge Final Demo Plan
 
-This document defines the target final VDIForge portfolio demonstration. The demo is planned for approximately 10 minutes after implementation phases are complete.
+This document defines the Phase 14 final portfolio demonstration. It is designed for a 10 to 12 minute walkthrough on the local VirtualBox/Kubernetes lab.
 
 ## Demo Goals
 
-- Show the architecture clearly.
-- Prove the system uses Kubernetes and KubeVirt for VM lifecycle management.
-- Show that users authenticate through Keycloak.
-- Demonstrate RBAC-controlled image access.
-- Launch an Ubuntu DevOps desktop.
-- Connect through a browser-based remote desktop session.
-- Prove DevOps tools execute on the remote VM, not on the thin client.
-- Show HPA behavior under controlled API load.
-- Show Grafana and audit evidence.
-- Delete the desktop and verify cleanup.
+- Show the three-node Kubernetes/KubeVirt architecture.
+- Prove users authenticate through Keycloak and receive role-based image access.
+- Launch a KubeVirt-backed Ubuntu DevOps desktop from the React portal.
+- Connect through Apache Guacamole in a browser without exposing reusable remote-desktop credentials.
+- Prove Terraform, Helm, kubectl, Python, and Git execute inside the remote VDI VM, not on the client.
+- Show HPA, Prometheus/Grafana, and audit evidence.
+- Delete the desktop and verify Kubernetes cleanup.
 
 ## Pre-Flight Checklist
 
-Validate before an interview:
+Run these before an interview or recording.
 
-- `git status` is clean on the demo branch or release tag.
-- Three Kubernetes nodes are Ready.
-- Node labels exist:
-  - `vdiforge.io/node-role=platform`
-  - `vdiforge.io/node-role=vdi`
-- KubeVirt is available.
-- `/dev/kvm` is available on the VDI worker, or the demo is explicitly marked as using slow development emulation.
-- Keycloak realm `vdiforge` exists.
-- Demo users exist and have expected roles.
-- Image catalog contains Ubuntu Base, Ubuntu Developer, and Ubuntu DevOps.
-- Ubuntu DevOps image has passed validation.
-- `ubuntu-devops:1.2.0` source PVC exists for the current portal remote desktop demo path.
-- Guacamole and guacd are healthy.
-- `remote.vdiforge.local` resolves to the local ingress endpoint from the demo client.
-- Prometheus targets are up.
-- Grafana dashboard loads.
-- HPA is configured for the API demo.
-- The HPA load test path cannot create desktops.
-- Audit events are visible.
-- Thin-client VM or laptop has only a browser and normal network tooling.
-- Thin client does not have Terraform, Helm, kubectl, backend tools, or development Python environment installed.
-- A cleanup command or UI path has been tested.
+1. Confirm the Windows hosts file or local DNS maps the demo names to the ingress IP:
 
-## 10-Minute Demo Script
+   ```text
+   192.168.56.11 vdiforge.local api.vdiforge.local auth.vdiforge.local remote.vdiforge.local grafana.vdiforge.local
+   ```
 
-### 1. Architecture, 45 seconds
+2. Confirm all three nodes are ready:
 
-Show [ARCHITECTURE.md](ARCHITECTURE.md) and explain the flow:
+   ```bash
+   kubectl get nodes -o wide
+   ```
 
-```text
-Browser -> Portal -> Keycloak -> FastAPI -> Provisioner -> Kubernetes -> KubeVirt -> Ubuntu VM -> Guacamole -> Browser
+3. Confirm placement labels:
+
+   ```bash
+   kubectl get nodes --show-labels
+   ```
+
+4. Confirm KubeVirt, CDI, Metrics Server, Keycloak, API, provisioner, frontend, Guacamole, and monitoring are healthy:
+
+   ```bash
+   kubectl get pods -A
+   kubectl get kubevirt -n kubevirt
+   kubectl get cdi -n cdi
+   kubectl top nodes
+   helm list -A
+   ```
+
+5. Confirm final source images exist:
+
+   ```bash
+   kubectl -n vdiforge-desktops get datavolume,pvc
+   ```
+
+   Expected current demo source PVCs:
+
+   | Image | Version | Source PVC |
+   | --- | --- | --- |
+   | Ubuntu Base | `1.0.0` | `vdiforge-golden-ubuntu-base-1-0-0` |
+   | Ubuntu Developer | `1.0.0` | `vdiforge-golden-ubuntu-developer-1-0-0` |
+   | Ubuntu DevOps | `1.2.0` | `vdiforge-golden-ubuntu-devops-1-2-0` |
+
+   On the current 60 GiB VDI worker, repeated demo validation may require freeing superseded generated DevOps `1.0.0` and `1.1.0` QCOW2 artifacts from the ignored Phase 6 build directory after those versions are no longer active source PVCs. The `PHASE14_CLEANUP_SUPERSEDED_DEVOPS=true` validation path removes only those superseded generated artifacts and preserves the current DevOps `1.2.0` source PVC.
+
+6. Confirm API image catalog authorization:
+
+   ```bash
+   python3 scripts/phase14-role-image-test.py \
+     --env ~/vdiforge-phase5-validation/.local/phase5/phase5.env \
+     --ca ~/vdiforge-phase5-validation/.local/phase5/tls/vdiforge-local-ca.crt \
+     --resolve-ip 192.168.56.11
+   ```
+
+7. Confirm the portal opens:
+
+   ```text
+   https://vdiforge.local
+   ```
+
+8. Confirm Grafana opens:
+
+   ```text
+   https://grafana.vdiforge.local
+   ```
+
+9. Confirm no stale running demo desktop needs cleanup:
+
+   ```bash
+   kubectl -n vdiforge-desktops get vm,vmi,svc,pvc
+   ```
+
+## Demo Accounts
+
+Credentials are generated locally and are not committed to Git. Retrieve them on `vdi-control-01` from the Phase 5 environment file:
+
+```bash
+grep -E 'DEMO_(USER|DEVELOPER|DEVOPS|ADMIN)_PASSWORD' ~/vdiforge-phase5-validation/.local/phase5/phase5.env
 ```
 
-State clearly that the browser receives a remote session. The Ubuntu OS and applications run on the remote VM.
+Use these usernames:
 
-### 2. Cluster, 45 seconds
+| User | Role Intent | Expected Images |
+| --- | --- | --- |
+| `demo-user` | ordinary VDI user | Ubuntu Base |
+| `demo-developer` | developer user | Ubuntu Base, Ubuntu Developer |
+| `demo-devops` | platform/DevOps user | Ubuntu Base, Ubuntu Developer, Ubuntu DevOps |
+| `demo-admin` | VDI administrator | Ubuntu Base, Ubuntu Developer, Ubuntu DevOps |
 
-Show:
+## Numbered Demo Script
+
+### 1. Open With The Architecture
+
+Show the architecture diagram in [ARCHITECTURE.md](ARCHITECTURE.md) or explain:
+
+```text
+Browser -> React portal -> Keycloak -> FastAPI -> Provisioner -> Kubernetes -> KubeVirt -> Ubuntu VM -> xrdp -> Guacamole -> Browser
+```
+
+Say explicitly: the client does not download or boot Ubuntu. The Ubuntu desktop runs in a remote KubeVirt VM; the browser receives a remote graphical session and sends keyboard/mouse input.
+
+### 2. Show The Cluster
+
+Run:
 
 ```bash
 kubectl get nodes -o wide
@@ -65,84 +127,82 @@ kubectl get nodes --show-labels
 
 Point out:
 
-- one control-plane node
-- two worker nodes
-- platform and VDI labels
-- local lab is not production HA
+- `vdi-control-01` is the control-plane node.
+- `vdi-worker-01` is the platform worker.
+- `vdi-worker-02` is the VDI/KubeVirt worker.
+- This is not a production HA control plane and all VMs share one physical host.
 
-### 3. KubeVirt, 45 seconds
+### 3. Show KubeVirt And KVM
 
-Show:
-
-```bash
-kubectl -n kubevirt get pods
-kubectl api-resources | grep -i kubevirt
-kubectl -n vdiforge-desktops get vm,vmi
-```
-
-Explain that KubeVirt provides VM lifecycle integration through Kubernetes.
-
-### 4. Thin Client, 30 seconds
-
-Show the thin-client VM or laptop. It should have:
-
-- lightweight OS
-- browser
-- network access
-
-It should not have platform engineering tools installed locally.
-
-### 5. Keycloak Login, 45 seconds
-
-Open VDIForge from the thin client. Authenticate as:
-
-```text
-demo-devops
-```
-
-Show that login redirects through Keycloak.
-
-### 6. Image Catalog, 45 seconds
-
-Show the authorized images. As `demo-devops`, the user should see:
-
-- Ubuntu Base
-- Ubuntu Developer
-- Ubuntu DevOps
-
-Optionally show that `demo-user` cannot see Ubuntu Developer or Ubuntu DevOps.
-
-### 7. Launch Ubuntu DevOps, 60 seconds
-
-Select:
-
-```text
-Image: Ubuntu DevOps
-Profile: approved MVP profile
-```
-
-Click Launch. Show that the API returns quickly and the desktop enters provisioning.
-
-### 8. VM Appears in Kubernetes, 60 seconds
-
-Show:
+Run:
 
 ```bash
-kubectl -n vdiforge-desktops get vm,vmi,pvc,svc
-kubectl -n vdiforge-desktops describe vm <desktop-vm-name>
+kubectl get kubevirt -n kubevirt
+kubectl get node vdi-worker-02 -o jsonpath='{.status.allocatable.devices\.kubevirt\.io/kvm}{"\n"}'
 ```
 
-Explain desired state vs observed VM state.
+Expected result: KubeVirt is available and the KVM resource exists on `vdi-worker-02`.
 
-### 9. READY and Connect, 60 seconds
+### 4. Show Role-Based Image Visibility
 
-Return to the portal and show the desktop reaching READY. Click Connect.
+Open:
 
-Show the browser-based session through Guacamole by clicking Connect in the React portal. The portal opens the API-returned brokered URL from `POST /api/v1/desktops/{id}/connect`.
+```text
+https://vdiforge.local
+```
 
-### 10. Remote Terminal Proof, 90 seconds
+Login through Keycloak and show these views:
 
-Inside the remote Ubuntu desktop, open a terminal and run:
+1. Login as `demo-user`: only Ubuntu Base should appear.
+2. Logout.
+3. Login as `demo-developer`: Ubuntu Base and Ubuntu Developer should appear.
+4. Logout.
+5. Login as `demo-devops`: Ubuntu Base, Ubuntu Developer, and Ubuntu DevOps should appear.
+
+Optional admin proof: login as `demo-admin` and show the same three images plus admin desktop visibility behavior where applicable.
+
+### 5. Launch Ubuntu DevOps
+
+As `demo-devops`, choose Ubuntu DevOps and click Launch.
+
+Expected behavior:
+
+- Portal accepts the launch.
+- API returns quickly.
+- Desktop appears in the lifecycle list.
+- State progresses through `Requested`, `Provisioning`, `Booting`, and `Ready`.
+
+### 6. Watch Kubernetes Resources
+
+In a terminal on `vdi-control-01`, run:
+
+```bash
+watch -n 2 'kubectl -n vdiforge-desktops get vm,vmi,dv,pvc,svc'
+```
+
+Expected behavior:
+
+- A KubeVirt `VirtualMachine` appears.
+- A `VirtualMachineInstance` schedules on `vdi-worker-02`.
+- A cloned DataVolume/PVC appears for the desktop root disk.
+- A ClusterIP Service exposes the desktop RDP endpoint inside the cluster.
+
+### 7. Connect Through Guacamole
+
+When the portal shows `Ready`, click Connect.
+
+Expected behavior:
+
+- Browser opens `remote.vdiforge.local`.
+- Guacamole uses the API-brokered connection handoff.
+- No reusable xrdp password is visible in the portal or browser URL.
+- The remote Ubuntu desktop appears.
+
+If Guacamole shows a login screen, use the newly generated connection URL from the portal rather than a stale tab. If the browser reports that a connection does not exist, close that tab and click Connect again from the current Ready desktop row.
+
+### 8. Prove Tools Run Remotely
+
+Inside the remote Ubuntu DevOps desktop, open a terminal and run:
 
 ```bash
 hostname
@@ -153,70 +213,118 @@ python --version
 git --version
 ```
 
-Explain that these commands run on the remote Ubuntu DevOps VM. The thin client is only rendering the browser session and sending input.
+Explain that these commands execute inside the remote VDI VM. The thin client only needs a browser and network access.
 
-### 11. HPA Demo, 60 seconds
+### 9. Show HPA
 
-Run controlled load against a safe API endpoint that does not create desktops.
-
-Show:
+Run the safe load test from `vdi-control-01`:
 
 ```bash
-kubectl -n vdiforge-system get hpa
-kubectl -n vdiforge-system get deploy vdiforge-api
+python3 scripts/load-test-api.py \
+  --env ~/vdiforge-phase5-validation/.local/phase5/phase5.env \
+  --ca ~/vdiforge-phase5-validation/.local/phase5/tls/vdiforge-local-ca.crt \
+  --resolve-ip 192.168.56.11 \
+  --duration 60 \
+  --concurrency 8 \
+  --iterations 150000
 ```
 
-Show replicas increase under load and begin scaling down after load stops.
+In another terminal, watch:
 
-### 12. Grafana, 45 seconds
+```bash
+watch -n 5 'kubectl -n vdiforge-system get hpa,deploy vdiforge-api'
+```
 
-Open Grafana and show:
+This load endpoint is intentionally safe and does not launch desktops.
+
+### 10. Show Grafana
+
+Open:
+
+```text
+https://grafana.vdiforge.local
+```
+
+Open the `VDIForge Overview` dashboard. Use `Last 24 hours` if a shorter range shows no data.
+
+Point out:
 
 - active desktops
-- provisioning latency
-- API request rate
+- desktops by state
+- API request rate and latency
 - API error rate
-- HPA desired/current replicas
+- provisioning requests and latency
+- API replicas and HPA desired/current replicas
 - worker-node CPU/memory
-- active remote sessions
+- KubeVirt and remote-session related signals where visible
 
-### 13. Audit Event, 45 seconds
+### 11. Show Audit Evidence
 
-Show an audit event for:
-
-- `DESKTOP_REQUESTED`
-- `DESKTOP_CONNECTION_REQUESTED`
-- or `DESKTOP_DELETED`
-
-Point out request ID, user ID, action, resource ID, result, and timestamp.
-
-### 14. Delete and Cleanup, 60 seconds
-
-Delete the desktop from the portal. Show:
+Use the portal/admin API or export path to show audit records. From `vdi-control-01`, run the Phase 12 security/audit validation if you need a scripted proof:
 
 ```bash
-kubectl -n vdiforge-desktops get vm,vmi,pvc,svc
+python3 scripts/phase12-api-security-test.py \
+  --env ~/vdiforge-phase5-validation/.local/phase5/phase5.env \
+  --ca ~/vdiforge-phase5-validation/.local/phase5/tls/vdiforge-local-ca.crt \
+  --resolve-ip 192.168.56.11
 ```
 
-Verify the associated resources are removed or marked for cleanup according to policy.
+Expected audit concepts:
 
-## Failure Talking Points
+- desktop requested
+- desktop created or started
+- connection requested
+- denied cross-user or guessed-ID access
+- desktop stopped/deleted
+- event hashes present
+- no password, token, or xrdp credential appears
 
-Be prepared to explain:
+### 12. Delete The Desktop
 
-- what happens when capacity is insufficient
-- what happens when the image is unavailable
-- why HPA is separate from node autoscaling
-- why KubeVirt needs KVM or development emulation
-- why Guacamole is not PCoIP
-- why local three-node topology is not production HA
+Return to the portal and delete the demo desktop.
 
-## Demo Evidence to Capture
+Watch cleanup:
 
-- screenshot of Ready nodes
-- screenshot of KubeVirt resources
-- screenshot of image catalog
-- screenshot of remote Ubuntu DevOps terminal
-- screenshot of Grafana dashboard
-- audit event row or JSON record
-- cleanup command output
+```bash
+watch -n 2 'kubectl -n vdiforge-desktops get vm,vmi,dv,pvc,svc'
+```
+
+Expected behavior:
+
+- Per-desktop VM/VMI/DataVolume/PVC/Service resources are removed.
+- Source image PVCs remain.
+- The API history may still show deleted records because audit/state history is retained.
+
+### 13. Close The Demo
+
+State the main engineering boundary:
+
+- VDIForge is a free local portfolio lab, not a production commercial VDI product.
+- The local cluster is not HA.
+- HPA scales API pods, not worker nodes.
+- KubeVirt provides VM lifecycle, not Kubernetes itself as a hypervisor.
+- Guacamole/RDP is a free browser remote desktop path, not PCoIP.
+
+## Final Validation Command
+
+Run this on `vdi-control-01` from the Phase 14 repository checkout:
+
+```bash
+bash scripts/validate-phase14-live.sh
+```
+
+This performs automated live validation for cluster health, source image PVC readiness, role/image catalog policy, DevOps remote desktop lifecycle, HPA/load regression, security/audit export regression, and final platform health.
+
+Manual browser proof is still part of the portfolio demo because automated API checks cannot fully prove the human-visible remote desktop experience.
+
+## Evidence To Capture
+
+- `kubectl get nodes -o wide`
+- `kubectl get nodes --show-labels`
+- final image catalog by role
+- portal desktop lifecycle reaching `Ready`
+- KubeVirt VM/VMI scheduled on `vdi-worker-02`
+- remote Ubuntu DevOps terminal with tool versions
+- Grafana `VDIForge Overview` dashboard
+- audit event/export showing lifecycle and connection events
+- cleanup output after deleting the desktop

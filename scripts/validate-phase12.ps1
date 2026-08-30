@@ -132,17 +132,21 @@ if ($trackedArtifacts) {
 }
 
 $chart = Get-Content "helm/vdiforge/Chart.yaml" -Raw
-if ($chart -match "version:\s+0\.12\.0" -and $chart -match "appVersion:\s+`"0\.12\.0`"") {
-    Pass "Helm chart version advanced to 0.12.0"
+$chartVersion = if ($chart -match "(?m)^version:\s+([0-9]+\.[0-9]+\.[0-9]+)") { [version]$Matches[1] } else { $null }
+$appVersion = if ($chart -match "(?m)^appVersion:\s+`"?([0-9]+\.[0-9]+\.[0-9]+)`"?") { [version]$Matches[1] } else { $null }
+$phase12Baseline = [version]"0.12.0"
+if ($chartVersion -and $appVersion -and $chartVersion -ge $phase12Baseline -and $appVersion -ge $phase12Baseline) {
+    Pass "Helm chart version remains at or above the Phase 12 baseline"
 } else {
-    Fail "Helm chart version/appVersion is not 0.12.0"
+    Fail "Helm chart version/appVersion is below the Phase 12 baseline"
 }
 
 $pyproject = Get-Content "backend/pyproject.toml" -Raw
-if ($pyproject -match 'version = "0\.12\.0"') {
-    Pass "backend package version advanced to 0.12.0"
+$backendVersion = if ($pyproject -match '(?m)^version = "([0-9]+\.[0-9]+\.[0-9]+)"') { [version]$Matches[1] } else { $null }
+if ($backendVersion -and $backendVersion -ge $phase12Baseline) {
+    Pass "backend package version remains at or above the Phase 12 baseline"
 } else {
-    Fail "backend package version is not 0.12.0"
+    Fail "backend package version is below the Phase 12 baseline"
 }
 
 Check-ContentPresent "backend/app/api/routes.py" "RATE_LIMIT_EXCEEDED" "API implements high-impact operation rate limiting"

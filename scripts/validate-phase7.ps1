@@ -142,11 +142,11 @@ $catalog = Get-Content "images/catalog.json" -Raw | ConvertFrom-Json
 $availableDevops = $catalog.images |
     Where-Object { $_.id -eq "ubuntu-devops" } |
     ForEach-Object { $_.versions } |
-    Where-Object { $_.version -eq "1.0.0" -and $_.lifecycle -eq "available" -and $_.sourcePvcName }
+    Where-Object { $_.lifecycle -eq "available" -and $_.sourcePvcName }
 if ($availableDevops) {
-    Pass "ubuntu-devops:1.0.0 is launchable and references a source PVC"
+    Pass "ubuntu-devops has a current launchable version with a source PVC"
 } else {
-    Fail "ubuntu-devops:1.0.0 is not launchable or lacks sourcePvcName"
+    Fail "ubuntu-devops has no current launchable version with sourcePvcName"
 }
 
 if (Get-Command python -ErrorAction SilentlyContinue) {

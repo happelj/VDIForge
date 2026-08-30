@@ -12,7 +12,7 @@ Helm runs from the administrative environment, currently `vdi-control-01`.
 | Helm Kubernetes client | `v1.36` |
 | Kubernetes cluster | `v1.36.4` |
 | Chart | `helm/vdiforge` |
-| Chart version | `0.11.0` |
+| Chart version | `0.14.0` |
 | Release | `vdiforge` |
 | Release namespace | `vdiforge-system` |
 | Foundation values | `helm/vdiforge/values-local.yaml` |

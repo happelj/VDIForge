@@ -4,6 +4,8 @@ Phase 9 implements the user-facing VDIForge portal. It provides authenticated br
 
 Phase 12 keeps the Phase 9 portal architecture and adds browser-facing security hardening through Traefik headers, restricted API CORS, and explicit token/session documentation.
 
+Phase 14 keeps the same portal implementation and validates the final role-based image catalog: `demo-user` sees Ubuntu Base, `demo-developer` sees Ubuntu Base and Ubuntu Developer, and `demo-devops` plus `demo-admin` see all three images. The DevOps `1.2.0` image remains the primary browser remote-desktop proof.
+
 ## Status
 
 | Item | Value |
@@ -16,7 +18,7 @@ Phase 12 keeps the Phase 9 portal architecture and adds browser-facing security 
 | Test runner | `Vitest 4.1.10` |
 | Browser E2E | `Playwright 1.62.1` |
 | Container image | `localhost/vdiforge-frontend:0.9.0` |
-| Helm chart | `helm/vdiforge` version `0.12.0` |
+| Helm chart | `helm/vdiforge` version `0.14.0` |
 | Runtime config | ConfigMap-mounted `/runtime-config.js` |
 
 ## Architecture

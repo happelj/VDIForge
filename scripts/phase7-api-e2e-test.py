@@ -25,6 +25,7 @@ REDIRECT_URI = "https://vdiforge.local/oidc/callback"
 ISSUER = f"https://{AUTH_HOST}/realms/{REALM}"
 PASSWORD_ENV = {
     "demo-user": "DEMO_USER_PASSWORD",
+    "demo-developer": "DEMO_DEVELOPER_PASSWORD",
     "demo-devops": "DEMO_DEVOPS_PASSWORD",
     "demo-admin": "DEMO_ADMIN_PASSWORD",
 }
@@ -387,12 +388,20 @@ def main() -> int:
     cleanup_previous_test_desktops(opener, tokens)
 
     status, payload = api_request(opener, "GET", "/api/v1/images", tokens["demo-user"])
-    if status != 200 or payload:
+    user_images = {item["id"] for item in payload} if status == 200 else set()
+    if status != 200 or "ubuntu-devops" in user_images:
         raise AssertionError(f"demo-user should not see ubuntu-devops: {status} {payload}")
     print("PASS: demo-user image catalog is filtered")
 
+    status, payload = api_request(opener, "GET", "/api/v1/images", tokens["demo-developer"])
+    developer_images = {item["id"] for item in payload} if status == 200 else set()
+    if status != 200 or "ubuntu-devops" in developer_images:
+        raise AssertionError(f"demo-developer should not see ubuntu-devops: {status} {payload}")
+    print("PASS: demo-developer image catalog excludes DevOps-only image")
+
     status, payload = api_request(opener, "GET", "/api/v1/images", tokens["demo-devops"])
-    if status != 200 or [item["id"] for item in payload] != ["ubuntu-devops"]:
+    devops_images = {item["id"] for item in payload} if status == 200 else set()
+    if status != 200 or "ubuntu-devops" not in devops_images:
         raise AssertionError(f"demo-devops image catalog mismatch: {status} {payload}")
     print("PASS: demo-devops sees authorized available image")
 

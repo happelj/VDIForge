@@ -15,7 +15,7 @@ Phase 12 preserves this architecture and adds validation around per-desktop cred
 | Namespace | `guacamole` |
 | Public hostname | `remote.vdiforge.local` |
 | Protocol | RDP through `xrdp` |
-| API version | `0.12.0` |
+| API version | `0.14.0` |
 | Session TTL | 300 seconds |
 | Runtime secret | `vdiforge-guacamole-json-secret` |
 | TLS secret | `vdiforge-guacamole-tls` |
@@ -221,7 +221,7 @@ The live validator checks:
 - Guacamole restart persistence
 - NetworkPolicy allow/deny behavior
 - `ubuntu-devops:1.2.0` source PVC preparation
-- API image `localhost/vdiforge-api:0.9.0`
+- API image `localhost/vdiforge-api:0.14.0`
 - desktop launch to `READY`
 - VM placement on `vdi-worker-02`
 - KVM request on the virt-launcher pod

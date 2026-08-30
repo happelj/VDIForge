@@ -58,17 +58,18 @@ def catalog_path(tmp_path: Path) -> Path:
                                 "ubuntuRelease": "26.04 LTS",
                                 "architecture": "amd64",
                                 "artifactFormat": "qcow2",
-                                "lifecycle": "candidate",
+                                "lifecycle": "available",
                                 "manifestPath": "artifacts/images/ubuntu-base/1.0.0/ubuntu-base-1.0.0.manifest.json",
+                                "sourcePvcName": "vdiforge-golden-ubuntu-base-1-0-0",
                             }
                         ],
                     },
                     {
-                        "id": "ubuntu-devops",
-                        "displayName": "Ubuntu DevOps",
+                        "id": "ubuntu-developer",
+                        "displayName": "Ubuntu Developer",
                         "defaultVersion": "1.0.0",
-                        "description": "DevOps desktop",
-                        "allowedRoles": ["vdi-devops", "vdi-admin"],
+                        "description": "Developer desktop",
+                        "allowedRoles": ["vdi-developer", "vdi-devops", "vdi-admin"],
                         "versions": [
                             {
                                 "version": "1.0.0",
@@ -77,10 +78,31 @@ def catalog_path(tmp_path: Path) -> Path:
                                 "artifactFormat": "qcow2",
                                 "lifecycle": "available",
                                 "manifestPath": (
-                                    "artifacts/images/ubuntu-devops/1.0.0/"
-                                    "ubuntu-devops-1.0.0.manifest.json"
+                                    "artifacts/images/ubuntu-developer/1.0.0/"
+                                    "ubuntu-developer-1.0.0.manifest.json"
                                 ),
-                                "sourcePvcName": "vdiforge-golden-ubuntu-devops-1-0-0",
+                                "sourcePvcName": "vdiforge-golden-ubuntu-developer-1-0-0",
+                            }
+                        ],
+                    },
+                    {
+                        "id": "ubuntu-devops",
+                        "displayName": "Ubuntu DevOps",
+                        "defaultVersion": "1.2.0",
+                        "description": "DevOps desktop",
+                        "allowedRoles": ["vdi-devops", "vdi-admin"],
+                        "versions": [
+                            {
+                                "version": "1.2.0",
+                                "ubuntuRelease": "26.04 LTS",
+                                "architecture": "amd64",
+                                "artifactFormat": "qcow2",
+                                "lifecycle": "available",
+                                "manifestPath": (
+                                    "artifacts/images/ubuntu-devops/1.2.0/"
+                                    "ubuntu-devops-1.2.0.manifest.json"
+                                ),
+                                "sourcePvcName": "vdiforge-golden-ubuntu-devops-1-2-0",
                             }
                         ],
                     },
@@ -120,6 +142,11 @@ def db_session() -> Generator[Session]:
 def users() -> dict[str, AuthenticatedUser]:
     return {
         "user": AuthenticatedUser("sub-user", "demo-user", frozenset({"vdi-user"})),
+        "developer": AuthenticatedUser(
+            "sub-developer",
+            "demo-developer",
+            frozenset({"vdi-user", "vdi-developer"}),
+        ),
         "devops": AuthenticatedUser(
             "sub-devops",
             "demo-devops",

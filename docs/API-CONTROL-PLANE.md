@@ -1,8 +1,8 @@
 # FastAPI VDI Control Plane
 
-Phase 7 implements the first VDIForge application service: a FastAPI API, PostgreSQL persistence, and an asynchronous provisioner that reconciles VDIForge desktop records into KubeVirt resources. Phase 8 extends that API with remote desktop session brokering for Apache Guacamole. Phase 9 adds browser portal support, including CORS for `https://vdiforge.local` and the `ubuntu-devops:1.2.0` default image. Phase 10 adds API autoscaling support and a protected local-only load-test endpoint. Phase 11 adds Prometheus client instrumentation for the API and provisioner. Phase 12 adds security and audit hardening.
+Phase 7 implements the first VDIForge application service: a FastAPI API, PostgreSQL persistence, and an asynchronous provisioner that reconciles VDIForge desktop records into KubeVirt resources. Phase 8 extends that API with remote desktop session brokering for Apache Guacamole. Phase 9 adds browser portal support, including CORS for `https://vdiforge.local` and the `ubuntu-devops:1.2.0` default image. Phase 10 adds API autoscaling support and a protected local-only load-test endpoint. Phase 11 adds Prometheus client instrumentation for the API and provisioner. Phase 12 adds security and audit hardening. Phase 14 promotes the final three-image catalog for the portfolio demo.
 
-This document covers the backend control plane through Phase 12. Final CI/CD integration and production-grade external security services remain later phases.
+This document covers the backend control plane through Phase 14. Production-grade external security services remain future enhancements.
 
 ## Version Pins
 
@@ -94,10 +94,10 @@ Current launchable image state:
 
 | Image | Version | Catalog lifecycle | Source PVC | Launchable |
 | --- | --- | --- | --- | --- |
-| `ubuntu-base` | `1.0.0` | `candidate` | not created | no |
-| `ubuntu-developer` | `1.0.0` | `candidate` | not created | no |
-| `ubuntu-devops` | `1.0.0` | `available` | `vdiforge-golden-ubuntu-devops-1-0-0` | retained for rollback/history |
-| `ubuntu-devops` | `1.1.0` | `available` | `vdiforge-golden-ubuntu-devops-1-1-0` | retained for rollback/history |
+| `ubuntu-base` | `1.0.0` | `available` | `vdiforge-golden-ubuntu-base-1-0-0` | current default for `vdi-user`, `vdi-developer`, `vdi-devops`, and `vdi-admin` |
+| `ubuntu-developer` | `1.0.0` | `available` | `vdiforge-golden-ubuntu-developer-1-0-0` | current default for `vdi-developer`, `vdi-devops`, and `vdi-admin` |
+| `ubuntu-devops` | `1.0.0` | `deprecated` | not advertised | retained as catalog history |
+| `ubuntu-devops` | `1.1.0` | `deprecated` | not advertised | retained as catalog history |
 | `ubuntu-devops` | `1.2.0` | `available` | `vdiforge-golden-ubuntu-devops-1-2-0` | current default for `vdi-devops` and `vdi-admin` |
 
 ## Desktop State
@@ -222,7 +222,7 @@ Phase 11 enables Prometheus/Grafana observability by adding `values-phase11-loca
 bash scripts/phase11-install-monitoring.sh
 ```
 
-When Phase 12 values are applied, the API/provisioner image tag is `localhost/vdiforge-api:0.12.0`. The API exposes Prometheus metrics through `/metrics`; the provisioner exposes a separate metrics server on port `9102`. The Helm chart creates ServiceMonitors for both endpoints.
+When Phase 14 values are applied, the API/provisioner image tag is `localhost/vdiforge-api:0.14.0`. The API exposes Prometheus metrics through `/metrics`; the provisioner exposes a separate metrics server on port `9102`. The Helm chart creates ServiceMonitors for both endpoints.
 
 Implemented VDIForge metric families:
 
@@ -353,7 +353,7 @@ Phase 11 live validation adds:
 
 Phase 12 live validation adds:
 
-- API version `0.12.0` rollout
+- API version `0.14.0` rollout
 - security header and CORS validation
 - missing/tampered token denial
 - unsafe input and malformed UUID denial

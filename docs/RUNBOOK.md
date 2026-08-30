@@ -668,8 +668,8 @@ This runbook defines troubleshooting procedures for the VDIForge local lab and p
 | --- | --- |
 | Symptoms | Admin audit export fails, non-admin can read audit data, audit records lack `event_hash`, or exported audit data contains sensitive fields. |
 | Likely causes | Migration `0002_phase12_audit_integrity` did not run, API image is stale, admin role claim mismatch, redaction regression, or database connectivity failure. |
-| Diagnostics | `kubectl -n vdiforge-system logs job/vdiforge-api-migrations`; `kubectl -n vdiforge-system logs deploy/vdiforge-api`; call `/api/v1/audit-events` and `/api/v1/audit-events/export` as admin and non-admin users; verify API health reports version `0.12.0`. |
-| Remediation | Re-run the migration job through Helm, rebuild/load the Phase 12 API image, verify Keycloak role claims, and rerun `scripts/phase12-api-security-test.py`. Do not manually edit audit rows as a normal remediation step. |
+| Diagnostics | `kubectl -n vdiforge-system logs job/vdiforge-api-migrations`; `kubectl -n vdiforge-system logs deploy/vdiforge-api`; call `/api/v1/audit-events` and `/api/v1/audit-events/export` as admin and non-admin users; verify API health reports the expected active phase version, currently `0.14.0` for Phase 14. |
+| Remediation | Re-run the migration job through Helm, rebuild/load the current API image, verify Keycloak role claims, and rerun `scripts/phase12-api-security-test.py` or the active phase live validator. Do not manually edit audit rows as a normal remediation step. |
 | Logs/metrics | API logs, migration job logs, audit endpoint response, PostgreSQL connection errors. |
 
 ## Phase 12 Dependency or Container Scan Finding

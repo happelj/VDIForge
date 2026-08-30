@@ -1,6 +1,6 @@
 # Golden Images
 
-This document records the Phase 6 Ubuntu golden-image pipeline for VDIForge. It covers image definitions, build environment, artifact format, validation, CDI import, and KubeVirt boot proof. Phase 8 reused the image pipeline to produce a remote-enabled DevOps image version for Guacamole/RDP validation, and Phase 9 promotes `ubuntu-devops:1.2.0` with the permanent XFCE/xrdp session fix for portal-launched desktops.
+This document records the Ubuntu golden-image pipeline for VDIForge. It covers image definitions, build environment, artifact format, validation, CDI import, KubeVirt boot proof, and final Phase 14 catalog promotion. Phase 8 reused the image pipeline to produce a remote-enabled DevOps image version for Guacamole/RDP validation, Phase 9 promoted `ubuntu-devops:1.2.0` with the permanent XFCE/xrdp session fix for portal-launched desktops, and Phase 14 promotes Base and Developer source PVCs for the final role-based demo.
 
 ## Status
 
@@ -8,11 +8,11 @@ Phase 6 adds source-controlled image definitions and validation automation for:
 
 | Image | Version | Purpose |
 | --- | --- | --- |
-| `ubuntu-base` | `1.0.0` | Minimal Ubuntu desktop foundation. |
+| `ubuntu-base` | `1.0.0` | Minimal Ubuntu desktop foundation and final `vdi-user` demo image. |
 | `ubuntu-developer` | `1.0.0` | Developer desktop with Git, Python, build tools, and Geany. |
-| `ubuntu-devops` | `1.0.0` | Platform desktop with Terraform, Ansible, kubectl, Helm, Git, and Python. |
-| `ubuntu-devops` | `1.1.0` | Phase 8 remote-enabled DevOps desktop source for Guacamole/RDP validation. |
-| `ubuntu-devops` | `1.2.0` | Phase 9 current launchable DevOps desktop source with permanent XFCE/xrdp session configuration. |
+| `ubuntu-devops` | `1.0.0` | Deprecated platform desktop history from Phase 6. |
+| `ubuntu-devops` | `1.1.0` | Deprecated Phase 8 remote-enabled DevOps desktop source. |
+| `ubuntu-devops` | `1.2.0` | Current launchable DevOps desktop source with permanent XFCE/xrdp session configuration. |
 
 Generated QCOW2 artifacts and runtime manifests are produced under `artifacts/images/` and are not committed to Git.
 
@@ -148,7 +148,7 @@ Includes:
 - `qemu-guest-agent`
 - common CLI utilities
 
-Phase 6 did not connect this image to Guacamole. Phase 8 validates Guacamole/RDP against the DevOps image path, and Phase 9 connects that path to the React portal.
+Phase 14 prepares this image as a current source PVC for catalog and launch authorization demonstrations. The primary browser remote desktop proof still uses DevOps `1.2.0`.
 
 ### ubuntu-developer
 
@@ -242,11 +242,15 @@ It records:
 
 The catalog expresses image policy only. Phase 7 consumes the catalog and enforces server-side authorization.
 
-Phase 8 preserves the `ubuntu-devops:1.0.0` catalog record and adds `ubuntu-devops:1.1.0` for Guacamole/RDP validation. Phase 9 adds `ubuntu-devops:1.2.0` as the current default launchable DevOps version for portal-driven browser sessions. The current Phase 9 source PVC is:
+Phase 8 preserves the `ubuntu-devops:1.0.0` catalog record and adds `ubuntu-devops:1.1.0` for Guacamole/RDP validation. Phase 9 adds `ubuntu-devops:1.2.0` as the current default launchable DevOps version for portal-driven browser sessions. Phase 14 promotes the full final demo catalog:
 
-```text
-vdiforge-golden-ubuntu-devops-1-2-0
-```
+| Image | Version | Source PVC | Lifecycle |
+| --- | --- | --- | --- |
+| `ubuntu-base` | `1.0.0` | `vdiforge-golden-ubuntu-base-1-0-0` | `available` |
+| `ubuntu-developer` | `1.0.0` | `vdiforge-golden-ubuntu-developer-1-0-0` | `available` |
+| `ubuntu-devops` | `1.2.0` | `vdiforge-golden-ubuntu-devops-1-2-0` | `available` |
+
+`ubuntu-devops:1.0.0` and `ubuntu-devops:1.1.0` remain catalog history with deprecated lifecycle state and no current source PVC. The final demo uses local CDI imports rather than GHCR-published disk artifacts.
 
 The Phase 8/9 build wrapper sets `VDIFORGE_IMAGE_DISK_SIZE=15G` by default for remote-enabled `ubuntu-devops` images and imports that artifact into a `20Gi` CDI source DataVolume. The smaller virtual disk is a local-lab accommodation for the current 60 GiB VDI worker and the temporary scratch/clone storage CDI needs during validation. The earlier Phase 6 Packer templates still default to `24G`.
 

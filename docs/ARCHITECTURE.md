@@ -424,7 +424,7 @@ flowchart TB
   VM --> KVM
 ```
 
-Phase 6 builds `ubuntu-base`, `ubuntu-developer`, and `ubuntu-devops` image definitions. The required integration proof imports the generated `ubuntu-devops:1.0.0` QCOW2 through CDI, schedules a disposable VM by `vdiforge.io/node-role=vdi`, verifies it runs on `vdi-worker-02`, verifies the KVM request, validates DevOps tooling inside the guest, and cleans up the disposable VM resources. Phase 8 builds/imports `ubuntu-devops:1.1.0` for remote desktop validation. Phase 9 promotes `ubuntu-devops:1.2.0` as the current launchable DevOps image with the permanent XFCE/xrdp session fix.
+Phase 6 builds `ubuntu-base`, `ubuntu-developer`, and `ubuntu-devops` image definitions. The required integration proof imports the generated `ubuntu-devops:1.0.0` QCOW2 through CDI, schedules a disposable VM by `vdiforge.io/node-role=vdi`, verifies it runs on `vdi-worker-02`, verifies the KVM request, validates DevOps tooling inside the guest, and cleans up the disposable VM resources. Phase 8 builds/imports `ubuntu-devops:1.1.0` for remote desktop validation. Phase 9 promotes `ubuntu-devops:1.2.0` as the current launchable DevOps image with the permanent XFCE/xrdp session fix. Phase 14 prepares Base `1.0.0`, Developer `1.0.0`, and DevOps `1.2.0` source PVCs for the final role-based catalog demonstration.
 
 Image rollback changes the promoted version for new launches only. Running desktops are not silently modified by rollback.
 
@@ -524,4 +524,4 @@ flowchart TB
   CI -. no automatic deployment .-> LocalLab
 ```
 
-Phase 13 GitHub Actions validates code, infrastructure definitions, Helm manifests, security posture, and custom container images without connecting to the home lab. Full KubeVirt VM lifecycle, Guacamole/xrdp browser sessions, local TLS/DNS, and QCOW2 golden-image builds remain explicit local/manual validation paths.
+Phase 13 GitHub Actions validates code, infrastructure definitions, Helm manifests, security posture, and custom container images without connecting to the home lab. Full KubeVirt VM lifecycle, Guacamole/xrdp browser sessions, local TLS/DNS, and QCOW2 golden-image builds remain explicit local/manual validation paths. Phase 14 combines those local validation paths into the final portfolio demo runbook.
