@@ -177,6 +177,7 @@ Phase 14 also upgrades the API/provisioner image tag to `localhost/vdiforge-api:
 
 ## Documentation Index
 
+- [Quickstart](quickstart.md)
 - [Design](docs/DESIGN.md)
 - [Requirements](docs/REQUIREMENTS.md)
 - [Architecture](docs/ARCHITECTURE.md)
